@@ -1,0 +1,70 @@
+"""Shared interdiction semantics — traversal set and crown jewels.
+
+The traversal relationship set is the load-bearing judgment of the whole
+product: these are the relationships an attacker can chain. It mirrors
+BloodHound's abuse semantics for the rights present in the CE sample data
+and is documented explicitly in the README (rule 10).
+"""
+from __future__ import annotations
+
+from typing import Any
+
+# Relationships an attacker can actually chain (abuse semantics).
+# Structural-only edges (CONTAINED_BY, PUBLISHED_ON) are deliberately excluded.
+TRAVERSAL_RELS: tuple[str, ...] = (
+    "MEMBER_OF",
+    "GENERIC_ALL",
+    "GENERIC_WRITE",
+    "WRITE_DACL",
+    "WRITE_OWNER",
+    "OWNS",
+    "FORCE_CHANGE_PASSWORD",
+    "ALL_EXTENDED_RIGHTS",
+    "WRITE_PROPERTY",
+    "RESET_PASSWORD",
+    "GET_CHANGES",
+    "GET_CHANGES_IN_FILTERED_SET",
+    "GET_CHANGES_ALL",
+    "DCSYNC",
+    "HAS_SID_HISTORY",
+    "TRUSTED_BY",
+    "ALLOWED_TO_DELEGATE",
+    "ALLOWED_TO_ACT",
+    "ADMIN_TO",
+    "ADD_MEMBER",
+    "ADD_SELF",
+    "ADD_KEY_CREDENTIAL_LINK",
+    "ADD_ALLOWED_TO_ACT",
+    "WRITE_ACCOUNT_RESTRICTIONS",
+    "READ_GMSAPASSWORD",
+    "READ_LAPSPASSWORD",
+    "MANAGE_CA",
+    "MANAGE_CERTIFICATES",
+    "GENERIC_RIGHT",          # container-inherited generic control
+    "EXTENDED_RIGHT",
+)
+
+TRAVERSAL_RELS_SET: frozenset[str] = frozenset(TRAVERSAL_RELS)
+
+DEFAULT_HOP_CAP = 12
+
+# well-known RIDs: 512 = Domain Admins, 519 = Enterprise Admins
+CROWN_JEWEL_RIDS: tuple[str, ...] = ("-512", "-519")
+
+
+def is_crown_jewel(objectid: str) -> bool:
+    return objectid.endswith(CROWN_JEWEL_RIDS)
+
+
+def cypher_traversal_pattern(hop_cap: int = DEFAULT_HOP_CAP) -> str:
+    """Cypher relationship-type pattern for traversals (constants only — no user input)."""
+    rels = "|".join(TRAVERSAL_RELS)
+    return f"[:{rels}*1..{hop_cap}]"
+
+
+def crown_jewel_ids(nodes: dict[str, dict[str, Any]], label: str = "Group") -> list[str]:
+    """Collect crown-jewel objectids from a node dict ({oid: node})."""
+    return sorted(
+        n["objectid"] for n in nodes.values()
+        if n.get("label") == label and is_crown_jewel(n["objectid"])
+    )
