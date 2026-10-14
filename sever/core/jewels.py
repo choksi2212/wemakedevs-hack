@@ -42,6 +42,20 @@ TRAVERSAL_RELS: tuple[str, ...] = (
     "MANAGE_CERTIFICATES",
     "GENERIC_RIGHT",          # container-inherited generic control
     "EXTENDED_RIGHT",
+    # ---- hybrid Entra surface (only traversed when present) ----
+    "SYNCED_TO",              # on-prem user -> synced Entra identity (the pivot)
+    "AZOwns",
+    "AZMemberOf",
+    "AZAppRole",
+    "AZVMAdminLogin",
+    "AZVMContributor",
+    "AZVMUserAccessAdmin",
+    "AZVMAvereContributor",
+    "AZRGUserAccessAdmin",
+    "AZSubUserAccessAdmin",
+    "AZMGUserAccessAdmin",
+    "AZKVUserAccessAdmin",
+    "AZKVContributor",
 )
 
 TRAVERSAL_RELS_SET: frozenset[str] = frozenset(TRAVERSAL_RELS)
@@ -52,8 +66,14 @@ DEFAULT_HOP_CAP = 12
 CROWN_JEWEL_RIDS: tuple[str, ...] = ("-512", "-519")
 
 
-def is_crown_jewel(objectid: str) -> bool:
-    return objectid.endswith(CROWN_JEWEL_RIDS)
+def is_crown_jewel(objectid: str, label: str = "Group", name: str = "") -> bool:
+    """AD crown jewels: Domain Admins (-512) / Enterprise Admins (-519) groups.
+    Entra crown jewels: the sample's role-holder users (name ends -GlobalAdministrator)."""
+    if label == "Group":
+        return objectid.endswith(CROWN_JEWEL_RIDS)
+    if label == "AZUser":
+        return name.endswith("-GlobalAdministrator")
+    return False
 
 
 def cypher_traversal_pattern(hop_cap: int = DEFAULT_HOP_CAP) -> str:

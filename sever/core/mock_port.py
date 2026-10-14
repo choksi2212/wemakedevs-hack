@@ -80,7 +80,7 @@ class MockGraphPort(GraphPort):
     def crown_jewels(self) -> list[str]:
         return sorted(
             n for n, d in self.g.nodes(data=True)
-            if d.get("label") == "Group" and is_crown_jewel(n)
+            if is_crown_jewel(n, d.get("label", "Group"), d.get("props", {}).get("name", ""))
         )
 
     # ---- traversal core ----
