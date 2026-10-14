@@ -7,6 +7,7 @@ Semantics mirror FalkorGraphPort exactly:
 """
 from __future__ import annotations
 
+import json
 from itertools import islice
 from typing import Any
 
@@ -122,7 +123,17 @@ class MockGraphPort(GraphPort):
                     freq[hop] = freq.get(hop, 0) + 1
         return freq
 
-    # ---- interdiction ----
+    # ---- live mutation ----
+    def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
+        """Grant a new edge (finding application). Idempotent via props-key dedupe."""
+        key = f"{rel}|{json.dumps(props or {}, sort_keys=True, default=str)}"
+        if src not in self.g or dst not in self.g or self.g.has_edge(src, dst, key=key):
+            return False
+        self.g.add_edge(src, dst, key=key, rel=rel, props=props or {})
+        if rel in TRAVERSAL_RELS_SET:
+            self._invalidate()
+        return True
+
     def cut(self, src: str, dst: str, rel: str) -> int:
         """Remove every prop-variant of src-[rel]->dst. Returns count removed."""
         removed = 0

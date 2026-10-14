@@ -56,6 +56,11 @@ class GraphPort(ABC):
         """Per-edge occurrence count across all owned->jewel paths (scoring input)."""
 
     @abstractmethod
+    def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
+        """Live mutation: grant a new edge (synthetic finding application).
+        Returns True if a new edge was created."""
+
+    @abstractmethod
     def cut(self, src: str, dst: str, rel: str) -> int:
         """THE INTERDICTION (human-gated): remove edge(s) src-[rel]->dst.
         Returns number of relationships removed (0 = edge absent = no-op)."""
