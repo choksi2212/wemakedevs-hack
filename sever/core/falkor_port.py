@@ -132,7 +132,19 @@ class FalkorGraphPort(GraphPort):
                     freq[hop] = freq.get(hop, 0) + 1
         return freq
 
-    # ---- interdiction ----
+    # ---- live mutation ----
+    ADD_EDGE_QUERY = (
+        "MATCH (s {objectid: $src}), (t {objectid: $dst}) "
+        "MERGE (s)-[r:{rel}]->(t) "
+        "SET r += $props "
+        "RETURN count(r)"
+    )
+
+    def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
+        query = self.ADD_EDGE_QUERY.format(rel=rel)
+        created = int(self._scalar(query, {"src": src, "dst": dst, "props": props or {}}) or 0)
+        return created > 0
+
     def cut(self, src: str, dst: str, rel: str) -> int:
         count_q = CUT_COUNT_QUERY_TEMPLATE.format(rel=rel)
         n = int(self._scalar(count_q, {"src": src, "dst": dst}))
