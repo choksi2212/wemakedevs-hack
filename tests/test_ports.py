@@ -88,7 +88,7 @@ def test_query_constants_shape():
     pattern = cypher_traversal_pattern(12)
     assert "MEMBER_OF" in pattern and "GENERIC_ALL" in pattern and "*1..12" in pattern
     reach = REACH_QUERY_TEMPLATE.format(pattern=pattern)
-    assert "count(DISTINCT o)" in reach and "'-512'" in reach and "'-519'" in reach
+    assert "count(DISTINCT o)" in reach and "$jewels" in reach
     path_q = PATH_QUERY_TEMPLATE.format(pattern=pattern)
     assert path_q.startswith("MATCH p = shortestPath((")
     assert "$oid" in path_q and "$target" in path_q

@@ -12,7 +12,6 @@ from typing import Any
 
 from sever.core.jewels import (
     DEFAULT_HOP_CAP,
-    crown_jewel_ids,
     cypher_traversal_pattern,
 )
 from sever.core.port import GraphPort
@@ -29,12 +28,17 @@ JEWELS_QUERY = (
     "RETURN g.objectid AS objectid ORDER BY objectid"
 )
 
+AZ_JEWELS_QUERY = (
+    "MATCH (u:AZUser) WHERE u.name ENDS WITH '-GlobalAdministrator' "
+    "RETURN u.objectid AS objectid ORDER BY objectid"
+)
+
 OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 
 REACH_QUERY_TEMPLATE = (
     "MATCH (o {{owned: true}}) "
-    "MATCH (o)-[{pattern}]->(t:Group) "
-    "WHERE t.objectid ENDS WITH '-512' OR t.objectid ENDS WITH '-519' "
+    "MATCH (o)-[{pattern}]->(t) "
+    "WHERE t.objectid IN $jewels "
     "RETURN count(DISTINCT o) AS reachable"
 )
 
@@ -104,13 +108,14 @@ class FalkorGraphPort(GraphPort):
         return sorted(str(row[0]) for row in res.result_set)
 
     def crown_jewels(self) -> list[str]:
-        res = self.graph.query(JEWELS_QUERY)
-        return [str(row[0]) for row in res.result_set]
+        jewels = [str(row[0]) for row in self.graph.query(JEWELS_QUERY).result_set]
+        jewels += [str(row[0]) for row in self.graph.query(AZ_JEWELS_QUERY).result_set]
+        return sorted(jewels)
 
     # ---- traversal core ----
     def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
         query = REACH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(hop_cap))
-        return int(self._scalar(query))
+        return int(self._scalar(query, {"jewels": self.crown_jewels()}))
 
     def paths_to_jewels(self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP) -> list[list[tuple[str, str, str]]]:
         pattern = cypher_traversal_pattern(hop_cap)
