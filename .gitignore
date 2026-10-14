@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
+
+# secrets — never in history
+.env
+.secrets/
+*.key
+
+# data artifacts (downloaded/generated, not source)
+data/*.zip
+data/ad_sample/
+data/entra_sample/
+out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
