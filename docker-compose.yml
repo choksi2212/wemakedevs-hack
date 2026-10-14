@@ -1,0 +1,12 @@
+services:
+  falkordb:
+    # SEVER's engine (rule 3: remove it and the product breaks)
+    image: falkordb/falkordb:6.0.0
+    ports:
+      - "6379:6379"   # RESP (Python client)
+      - "3000:3000"   # browser UI — explore the tenant graphs live
+    volumes:
+      - ./out/falkordb-data:/data
+    # optional tuning (see sever/core/falkor_port.py config notes):
+    # environment:
+    #   - FALKORDB_ARGS=TIMEOUT_DEFAULT 0
