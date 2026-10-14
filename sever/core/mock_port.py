@@ -88,6 +88,8 @@ class MockGraphPort(GraphPort):
         p = self._attack()
         if start in targets:
             return True
+        if start not in p:
+            return False  # isolated node (e.g. after its only edge was cut)
         dist = nx.single_source_shortest_path_length(p, start, cutoff=hop_cap)
         return any(t in dist for t in targets)
 
