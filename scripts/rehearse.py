@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -73,14 +74,12 @@ def main() -> int:
     timeline = default_timeline(HERO, ace_target=GMSA_GROUP, jewel=jewels[0])
     stream = FindingStream(timeline)
 
-    receipts = []
     print("\n[sever] == findings stream ==")
     for finding in stream:
         report = inv.triage(finding)
         line = (f"[{finding.id}] {finding.kind:22s} {report.narration_technique} | "
                 f"reachability {report.before['reachability']}->{report.after['reachability']}")
         print(line)
-        receipts.append(report.as_dict())
 
     print("\n[sever] == interdiction rounds (greedy; each cut human-gated) ==")
     for round_no in range(1, 4):
@@ -98,7 +97,6 @@ def main() -> int:
         print(f"[sever] removed={receipt['cut']['relationships_removed']} | "
               f"reachability {receipt['before']['reachability']} -> {receipt['after']['reachability']} | "
               f"requery {receipt['requery_ms']}ms | verdict={receipt['verdict']}")
-        receipts.append(receipt)
 
     final = port.reachability()
     print(f"\n[sever] final reachability: {final} "
@@ -108,8 +106,8 @@ def main() -> int:
         "backend": backend,
         "graph": args.graph,
         "hero": HERO,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "case_log": receipts,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "case_log": inv.case_log,
     }
     out_path = Path("out") / f"receipts_{backend.replace(':', '_')}.json"
     out_path.parent.mkdir(exist_ok=True)

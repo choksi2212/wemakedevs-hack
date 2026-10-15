@@ -23,7 +23,7 @@ ever reach ``approve_and_cut`` through the flow.
 from __future__ import annotations
 
 import json
-import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -150,7 +150,7 @@ class CaseLog:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def append(self, event: dict[str, Any]) -> None:
-        event = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), **event}
+        event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(event, default=str) + "\n")
 
