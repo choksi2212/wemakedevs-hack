@@ -1,12 +1,24 @@
 """Interdiction scoring — edge ranking, greedy k-cut, receipts.
 
 Math honesty (README material):
-- k=1: choosing the max path-frequency edge is the exact argmax of "paths
-  destroyed" when the candidate set is restricted to edges on enumerated
-  shortest paths (path-coverage form of the critical-edge problem).
-- k>1: greedy path-coverage maximization — submodular, so it carries the
-  classic (1 - 1/e) approximation guarantee. We say "greedy-ranked", never
-  "optimal": optimal multi-edge interdiction is NP-hard (Israeli & Wood 2002;
+- Frequency is coverage of the ENUMERATED paths: exactly one canonical
+  shortest path per (owned, jewel) pair (ties off by default), so
+  "paths_on" counts pair-coverage, not all possible routes.
+- k=1: the max-frequency edge is the exact argmax of enumerated-path
+  coverage (trivially — frequency IS that count). It still may not collapse
+  reachability: alternative or tied routes survive the cut, and the
+  receipt reports that honestly ("DEGRADED", never a silent success).
+- k>1: each round re-enumerates paths on the MUTATED graph and again picks
+  the exact single-edge coverage argmax. This is greedy-RANKED, not an
+  approximation algorithm with a provable bound: because the path set is
+  re-enumerated after every cut, the k-cut sequence optimizes
+  pairs-disconnected — a supermodular objective (increasing returns when
+  parallel routes die together), for which greedy carries NO classic
+  guarantee. The famous (1 - 1/e) submodular bound applies only to greedy
+  over a FROZEN path set, which this product deliberately does not compute:
+  every receipt must re-measure the live engine, not a cached enumeration.
+  We therefore say "greedy-ranked", never "optimal", never "bound".
+  Optimal multi-edge interdiction is NP-hard (Israeli & Wood 2002;
   AAAI'22 arXiv:2112.13175 formalizes the AD variant).
 - "Kills most paths (N of M)" — never "all paths" unless re-measured to zero.
 """
