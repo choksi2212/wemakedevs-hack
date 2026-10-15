@@ -59,6 +59,16 @@ REACHABILITY_METHOD = (
 # immune to SPpaths' combinatorial tie-enumeration hang (which the per-pair
 # SPpaths form exposed on reachable non-jewel pairs). Recovered + adapted from
 # the audit2/perf-reliability agent (gateway-interrupted mid-verification).
+#
+# Each arm's target predicate MUST mirror the matching crown_jewels() query
+# exactly. The AZ arm uses toLower(...) ENDS WITH '-globaladministrator' like
+# AZ_JEWELS_QUERY: the product documents case-insensitive GA-suffix matching
+# (a holder named jdoe-GLOBALADMINISTRATOR is still a jewel, not an evasion).
+# audit3 found the arm originally matched the suffix case-SENSITIVELY, so it
+# silently undercounted breaches — a principal with a path to a case-varied
+# GA holder was reported unreachable by reachability() while paths_to_jewels()
+# and the per-pair form both saw it (live-pinned in
+# tests/test_live_interdiction_invariants.py).
 REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
     (
         "MATCH (o {{owned: true}}), (t:Group) "
@@ -69,7 +79,7 @@ REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
     ),
     (
         "MATCH (o {{owned: true}}), (t:AZUser) "
-        "WHERE t.name ENDS WITH '-GlobalAdministrator' "
+        "WHERE toLower(t.name) ENDS WITH '-globaladministrator' "
         "WITH o, t, shortestPath((o)-{pattern}->(t)) AS p "
         "WHERE p IS NOT NULL "
         "RETURN DISTINCT o.objectid AS oid"

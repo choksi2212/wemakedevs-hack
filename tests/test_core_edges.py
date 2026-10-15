@@ -194,3 +194,39 @@ def test_interdict_verdicts():
     no_effect = interdict(_StubPort(reach_seq=[1, 1], removed=0), "O", "J", "R")
     assert no_effect["verdict"] == "no_effect"
     assert no_effect["cut"]["relationships_removed"] == 0
+
+
+def test_interdict_verdict_table_audit3_regressions():
+    """audit3 invariant: the verdict is a measured claim about the AFTER state.
+    Regression pins for the two mislabels the deep-audit found live:
+    a partial drop used to claim 'collapsed', and a cut on an already-collapsed
+    surface used to claim 'degraded'."""
+    # partial interdiction 3 -> 1: breach paths SURVIVE -> degraded, never
+    # collapsed ("collapsed" is only ever claimed on measured zero)
+    partial = interdict(_StubPort(reach_seq=[3, 1], removed=1), "O", "J", "R")
+    assert partial["before"]["reachability"] == 3
+    assert partial["after"]["reachability"] == 1
+    assert partial["verdict"] == "degraded"
+    # cut on an already-collapsed surface (0 -> 0, edge removed): no surviving
+    # paths -> never 'degraded' (degraded means reachability > 0 after)
+    zero_state = interdict(_StubPort(reach_seq=[0, 0], removed=1), "O", "J", "R")
+    assert zero_state["verdict"] == "collapsed"
+    # and the full-matrix closure: no_effect ONLY when nothing was removed
+    ghost_zero = interdict(_StubPort(reach_seq=[0, 0], removed=0), "O", "J", "R")
+    assert ghost_zero["verdict"] == "no_effect"
+
+
+def test_reachability_arm_predicates_mirror_jewel_queries():
+    """audit3 regression (structure, DB-free): each two-arm target predicate
+    must mirror the crown_jewels() query it replaces — the AZ arm matched the
+    GA suffix case-SENSITIVELY while AZ_JEWELS_QUERY matches case-insensitively
+    (toLower), silently undercounting breaches to case-varied GA holders. The
+    live equivalence/regression is tests/test_live_interdiction_invariants.py."""
+    from sever.core.falkor_port import AZ_JEWELS_QUERY, REACHABILITY_ARM_TEMPLATES
+
+    group_arm, az_arm = REACHABILITY_ARM_TEMPLATES
+    assert "t.objectid ENDS WITH '-512' OR t.objectid ENDS WITH '-519'" in group_arm
+    assert "toLower(t.name) ENDS WITH '-globaladministrator'" in az_arm
+    # the arm's predicate is the AZ_JEWELS_QUERY predicate, not a lookalike
+    assert "toLower(u.name) ENDS WITH '-globaladministrator'" in AZ_JEWELS_QUERY
+    assert "t.name ENDS WITH '-GlobalAdministrator'" not in az_arm
