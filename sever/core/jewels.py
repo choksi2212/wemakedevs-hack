@@ -56,6 +56,10 @@ TRAVERSAL_RELS: tuple[str, ...] = (
     "AZKVContributor",
 )
 
+# closed set form (schema guard for live mutations; restores the constant the
+# stub-sweep removed as "unused" before the audit tests that need it landed)
+TRAVERSAL_RELS_SET: frozenset[str] = frozenset(TRAVERSAL_RELS)
+
 DEFAULT_HOP_CAP = 12
 
 # well-known RIDs: 512 = Domain Admins, 519 = Enterprise Admins

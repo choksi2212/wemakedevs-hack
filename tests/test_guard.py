@@ -102,22 +102,34 @@ def test_cypher_injection_guard():
 
 
 def test_rel_schema_boundaries():
-    port = FalkorGraphPort(client=_RecordingClient(results=[[1]] * 5))
-    for good in ("A", "GENERIC_ALL", "MEMBER_OF", "X_9", "A" * 64):
-        assert port.add_edge("S-src", "S-dst", good) is True  # 1..64 chars, [A-Z][A-Z0-9_]
-    assert len(port.graph.calls) == 5
-    for q, _ in port.graph.calls:
-        assert "MERGE" in q and "RETURN count(r)" in q
+    # closed vocabulary: only rels the ETL emits / the engine chains are valid;
+    # arbitrary identifier-shaped strings ("A", "X_9", "generic_all") reject
+    port = FalkorGraphPort(client=_RecordingClient(results=[[0], [1]] * 5))
+    for good in ("GENERIC_ALL", "MEMBER_OF", "READ_GMSAPASSWORD", "AZOwns", "DCSYNC"):
+        assert port.add_edge("S-src", "S-dst", good) is True
+    assert len(port.graph.calls) == 10  # exists-probe + MERGE per rel
+    for bad in ("A", "X_9", "A" * 64, "generic_all", "GENERIC_ALL}) DETACH DELETE (n) //"):
+        with pytest.raises(ValueError):
+            port.add_edge("S-src", "S-dst", bad)
 
 
 def test_add_edge_wire_shape_and_idempotent_false():
-    rec = _RecordingClient(results=[[0]])
+    # absent -> two queries (exists probe, then MERGE) -> True
+    rec = _RecordingClient(results=[[0], [1]])
     port = FalkorGraphPort(client=rec)
-    assert port.add_edge("S-src", "S-dst", "GENERIC_ALL", {"source": "F-9"}) is False
-    q, params = rec.calls[0]
+    assert port.add_edge("S-src", "S-dst", "GENERIC_ALL", {"source": "F-9"}) is True
+    q_exists, params_exists = rec.calls[0]
+    assert "RETURN count(r) AS n" in q_exists
+    assert params_exists == {"src": "S-src", "dst": "S-dst"}
+    q, params = rec.calls[1]
     assert "MERGE (s)-[r:GENERIC_ALL]->(t)" in q
     assert "SET r += $props" in q
     assert params == {"src": "S-src", "dst": "S-dst", "props": {"source": "F-9"}}
+    # exists -> one query, no MERGE -> False
+    rec2 = _RecordingClient(results=[[1]])
+    port2 = FalkorGraphPort(client=rec2)
+    assert port2.add_edge("S-src", "S-dst", "GENERIC_ALL") is False
+    assert len(rec2.calls) == 1
 
 
 def test_cut_with_zero_edges_skips_the_delete():
