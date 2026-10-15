@@ -83,15 +83,18 @@ submission. A Playwright backup take is produced by
 ## Reproduce everything
 
 ```bash
-git clone https://github.com/choksi2212/wemakedevs-hack && cd wemakedevs-hack
+git clone -b develop https://github.com/choksi2212/wemakedevs-hack   # main holds only the stub README
+cd wemakedevs-hack                                                       # until final submission
 docker compose up -d                       # FalkorDB 6.0.0 + browser UI at :3000
 mkdir -p data/ad_sample && cd data && curl -sLO \
   https://raw.githubusercontent.com/SpecterOps/BloodHound-Docs/main/docs/assets/sample-data/ad_sampledata.zip \
   && mkdir -p entra_sample && curl -sLO \
   https://raw.githubusercontent.com/SpecterOps/BloodHound-Docs/main/docs/assets/sample-data/entra_sampledata.zip \
   && unzip -o ad_sampledata.zip -d ad_sample && unzip -o entra_sampledata.zip -d entra_sample && cd ..
-pip install -e ".[dev,console,memory]"     # add .[agent] only for LLM narration
+pip install -e ".[dev,console,memory,agent]"  # openai ([agent]) is imported by tests/test_agent.py;
+                                              # the console itself never needs it
 python -m pytest                           # DB-free units run anywhere; engine tests need docker, skip cleanly
+                                           # Windows note: no `unzip` — `tar -xf <zip> -C <dir>` reads the same zips
 python -m pytest tests/test_live.py        # live-engine regression (docker compose up -d)
 python scripts/rehearse.py                  # beat 1  (hero interdiction)
 python scripts/case_memory_live.py start  --thread case-T2-live --graph sever_t2
@@ -137,6 +140,18 @@ two human-gated cuts, COLLAPSED). Self-deploy either layer from this repo:
 - Optional tuning (only for long cross-domain tie-set analysis): uncomment the
   `FALKORDB_ARGS` block in `docker-compose.yml` (`TIMEOUT_DEFAULT 0`) — the
   client already passes explicit per-query timeouts.
+- **Free-tier reality (verified live on the deployment above)**: Render's
+  free plan spins a web service down after ~15 min without traffic; the next
+  request then pays a ~30–60s cold start. The live console stays warm with a
+  10-minute keepalive ping (`curl -s -m 30 https://sever-console.onrender.com/api/state`
+  from a Task Scheduler job / cron) — reuse that for your own deploy if you
+  want zero cold starts.
+- **Boot semantics (verified live)**: the console connects to FalkorDB at
+  import time and is fail-fast — an unreachable engine exits the process
+  with `ConnectionError` rather than serving a broken UI; an **empty** graph
+  auto-loads the sample estate in one boot (4.3s self-hosted / 16.8s on
+  Cloud); an **existing** graph boots without reloading (~0.9s). A vanished
+  demo graph therefore self-heals on the next deploy.
 
 ## How it works
 
