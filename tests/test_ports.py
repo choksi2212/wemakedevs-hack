@@ -107,7 +107,7 @@ class _RecordingClient:
         self.calls: list[tuple[str, dict | None]] = []
         self._results = deque(results or [])
 
-    def query(self, query, params=None):
+    def query(self, query, params=None, timeout=None):
         self.calls.append((query, params))
 
         class _R:
