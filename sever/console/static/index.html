@@ -265,6 +265,27 @@
       if (hadFocus) nb.focus();
     }
   }
+  function executeConfirm(p, cf, cn) {
+    // one code path for the CONFIRM click handler and the mid-swap pointer
+    // pairing below — idempotent by gate identity: a stale press can never
+    // fire a second cut.
+    if (state.pending !== p) return;
+    state.pending = null;
+    removeEscape();
+    cf.disabled = cn.disabled = true;
+    banner('<span class="res">human gate: executing approved cut…</span>');
+    api('/api/cut', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: 'console-operator'}),
+    }).then((r) => {
+      banner('<span class="technique">INTERDICTION RECEIPT</span>' +
+             'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
+             r.before.reachability + ' → <b>' + r.after.reachability + '</b> · re-query ' +
+             r.requery_ms + 'ms · verdict <b>' + r.verdict + '</b>');
+    }).catch((e) => {
+      banner('<span class="res">cut failed: ' + esc(e.message) + '</span>');
+    }).then(() => refresh());
+  }
   function renderGate(p, focusConfirm) {
     const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(p.src) + '"][data-dst="' + CSS.escape(p.dst) + '"][data-rel="' + CSS.escape(p.rel) + '"]');
     if (!btn) return false;
@@ -275,25 +296,7 @@
     const cf = cta.querySelector('.confirm');
     const cn = cta.querySelector('.cancel');
     cn.addEventListener('click', cancelGate);
-    cf.addEventListener('click', async () => {
-      state.pending = null;
-      removeEscape();
-      cf.disabled = cn.disabled = true;
-      banner('<span class="res">human gate: executing approved cut…</span>');
-      try {
-        const r = await api('/api/cut', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: 'console-operator'}),
-        });
-        banner('<span class="technique">INTERDICTION RECEIPT</span>' +
-               'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
-               r.before.reachability + ' → <b>' + r.after.reachability + '</b> · re-query ' +
-               r.requery_ms + 'ms · verdict <b>' + r.verdict + '</b>');
-      } catch (e) {
-        banner('<span class="res">cut failed: ' + esc(e.message) + '</span>');
-      }
-      refresh();
-    });
+    cf.addEventListener('click', () => executeConfirm(p, cf, cn));
     const active = document.activeElement;
     if (focusConfirm || active === document.body || (active && active.closest && !active.closest('.prop-cta'))) cf.focus();
     return true;
@@ -306,6 +309,29 @@
     escapeListener = (e) => { if (e.key === 'Escape') { e.preventDefault(); cancelGate(); } };
     document.addEventListener('keydown', escapeListener);
   }
+
+  // audit3/console-logic: a CONFIRM pressed on the OLD button and released
+  // on its post-refresh replacement is silently dropped by the browser (the
+  // click retargets to the common ancestor because the pressed node is
+  // detached) — measured 8/10..10/10 delivery across runs. Pair the press
+  // with the release instead: same gate identity, same pending cut, then
+  // the confirm always executes.
+  let confirmPress = null;
+  document.addEventListener('mousedown', (e) => {
+    const cf = e.target && e.target.closest && e.target.closest('#proposal .prop-cta .confirm');
+    confirmPress = (cf && !cf.disabled && state.pending) ? { el: cf, p: state.pending } : null;
+  });
+  document.addEventListener('mouseup', (e) => {
+    const shot = confirmPress; confirmPress = null;
+    if (!shot) return;
+    const cf = e.target && e.target.closest && e.target.closest('#proposal .prop-cta .confirm');
+    if (!cf || cf.disabled) return;   // released off the gate / mid-flight — not a confirm
+    if (cf === shot.el) return;       // no swap: the real click event fires normally
+    if (!shot.el.isConnected) {       // the DOM swap replaced the pressed button
+      if (state.pending !== shot.p) return;   // gate changed mid-press — never fire a stale cut
+      executeConfirm(shot.p, cf, cf.closest('.prop-cta').querySelector('.cancel'));
+    }
+  });
 
   const HERO = 'S-1-5-21-2697957641-2271029196-387917394-2110';
   const GMSA = 'S-1-5-21-2697957641-2271029196-387917394-2102';
