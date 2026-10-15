@@ -113,13 +113,27 @@ human-gate and LLM-seam semantics — execute without the engine.
 
 ## Deployment
 
-- **Self-hosted (shipped)**: `docker compose up -d` — FalkorDB 6.0.0 on :6379
-  (browser UI on :3000), persisted in `./out/falkordb-data`, restarted
-  automatically on reboot (`restart: unless-stopped`). Any self-hosted or
-  remote FalkorDB works by pointing `SEVER_FALKOR_HOST/PORT` at it
-  (`.env.example`); FalkorDB Cloud equally — set `SEVER_FALKOR_USER/PASSWORD`
-  (nothing in the client is docker-specific).
-- **Console**: `uvicorn sever.console.app:app --host 0.0.0.0 --port 8000`.
+**Live deployment**: **https://sever-console.onrender.com** — the console
+(FastAPI) on Render's Singapore free tier, connected to a **FalkorDB Cloud**
+free-tier instance (`ap-south-1`, the engine's own managed cloud). The demo
+estate auto-loads at boot; the live receipts for the same substrate are in
+[`docs/receipts/receipts_cloud_live.json`](docs/receipts/receipts_cloud_live.json)
+(hero arc on the Cloud: 1,480 nodes / 12,450 edges loaded in 16.8s, breach 0→1,
+two human-gated cuts, COLLAPSED). Self-deploy either layer from this repo:
+
+- **Everything self-hosted (shipped)**: `docker compose up -d` — FalkorDB 6.0.0
+  on :6379 (browser UI on :3000), persisted in `./out/falkordb-data`, restarted
+  automatically on reboot (`restart: unless-stopped`). Any self-hosted or remote
+  FalkorDB works by pointing `SEVER_FALKOR_HOST/PORT` at it (`.env.example`);
+  FalkorDB Cloud equally — set `SEVER_FALKOR_USER/PASSWORD` (nothing in the
+  client is docker-specific).
+- **Console anywhere Docker runs**: `docker build -t sever-console . && docker
+  run -p 8000:8000 --env SEVER_FALKOR_HOST=... --env SEVER_FALKOR_PORT=...
+  --env SEVER_FALKOR_USER=... --env SEVER_FALKOR_PASSWORD=... sever-console` —
+  or one-click the `render.yaml` blueprint (Render → New → Blueprint → this
+  repo; secrets stay `sync: false` so credentials never touch the repo).
+- **Console without Docker**: `uvicorn sever.console.app:app --host 0.0.0.0
+  --port 8000`.
 - Optional tuning (only for long cross-domain tie-set analysis): uncomment the
   `FALKORDB_ARGS` block in `docker-compose.yml` (`TIMEOUT_DEFAULT 0`) — the
   client already passes explicit per-query timeouts.
