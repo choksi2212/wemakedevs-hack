@@ -28,6 +28,7 @@ def test_build_llm_defaults_to_offline_without_env(monkeypatch):
 
 
 def test_build_llm_uses_env(monkeypatch):
+    pytest.importorskip("openai", reason="LLM-seam wiring test needs the optional agent extra (openai)")
     monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
     monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
     monkeypatch.setenv("SEVER_LLM_MODEL", "test-model")

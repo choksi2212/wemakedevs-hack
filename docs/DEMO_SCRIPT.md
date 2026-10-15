@@ -21,19 +21,19 @@ kill chain annotated hop-by-hop with ATT&CK technique labels).
 **0:50–1:10 — The live mutation.** Finding F-003: a new `GENERIC_ALL` ACE is
 granted mid-session — the edge appears **live** on the canvas; the agent
 re-scores all paths immediately. (The canonical path query itself runs
-~0.83 ms in-engine — `docs/receipts/profile.txt`.)
+~1.1 ms in-engine — `docs/receipts/profile.txt`.)
 
 **1:10–2:20 — The interdiction cascade.** Agent proposes the top-frequency
 edge: `GMSA_SHS_PWD -[READ_GMSAPASSWORD]-> S-…-2138`. **Human gate:
 APPROVED.** Cut #1 executes → re-query → reachability **1→1 DEGRADED
-(4.84ms)** — honest verdict: the top-frequency edge wasn't the chokepoint; a
+(2.34ms)** — honest verdict: the top-frequency edge wasn't the chokepoint; a
 parallel GMSA password-read still carries the paths. Agent re-ranks →
 proposes the remaining `READ_GMSAPASSWORD` out of `GMSA_SHS_PWD`
 (`S-…-2102 -[READ_GMSAPASSWORD]-> S-…-2186`; every recorded proposal edge
 lies on 5 of 5 paths). **APPROVED** → cut #2 → reachability **1→0 COLLAPSED,
 re-query 2.28ms**, receipts printed: before/after, re-query timing,
 approvals, timestamps. (As logged in
-[`docs/receipts_live_sever_demo.json`](receipts_live_sever_demo.json) —
+[`docs/receipts/receipts_live_sever_demo.json`](receipts/receipts_live_sever_demo.json) —
 cut #1 verdict `degraded`, cut #2 verdict `collapsed`.)
 
 **2:20–2:40 — Scale wall.** Tenant switch: `sever_tenant002` is a completely
@@ -68,7 +68,7 @@ every rung runs the real engine.
   **1 → 0 in 3.0ms**
 - Scale wall: 300 tenants / 444,000 nodes / 3.74M edges in **1.59 GiB**, queries
   flat (median 4.67ms, p95 4.81ms)
-- PROFILE receipt: docs/receipts/profile.txt (0.83ms in-engine on the tenant)
+- PROFILE receipt: docs/receipts/profile.txt (canonical path query ~1.1 ms wall-clock on the tenant, re-measured 2026-10-15; label-free point-lookup operators ~0.26 ms)
 
 ## CONSOLE CLICK-PATH (record this)
 

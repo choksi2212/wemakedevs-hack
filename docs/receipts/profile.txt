@@ -41,6 +41,25 @@ bound in the pattern. Load-bearing SEVER queries match by objectid alone
 (owned principals and crown jewels carry several possible labels), so they
 take the All Node Scan path: ~4-8ms of scan per 1480-node tenant — flat and
 sub-10ms per query at every wall size we measured (444K nodes / 3.73M edges,
-median 3.66ms — see scale_wall.json). Label-bound lookups are 2-3 orders
+median 4.67ms — see scale_wall.json). Label-bound lookups are 2-3 orders
 faster via Node By Index Scan; binding labels into the hot templates is a
 known future optimization, deliberately not smuggled in mid-event.
+
+
+## Canonical path query — wall-clock receipt (re-measured 2026-10-15)
+
+    MATCH (o {objectid: $oid}), (t {objectid: $target})
+    WITH shortestPath((o)-[:<abusable-rel vocabulary>*..12]->(t)) AS p
+    RETURN p
+
+GRAPH.QUERY round-trip (the client transport the agent loop uses), hero ->
+Domain Admins, fresh 1,480-node / 12,450-edge sample estate, 10 runs:
+
+    median 1.13 ms · min 1.08 ms · max 1.18 ms
+
+The PROFILE rows above itemize only the label-free point lookups (~0.26 ms
+total) — the 6.0.0 profiler does not itemize the shortestPath traversal
+operators, so the wall-clock receipt above is the load-bearing number.
+For scale on the same estate: reachability() re-query runs in ~2.2 ms;
+paths_to_jewels (one canonical query per crown jewel) returns 5 paths in
+~7.5 ms.
