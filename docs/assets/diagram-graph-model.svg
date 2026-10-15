@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="780" viewBox="0 0 1280 780" font-family="ui-monospace, 'Cascadia Code', 'Segoe UI', sans-serif">
+  <rect width="1280" height="780" fill="#FBFCFD"/>
+  <text x="40" y="44" font-size="19" font-weight="700" fill="#1F2937">SEVER — graph data model (the identity attack surface)</text>
+  <text x="40" y="66" font-size="11" fill="#6B7280">28 node labels · 42 edge families · range-indexed natural key (objectid) · graph-per-tenant</text>
+
+  <!-- ===== node label groups ===== -->
+  <!-- identity core -->
+  <rect x="40" y="100" width="380" height="250" rx="10" fill="rgba(59,130,246,0.05)" stroke="#93C5FD" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <text x="230" y="126" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">on-prem identity (BloodHound CE)</text>
+  <rect x="64" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="144" y="162" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">User</text>
+  <text x="144" y="176" font-size="8" fill="#6B7280" text-anchor="middle">owned flag · name · sid</text>
+  <rect x="236" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="316" y="162" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">Group</text>
+  <text x="316" y="176" font-size="8" fill="#6B7280" text-anchor="middle">-512 Domain Admins = jewel</text>
+  <rect x="64" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="144" y="216" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">Computer</text>
+  <text x="144" y="230" font-size="8" fill="#6B7280" text-anchor="middle">34 in sample · sessions inert</text>
+  <rect x="236" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="316" y="216" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">Domain · OU · Container</text>
+  <text x="316" y="230" font-size="8" fill="#6B7280" text-anchor="middle">structure · trust targets</text>
+  <rect x="64" y="250" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="144" y="270" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">GPO · PKI</text>
+  <text x="144" y="284" font-size="8" fill="#6B7280" text-anchor="middle">CertTemplate · EnterpriseCA…</text>
+  <rect x="236" y="250" width="160" height="44" rx="6" fill="rgba(59,130,246,0.07)" stroke="#60A5FA" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="316" y="270" font-size="10" font-weight="600" fill="#2563EB" text-anchor="middle">unresolved principal</text>
+  <text x="316" y="284" font-size="8" fill="#6B7280" text-anchor="middle">referenced, never invented</text>
+  <text x="230" y="336" font-size="8" fill="#94A3B8" text-anchor="middle">crown jewels: Group SID ending -512/-519 — SID-based, rename-proof</text>
+
+  <!-- entra -->
+  <rect x="860" y="100" width="380" height="250" rx="10" fill="rgba(245,158,11,0.05)" stroke="#FCD34D" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <text x="1050" y="126" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">Entra identity (AzureHound)</text>
+  <rect x="884" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#FCD34D" stroke-width="1"/>
+  <text x="964" y="162" font-size="10" font-weight="600" fill="#D97706" text-anchor="middle">AZUser</text>
+  <text x="964" y="176" font-size="8" fill="#6B7280" text-anchor="middle">GA holder = cloud jewel</text>
+  <rect x="1056" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#FCD34D" stroke-width="1"/>
+  <text x="1136" y="162" font-size="10" font-weight="600" fill="#D97706" text-anchor="middle">AZServicePrincipal</text>
+  <text x="1136" y="176" font-size="8" fill="#6B7280" text-anchor="middle">2,463 in sample</text>
+  <rect x="884" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#FCD34D" stroke-width="1"/>
+  <text x="964" y="216" font-size="10" font-weight="600" fill="#D97706" text-anchor="middle">AZApp</text>
+  <text x="964" y="230" font-size="8" fill="#6B7280" text-anchor="middle">owner / role chains</text>
+  <rect x="1056" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#FCD34D" stroke-width="1"/>
+  <text x="1136" y="216" font-size="10" font-weight="600" fill="#D97706" text-anchor="middle">AZGroup · AZVM…</text>
+  <text x="1136" y="230" font-size="8" fill="#6B7280" text-anchor="middle">16 label family</text>
+  <rect x="884" y="250" width="332" height="44" rx="6" fill="rgba(245,158,11,0.08)" stroke="#FBBF24" stroke-width="1.25"/>
+  <text x="1050" y="270" font-size="10" font-weight="700" fill="#92400E" text-anchor="middle">SYNCED_TO bridge — the hybrid seam</text>
+  <text x="1050" y="284" font-size="8" fill="#6B7280" text-anchor="middle">9 bidirectional pairs: one identity, two worlds (Storm-0558 lesson)</text>
+  <text x="1050" y="336" font-size="8" fill="#94A3B8" text-anchor="middle">cloud jewel: AZUser name ending -GlobalAdministrator (toLower, evasion-proof)</text>
+
+  <!-- ===== edge families (middle) ===== -->
+  <rect x="460" y="100" width="360" height="560" rx="10" fill="rgba(16,185,129,0.04)" stroke="#6EE7B7" stroke-width="1.25"/>
+  <text x="640" y="128" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">edge families — the attack vocabulary</text>
+
+  <rect x="484" y="146" width="312" height="120" rx="6" fill="#FFFFFF" stroke="#34D399" stroke-width="1"/>
+  <text x="498" y="166" font-size="10" font-weight="700" fill="#059669">MEMBERSHIP + CONTROL (11)</text>
+  <text x="498" y="184" font-size="8.5" fill="#475569">MEMBER_OF · ADMIN_TO · OWNS</text>
+  <text x="498" y="198" font-size="8.5" fill="#475569">GENERIC_ALL · GENERIC_WRITE</text>
+  <text x="498" y="212" font-size="8.5" fill="#475569">WRITE_DACL · WRITE_OWNER · RESET_PASSWORD</text>
+  <text x="498" y="226" font-size="8.5" fill="#475569">ADD_MEMBER · ADD_SELF · ADD_KEY_CREDENTIAL_LINK</text>
+  <text x="498" y="246" font-size="8" fill="#94A3B8">ACE-derived; inherited flag preserved on the edge</text>
+
+  <rect x="484" y="278" width="312" height="106" rx="6" fill="#FFFFFF" stroke="#34D399" stroke-width="1"/>
+  <text x="498" y="298" font-size="10" font-weight="700" fill="#059669">CREDENTIAL CAPTURE (10)</text>
+  <text x="498" y="316" font-size="8.5" fill="#475569">DCSYNC · GET_CHANGES(_ALL/_IN_FILTERED_SET)</text>
+  <text x="498" y="330" font-size="8.5" fill="#475569">READ_GMSAPASSWORD · READ_LAPSPASSWORD</text>
+  <text x="498" y="344" font-size="8.5" fill="#475569">FORCE_CHANGE_PASSWORD · ALL_EXTENDED_RIGHTS</text>
+  <text x="498" y="358" font-size="8.5" fill="#475569">HAS_SID_HISTORY · ENROLL · MANAGE_CA…</text>
+  <text x="498" y="374" font-size="8" fill="#94A3B8">the classic BloodHound abusable set, mechanically mapped</text>
+
+  <rect x="484" y="396" width="312" height="90" rx="6" fill="#FFFFFF" stroke="#34D399" stroke-width="1"/>
+  <text x="498" y="416" font-size="10" font-weight="700" fill="#059669">DELEGATION + TRUST (5)</text>
+  <text x="498" y="434" font-size="8.5" fill="#475569">ALLOWED_TO_DELEGATE · ALLOWED_TO_ACT (RBCD)</text>
+  <text x="498" y="448" font-size="8.5" fill="#475569">TRUSTED_BY · GET_CHANGES · WRITE_ACCOUNT_RESTRICTIONS</text>
+  <text x="498" y="470" font-size="8" fill="#94A3B8">directions verified against raw records (fleet-3 proof)</text>
+
+  <rect x="484" y="498" width="312" height="76" rx="6" fill="#FFFFFF" stroke="#34D399" stroke-width="1"/>
+  <text x="498" y="518" font-size="10" font-weight="700" fill="#059669">ENTRA OWNERSHIP (AZ*)</text>
+  <text x="498" y="536" font-size="8.5" fill="#475569">AZOwns · AZMemberOf · AZAppRole · AZVM* · AZKeyVault*</text>
+  <text x="498" y="550" font-size="8.5" fill="#475569">AZMG* · AZRG* · AZSub* · AZContributor family</text>
+  <text x="498" y="564" font-size="8" fill="#94A3B8">camelCase — case-exact match, homoglyph-proof guard</text>
+
+  <rect x="484" y="586" width="312" height="52" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="498" y="606" font-size="10" font-weight="700" fill="#64748B">STRUCTURAL (non-traversable)</text>
+  <text x="498" y="622" font-size="8.5" fill="#64748B">CONTAINED_BY · PUBLISHED_ON · HAS_SPN_TARGET</text>
+
+  <!-- jewels row -->
+  <rect x="40" y="380" width="380" height="280" rx="10" fill="rgba(244,63,94,0.05)" stroke="#FDA4AF" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <text x="230" y="408" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">crown jewels + traversal rules</text>
+  <text x="60" y="436" font-size="9.5" font-weight="600" fill="#BE123C"> jewels (what we defend)</text>
+  <text x="72" y="454" font-size="9" fill="#475569">▪ Group SIDs ending -512 / -519 (Domain/Enterprise Admins)</text>
+  <text x="72" y="468" font-size="9" fill="#475569">▪ AZUsers named *-GlobalAdministrator</text>
+  <text x="60" y="496" font-size="9.5" font-weight="600" fill="#BE123C"> traversal set (43 rels, hop cap 12)</text>
+  <text x="72" y="514" font-size="9" fill="#475569">▪ only abusable families chain — structural edges never do</text>
+  <text x="72" y="528" font-size="9" fill="#475569">▪ *..12 upper bound (engine-verified: 13-hop chains excluded)</text>
+  <text x="72" y="542" font-size="9" fill="#475569">▪ ENROLL deliberately non-traversable (BH-faithful)</text>
+  <text x="60" y="570" font-size="9.5" font-weight="600" fill="#BE123C"> invariants (pinned by tests)</text>
+  <text x="72" y="588" font-size="9" fill="#475569">▪ zero dangling endpoints after parse</text>
+  <text x="72" y="602" font-size="9" fill="#475569">▪ reload idempotent (MERGE semantics)</text>
+  <text x="72" y="616" font-size="9" fill="#475569">▪ range index on objectid for all 15 indexed labels</text>
+  <text x="72" y="630" font-size="9" fill="#475569">▪ rel mutations: closed vocabulary, injection-guarded</text>
+  <text x="230" y="650" font-size="8" fill="#94A3B8" text-anchor="middle">full inventory: docs/GRAPH_MODEL.md — live-verified by the audit fleet</text>
+
+  <!-- entra right bottom: indexes note -->
+  <rect x="860" y="380" width="380" height="280" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.25"/>
+  <text x="1050" y="408" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">engine + backend implementation</text>
+  <text x="884" y="436" font-size="9.5" font-weight="600" fill="#7C3AED"> FalkorDB 6.0.0 — one engine everywhere</text>
+  <text x="896" y="454" font-size="9" fill="#475569">▪ self-hosted Docker · compose · FalkorDB Cloud — same client</text>
+  <text x="896" y="468" font-size="9" fill="#475569">▪ every load-bearing Cypher is a module constant (docs/CYPHER.md)</text>
+  <text x="896" y="482" font-size="9" fill="#475569">▪ no offline double: remove FalkorDB and SEVER does not run</text>
+  <text x="884" y="510" font-size="9.5" font-weight="600" fill="#059669"> port + query layer (sever/core)</text>
+  <text x="896" y="528" font-size="9" fill="#475569">▪ GraphPort ABC — exactly ONE real implementation</text>
+  <text x="896" y="542" font-size="9" fill="#475569">▪ two-arm reachability: O(2) queries, equivalence-fuzzed</text>
+  <text x="896" y="556" font-size="9" fill="#475569">▪ GRAPH.PROFILE receipts with the CYPHER params header</text>
+  <text x="884" y="584" font-size="9.5" font-weight="600" fill="#3B82F6"> persistence + memory</text>
+  <text x="896" y="602" font-size="9" fill="#475569">▪ graph keys = tenant isolation; JSONL ledgers per case</text>
+  <text x="896" y="616" font-size="9" fill="#475569">▪ FalkorDBSaver checkpoints: gate state survives restarts</text>
+  <text x="896" y="630" font-size="9" fill="#475569">▪ receipts append-only, cross-process locked, self-repairing</text>
+</svg>

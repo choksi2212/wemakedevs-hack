@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="ui-monospace, 'Cascadia Code', 'Segoe UI', sans-serif">
+  <defs>
+    <marker id="dea" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="640" fill="#FBFCFD"/>
+  <text x="40" y="44" font-size="19" font-weight="700" fill="#1F2937">SEVER — deployment architecture</text>
+  <text x="40" y="66" font-size="11" fill="#6B7280">live today · every layer free-tier · three interchangeable ways to run the same product</text>
+
+  <!-- the live deployment (top) -->
+  <rect x="40" y="100" width="580" height="280" rx="10" fill="rgba(245,158,11,0.05)" stroke="#FCD34D" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <text x="330" y="128" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">LIVE DEPLOYMENT (canonical)</text>
+  <text x="330" y="144" font-size="9" fill="#6B7280" text-anchor="middle">https://sever-console.onrender.com</text>
+
+  <rect x="80" y="170" width="220" height="90" rx="8" fill="rgba(59,130,246,0.07)" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="190" y="196" font-size="11" font-weight="600" fill="#1F2937" text-anchor="middle">console — Render free</text>
+  <text x="190" y="214" font-size="9" fill="#6B7280" text-anchor="middle">Singapore · Docker image</text>
+  <text x="190" y="230" font-size="9" fill="#3B82F6" text-anchor="middle">auto-loads estate at boot</text>
+  <text x="190" y="246" font-size="8" fill="#94A3B8" text-anchor="middle">HSTS · CSP · opt-in docs · 1MB cap</text>
+
+  <rect x="360" y="170" width="220" height="90" rx="8" fill="rgba(139,92,246,0.05)" stroke="#C4B5FD" stroke-width="1.25"/>
+  <text x="470" y="196" font-size="11" font-weight="600" fill="#1F2937" text-anchor="middle">FalkorDB Cloud free</text>
+  <text x="470" y="214" font-size="9" fill="#6B7280" text-anchor="middle">ap-south-1 (Mumbai) · AWS</text>
+  <text x="470" y="230" font-size="9" fill="#7C3AED" text-anchor="middle">sever_demo tenant graph</text>
+  <text x="470" y="246" font-size="8" fill="#94A3B8" text-anchor="middle">100MB tier · 1,480n uses ~1MB</text>
+
+  <line x1="300" y1="215" x2="354" y2="215" stroke="#94A3B8" stroke-width="1.4" marker-end="url(#dea)"/>
+  <text x="304" y="206" font-size="8" fill="#6B7280">RESP + AUTH</text>
+
+  <rect x="80" y="290" width="500" height="60" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.25"/>
+  <text x="330" y="312" font-size="10" font-weight="600" fill="#1F2937" text-anchor="middle">keep-alive ping — every 10 min (silent scheduled task)</text>
+  <text x="330" y="330" font-size="9" fill="#6B7280" text-anchor="middle">keeps Render warm (no cold starts) + Cloud instance "utilized" (no idle stop)</text>
+
+  <line x1="330" y1="260" x2="330" y2="286" stroke="#94A3B8" stroke-width="1.4" stroke-dasharray="3,3" marker-end="url(#dea)"/>
+
+  <!-- self-hosted path (right) -->
+  <rect x="660" y="100" width="580" height="280" rx="10" fill="rgba(16,185,129,0.04)" stroke="#6EE7B7" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <text x="950" y="128" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">SELF-HOSTED (shipped + judge-runnable)</text>
+  <text x="950" y="144" font-size="9" fill="#6B7280" text-anchor="middle">docker compose up -d → the identical product</text>
+
+  <rect x="700" y="170" width="240" height="90" rx="8" fill="rgba(139,92,246,0.05)" stroke="#C4B5FD" stroke-width="1.25"/>
+  <text x="820" y="196" font-size="11" font-weight="600" fill="#1F2937" text-anchor="middle">FalkorDB 6.0.0 — container</text>
+  <text x="820" y="214" font-size="9" fill="#6B7280" text-anchor="middle">:6379 RESP · :3000 browser UI</text>
+  <text x="820" y="230" font-size="9" fill="#7C3AED" text-anchor="middle">persisted ./out/falkordb-data</text>
+  <text x="820" y="246" font-size="8" fill="#94A3B8" text-anchor="middle">restart: unless-stopped</text>
+
+  <rect x="980" y="170" width="220" height="90" rx="8" fill="rgba(59,130,246,0.07)" stroke="#93C5FD" stroke-width="1.25"/>
+  <text x="1090" y="196" font-size="11" font-weight="600" fill="#1F2937" text-anchor="middle">console — uvicorn</text>
+  <text x="1090" y="214" font-size="9" fill="#6B7280" text-anchor="middle">or the Dockerfile anywhere</text>
+  <text x="1090" y="230" font-size="9" fill="#3B82F6" text-anchor="middle">or render.yaml one-click</text>
+  <text x="1090" y="246" font-size="8" fill="#94A3B8" text-anchor="middle">secrets sync:false — never in repo</text>
+
+  <line x1="940" y1="215" x2="974" y2="215" stroke="#94A3B8" stroke-width="1.4" marker-end="url(#dea)"/>
+
+  <rect x="700" y="290" width="500" height="60" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.25"/>
+  <text x="950" y="312" font-size="10" font-weight="600" fill="#1F2937" text-anchor="middle">swap targets freely: SEVER_FALKOR_HOST/PORT/USER/PASSWORD</text>
+  <text x="950" y="330" font-size="9" fill="#6B7280" text-anchor="middle">same client, same queries — nothing in SEVER is docker-specific</text>
+
+  <!-- the demo stack (bottom) -->
+  <rect x="40" y="420" width="580" height="170" rx="10" fill="rgba(100,116,139,0.04)" stroke="#CBD5E1" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <text x="330" y="448" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">BUILD HOST (the receipts machine)</text>
+  <rect x="80" y="466" width="150" height="54" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="155" y="488" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">engine container</text>
+  <text x="155" y="504" font-size="8" fill="#94A3B8" text-anchor="middle">300 tenant graphs resident</text>
+  <rect x="250" y="466" width="150" height="54" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="325" y="488" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">console :8000</text>
+  <text x="325" y="504" font-size="8" fill="#94A3B8" text-anchor="middle">WMI-persistent · tunnel-backed</text>
+  <rect x="420" y="466" width="160" height="54" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+  <text x="500" y="488" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">rehearsal scripts</text>
+  <text x="500" y="504" font-size="8" fill="#94A3B8" text-anchor="middle">every receipt regenerable</text>
+  <text x="330" y="552" font-size="9" fill="#6B7280" text-anchor="middle">scale wall measured here: 300t · 444K nodes · 3.735M edges · 1.59GiB · flat 4.67ms</text>
+  <text x="330" y="568" font-size="8" fill="#94A3B8" text-anchor="middle">all probes run on throwaway sever_audit* graph keys — demo estate never mutated</text>
+
+  <!-- flow of truth (bottom right) -->
+  <rect x="660" y="420" width="580" height="170" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.25"/>
+  <text x="950" y="448" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">what a judge can verify in 5 minutes</text>
+  <text x="688" y="476" font-size="9" fill="#475569">▪ open the live URL → breach → paths → APPROVE → CONFIRM → collapsed (receipted)</text>
+  <text x="688" y="494" font-size="9" fill="#475569">▪ clone -b develop → pip install → docker compose up → pytest → ~460 tests green</text>
+  <text x="688" y="512" font-size="9" fill="#475569">▪ read docs/receipts/*.json — every number regenerable by the documented scripts</text>
+  <text x="688" y="530" font-size="9" fill="#475569">▪ GRAPH.PROFILE the documented queries yourself — they are the module constants</text>
+  <text x="688" y="548" font-size="9" fill="#475569">▪ watch docs/DEMO_SCRIPT.md — the full judged walkthrough with fallback ladders</text>
+  <text x="950" y="574" font-size="8" fill="#94A3B8" text-anchor="middle">rule-10 artifacts: repo · README + graph model · exact Cypher · demo video · live deployment · setup</text>
+</svg>
