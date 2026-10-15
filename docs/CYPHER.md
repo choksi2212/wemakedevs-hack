@@ -6,7 +6,8 @@ forms — executed against falkordb 6.0.0 (case-log receipts in
 path query in `docs/receipts/profile.txt`, ~1.1 ms in-engine on the
 1,480-node / 12,450-edge demo tenant) — maintained as module constants in
 `sever/core/falkor_port.py` (`JEWELS_QUERY`, `AZ_JEWELS_QUERY`,
-`MARK_OWNED_QUERY`, `OWNED_QUERY`, `REACHABILITY_METHOD`,
+`MARK_OWNED_QUERY`, `OWNED_QUERY`, `USER_OBJECTIDS_QUERY`,
+`REACHABILITY_METHOD`,
 `REACHABILITY_QUERY_TEMPLATE`, `PATH_QUERY_TEMPLATE`,
 `CANONICAL_PATH_QUERY_TEMPLATE`,
 `CUT_COUNT_QUERY_TEMPLATE`, `CUT_DELETE_QUERY_TEMPLATE`, `ADD_EDGE_QUERY`,
@@ -118,6 +119,36 @@ MERGE (s)-[r:GENERIC_ALL]->(t) SET r += $props RETURN pre
 `RETURN count(r)` after a MERGE is 1 whether the edge was created or already
 existed, so it can never report an idempotent re-grant. `add_edge` returns
 True exactly when `pre == 0` (and False when an endpoint is absent).
+
+## Remediation-plan projection substrate (audit4 — `scratch_copy`)
+
+The multi-cut plan (`scoring.plan_cut_sequence`) projects every step on an
+isolated engine-side copy of the live estate — `GRAPH.COPY`, then the same
+reachability/enumeration/cut queries run against the copy, then `GRAPH.DELETE`
+on it in a `finally` (a crashed plan can never leak a scratch estate):
+
+```
+GRAPH.COPY <tenant-graph> <tenant-graph>_plan_scratch
+GRAPH.DELETE <tenant-graph>_plan_scratch
+```
+
+Live-verified on falkordb 6.0.0: copying the 1,480-node / 12,450-edge sample
+estate measures **~0.1s**; a cut on the copy never touches the original
+(pinned by `tests/test_planning.py::test_scratch_copy_is_isolated_and_droppable`).
+Because the copy is a REAL graph, post-cut re-routes are visible to the
+projection — a plan is never simulated from a frozen path enumeration.
+
+The collateral estimate (benign usage) samples the estate's User principals —
+deterministic order, no user input anywhere near the query:
+
+```cypher
+MATCH (u:User) RETURN u.objectid AS objectid ORDER BY objectid
+```
+
+Sampling is an even stride over the sorted non-owned pool (25 principals by
+default), and each sampled principal's canonical jewel paths are enumerated
+with the same `CANONICAL_PATH_QUERY_TEMPLATE` the attack ranking uses — the
+benign and attack numbers are measured by the same yardstick.
 
 ## Bulk ingestion (UNWIND batches — nodes then edges, 1000 rows per batch)
 

@@ -29,7 +29,7 @@ import random
 
 import pytest
 
-from tests.conftest import SAMPLE_DIR, drop_graph, requires_engine, requires_sample
+from tests.conftest import SAMPLE_DIR, drop_graph, prefixed, requires_engine, requires_sample
 from tests.interdiction_fuzz import MicroGraph, oracle_reached, random_micro_graph
 from sever.agent.investigator import Investigator
 from sever.core.falkor_port import (
@@ -250,7 +250,7 @@ MATRIX_OWNED = [O1, O2, O3, "audit3-w1", "audit3-w3", "audit3-w6",
 
 @pytest.fixture()
 def matrix_port():
-    gname = f"{P}_matrix"
+    gname = prefixed(f"{P}_matrix")
     port = FalkorGraphPort(graph_name=gname)
     drop_graph(port, gname)
     port.load(_matrix_graph().graph)
@@ -288,8 +288,8 @@ def test_two_arm_edge_case_matrix(matrix_port):
         assert_forms_agree(port, spec.nodes, spec.edges, cap, f"matrix/all-owned/cap{cap}")
 
     # --- fresh reload, then the pinned owner set ---
-    drop_graph(port, f"{P}_matrix")
-    port2 = FalkorGraphPort(graph_name=f"{P}_matrix")
+    drop_graph(port, prefixed(f"{P}_matrix"))
+    port2 = FalkorGraphPort(graph_name=prefixed(f"{P}_matrix"))
     port2.load(_matrix_graph().graph)
     try:
         for oid in MATRIX_OWNED:
@@ -334,7 +334,7 @@ def test_two_arm_edge_case_matrix(matrix_port):
 # ---------------------------------------------------------------------------
 
 def test_verdict_matrix_live():
-    gname = f"{P}_verdict"
+    gname = prefixed(f"{P}_verdict")
     port = FalkorGraphPort(graph_name=gname)
     drop_graph(port, gname)
     try:
@@ -401,7 +401,7 @@ def test_verdict_matrix_live():
 # ---------------------------------------------------------------------------
 
 def test_add_edge_and_mark_owned_idempotent():
-    gname = f"{P}_idem"
+    gname = prefixed(f"{P}_idem")
     port = FalkorGraphPort(graph_name=gname)
     drop_graph(port, gname)
     try:
@@ -465,7 +465,7 @@ def test_add_edge_and_mark_owned_idempotent():
 def test_micrograph_fuzz_invariants(seed):
     rng = random.Random(0xA0D1733 + seed)
     spec = random_micro_graph(rng, f"f{seed:02d}")
-    gname = f"{P}_fuzz{seed:02d}"
+    gname = prefixed(f"{P}_fuzz{seed:02d}")
     port = FalkorGraphPort(graph_name=gname)
     drop_graph(port, gname)
     try:
@@ -538,7 +538,7 @@ def _fetch_all_edges(port: FalkorGraphPort) -> list[tuple[str, str, str]]:
 
 @requires_sample
 def test_sample_estate_two_arm_vs_per_pair_vs_oracle():
-    gname = f"{P}_sample"
+    gname = prefixed(f"{P}_sample")
     port = FalkorGraphPort(graph_name=gname)
     drop_graph(port, gname)
     try:

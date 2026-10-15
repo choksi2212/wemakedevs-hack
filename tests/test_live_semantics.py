@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import drop_graph, requires_engine
+from tests.conftest import drop_graph, prefixed, requires_engine
 from sever.core.falkor_port import FalkorGraphPort
 from sever.core.jewels import TRAVERSAL_RELS_SET
 from sever.etl.ad_collectors import NormalizedGraph
@@ -48,7 +48,7 @@ def _craft_graph() -> NormalizedGraph:
 
 @pytest.fixture()
 def port():
-    p = FalkorGraphPort(graph_name="sever_audit2_core_t1")
+    p = FalkorGraphPort(graph_name=prefixed("sever_audit2_core_t1"))
     drop_graph(p, "sever_audit2_core_t1")
     p.load(_craft_graph())
     yield p
@@ -121,7 +121,7 @@ def test_owned_jewel_is_reached(port):
 def test_empty_owned_and_missing_jewels(port):
     assert port.owned_ids() == []            # nobody compromised
     assert port.reachability() == 0
-    p2 = FalkorGraphPort(graph_name="sever_audit2_core_t2")
+    p2 = FalkorGraphPort(graph_name=prefixed("sever_audit2_core_t2"))
     try:
         drop_graph(p2, "sever_audit2_core_t2")
         g = NormalizedGraph()
