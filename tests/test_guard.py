@@ -189,7 +189,7 @@ def test_reachability_two_arm_union_and_hop_cap_binding():
     assert len(arm_queries) == 2, "both arms must be issued"
     group_arm, az_arm = arm_queries
     assert "Group" in group_arm and "AZUser" not in group_arm
-    assert "AZUser" in az_arm and "GlobalAdministrator" in az_arm
+    assert "AZUser" in az_arm and "toLower(t.name) ENDS WITH '-globaladministrator'" in az_arm
     # the CALLER's hop cap is bound into BOTH arm patterns (mutation M9)
     assert "*..5" in group_arm and "*..5" in az_arm
 
