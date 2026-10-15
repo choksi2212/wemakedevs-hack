@@ -205,3 +205,54 @@ def test_gate_403_only_for_wellformed_requests(client):
         "src": HERO, "dst": "S-1-5-21-t-9999", "rel": "MEMBER_OF\n", "approved": False,
     })
     assert r.status_code == 422
+
+
+# ---- audit3/pentest-external: client-side hardening + opt-in docs ----
+
+def test_security_headers_on_every_response(client):
+    """Public deployment shipped none of these (verified against
+    sever-console.onrender.com). The middleware fences clickjacking,
+    MIME-sniffing, referrer leakage and pins HTTPS for proxied deploys."""
+    r = client.get("/api/state")
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert r.headers["Referrer-Policy"] == "no-referrer"
+    assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in r.headers["Content-Security-Policy"]
+    assert r.headers["Strict-Transport-Security"] == "max-age=31536000"
+    # fail-closed CORS posture: no origin is ever allowed to read the API
+    assert "Access-Control-Allow-Origin" not in r.headers
+    assert "Access-Control-Allow-Credentials" not in r.headers
+
+
+def test_cors_preflight_is_not_answered(client):
+    """No CORSMiddleware => a cross-origin preflight gets 405 and no
+    Access-Control-Allow-* headers: other origins can neither read nor
+    pre-flight a mutation."""
+    r = client.options("/api/cut", headers={
+        "Origin": "https://evil.example",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    })
+    assert r.status_code == 405
+    assert "Access-Control-Allow-Origin" not in r.headers
+
+
+def test_docs_and_schema_are_opt_in_via_sever_docs(client, monkeypatch):
+    """/docs, /redoc, /openapi.json answered 200 on the public deployment —
+    a complete API-map handed to any visitor. They are now off unless
+    SEVER_DOCS=1."""
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+    monkeypatch.setenv("SEVER_DOCS", "1")
+    import sever.console.app as appmod
+
+    importlib.reload(appmod)
+    from fastapi.testclient import TestClient
+
+    tc = TestClient(appmod.app)
+    assert tc.get("/docs").status_code == 200
+    assert tc.get("/openapi.json").status_code == 200
+    assert "SEVER console" in tc.get("/openapi.json").json()["info"]["title"]

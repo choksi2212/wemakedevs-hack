@@ -45,7 +45,44 @@ from sever.memory.flow import CaseLog
 
 def build_app() -> FastAPI:
     load_dotenv()  # .env at the repo root, if present — real environment always wins
-    app = FastAPI(title="SEVER console", version="0.2.0")
+    # OpenAPI/Swagger is opt-in (SEVER_DOCS=1). The console is deployed on a
+    # public URL, and the rendered schema (/openapi.json, /docs, /redoc) is
+    # free attacker recon — full route + CutRequest shape disclosure — with no
+    # product value for a demo UI that already renders the same information.
+    docs_enabled = os.environ.get("SEVER_DOCS", "").lower() in ("1", "true", "yes")
+    app = FastAPI(
+        title="SEVER console", version="0.2.0",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
+
+    @app.middleware("http")
+    async def _security_headers(request, call_next):
+        # Deliberately NO CORSMiddleware: with no CORS policy, no origin other
+        # than the console itself can READ any API response from a browser
+        # (no Access-Control-Allow-Origin is ever emitted), and non-JSON
+        # content types already die as 422 at the body parser, so cross-site
+        # requests cannot mutate either. This middleware adds the remaining
+        # client-side hardening observed missing on the public deployment
+        # (audit3/pentest-external): MIME-sniffing, clickjacking, referrer
+        # leakage, and transport security for proxied HTTPS deployments
+        # (Render/Cloudflare terminate TLS in front of plain-HTTP uvicorn).
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        # The console ships inline <style>/<script> in its single page, so
+        # script/style need 'unsafe-inline'; the protective value here is
+        # object-src/base-uri/frame-ancestors and a default-src fence.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            "connect-src 'self'; object-src 'none'; base-uri 'self'; "
+            "frame-ancestors 'none'"
+        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def _safe_validation_422(request, exc: RequestValidationError):
