@@ -78,7 +78,7 @@ def main() -> int:
         ctx.close()
         browser.close()
 
-    final = out_dir / "sever_demo.mp4"
+    final = out_dir / "sever_demo.webm"
     if path and Path(path).exists():
         final.write_bytes(Path(path).read_bytes())
         print(f"[video] recorded: {final} ({final.stat().st_size/1024/1024:.1f} MB)")
