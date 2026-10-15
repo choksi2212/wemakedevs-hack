@@ -78,3 +78,67 @@ def test_finding_request_rejects_injection_rels():
     for rel in INJECTION_RELS:
         with pytest.raises(ValidationError):
             FindingRequest(kind="ace_granted", subject=HERO, target=HERO, rel=rel)
+
+
+# ---- audit2/api-contract regression: the human gate is a STRICT boolean ----
+
+TRUTHY_NON_BOOL = [1, 0, 1.0, 0.0, 5, "true", "TRUE", "True", "false", "no",
+                   "yes", "on", "off", "1", "0", [], [True], {}, {"approved": True}, None]
+
+
+def test_cut_gate_rejects_every_truthy_non_bool():
+    """The bypass that executed real interdictions pre-fix.
+
+    Pydantic lax ``bool`` coerced each of these to True, the handler's
+    ``approved is not True`` gate passed, and POST /api/cut removed live
+    edges. StrictBool must answer all of them with 422.
+    """
+    for bad in TRUTHY_NON_BOOL:
+        with pytest.raises(ValidationError):
+            CutRequest(src=HERO, dst=HERO, rel="MEMBER_OF", approved=bad)
+
+
+def test_cut_gate_accepts_only_real_booleans():
+    assert CutRequest(src=HERO, dst=HERO, rel="MEMBER_OF", approved=True).approved is True
+    assert CutRequest(src=HERO, dst=HERO, rel="MEMBER_OF", approved=False).approved is False
+
+
+def test_required_strings_must_be_non_empty():
+    with pytest.raises(ValidationError):
+        CutRequest(src="", dst=HERO, rel="MEMBER_OF", approved=True)
+    with pytest.raises(ValidationError):
+        CutRequest(src=HERO, dst="", rel="MEMBER_OF", approved=True)
+    with pytest.raises(ValidationError):
+        CutRequest(src=HERO, dst=HERO, rel="MEMBER_OF", approved=True, approved_by="")
+    with pytest.raises(ValidationError):
+        FindingRequest(subject="")
+    with pytest.raises(ValidationError):
+        FindingRequest(subject=HERO, kind="")
+    with pytest.raises(ValidationError):
+        FindingRequest(subject=HERO, target="")
+
+
+def test_lone_surrogates_are_rejected_not_poisonous():
+    """\\ud800 escapes crash UTF-8 encodes downstream (response render AND the
+    receipts ledger read path — one such event 500s every future
+    GET /api/receipts). They must die at the schema layer as 422."""
+    with pytest.raises(ValidationError):
+        CutRequest(src="\ud800", dst=HERO, rel="MEMBER_OF", approved=True)
+    with pytest.raises(ValidationError):
+        CutRequest(src=HERO, dst=HERO, rel="MEMBER_OF", approved=True, approved_by="\udfff")
+    with pytest.raises(ValidationError):
+        FindingRequest(kind="\ud800", subject=HERO)
+    with pytest.raises(ValidationError):
+        FindingRequest(subject="\ud800")
+    with pytest.raises(ValidationError):
+        FindingRequest(subject=HERO, target="\ud83d")   # lone high surrogate
+
+
+def test_valid_astral_chars_still_pass():
+    """Real emoji (surrogate PAIRS) reassemble in json.loads and encode fine —
+    the utf-8 validator must not over-reject them."""
+    emoji = "\U0001f512"  # 🔒 padlock
+    req = FindingRequest(kind="ace_granted", subject=HERO, target=emoji)
+    assert req.target == emoji
+    req = CutRequest(src=emoji, dst=HERO, rel="MEMBER_OF", approved=True)
+    assert req.src == emoji
