@@ -30,7 +30,11 @@ ACE rights are derived from per-record `Aces[]` lists; memberships from `Members
   `OWNS`, `FORCE_CHANGE_PASSWORD`, `ALL_EXTENDED_RIGHTS`, `WRITE_PROPERTY`, `RESET_PASSWORD`,
   `GET_CHANGES`, `GET_CHANGES_IN_FILTERED_SET`, `GET_CHANGES_ALL`, `DCSYNC`, `ADD_MEMBER`,
   `ADD_SELF`, `ADD_KEY_CREDENTIAL_LINK`, `ADD_ALLOWED_TO_ACT`, `WRITE_ACCOUNT_RESTRICTIONS`,
-  `READ_GMSAPASSWORD`, `READ_LAPSPASSWORD`, `MANAGE_CA`, `MANAGE_CERTIFICATES`, `ENROLL`, …
+  `READ_GMSAPASSWORD`, `READ_LAPSPASSWORD`, `MANAGE_CA`, `MANAGE_CERTIFICATES`, `ENROLL`,
+  `WRITE_PKIENROLLMENT_FLAG`, `WRITE_PKINAME_FLAG`, … (`ENROLL` and the two `WRITE_PKI*`
+  flag writes are emitted by the sample's cert-template ACLs but deliberately
+  non-traversable; audit2 live inventory on falkordb 6.0.0: 42 rel types in the loaded
+  hybrid sample, the sample emits exactly 22 ACE-derived types, these two included)
 - Delegation / local admin: `ALLOWED_TO_DELEGATE`, `ALLOWED_TO_ACT`, `ADMIN_TO`, `HAS_SID_HISTORY`,
   `HAS_SPN_TARGET`
 - Forest structure: `TRUSTED_BY` (domain trusts, incl. external trust targets —
@@ -45,8 +49,10 @@ creation, deterministic). Measured on the official sample: **31 collector files 
 
 Hybrid estates merge the AzureHound collector output (`sever/etl/entra_collectors.py`),
 adding the cloud identity surface — `AZUser`, `AZServicePrincipal`, `AZApp`, `AZGroup`,
-`AZRole`, `AZDevice`, `AZVM`, `AZResourceGroup`, `AZSubscription`, `AZManagementGroup`,
-`AZKeyVault`, `AZTenant`, … (keyed by Entra object `id` instead of SID). Edges:
+`AZRole`, `AZDevice`, `AZVM`, `AZVMScaleSet`, `AZResourceGroup`, `AZSubscription`,
+`AZManagementGroup`, `AZKeyVault`, `AZLogicApp`, `AZFunctionApp`, `AZAutomationAccount`,
+`AZTenant` (keyed by Entra object `id` instead of SID) — the complete 16-label
+`_KIND_LABELS` set, all verified present in the loaded hybrid sample. Edges:
 `AZOwns`, `AZMemberOf`, `AZAppRole`, `AZVMAdminLogin`, `AZVMContributor`,
 `AZVMUserAccessAdmin`, `AZVMAvereContributor`, `AZRGUserAccessAdmin`, `AZSubUserAccessAdmin`,
 `AZMGUserAccessAdmin`, `AZKVUserAccessAdmin`, `AZKVContributor`, … plus the **hybrid
