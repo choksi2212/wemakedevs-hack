@@ -1,11 +1,16 @@
-"""Findings stream + ATT&CK map — stream determinism is DB-free; every
-graph-mutating assertion runs on the REAL engine (tiny dedicated estates)."""
+"""Findings stream + ATT&CK map — stream determinism and apply_finding
+rejection semantics are DB-free (wire-shape checks via an injected client);
+every graph-mutating assertion runs on the REAL engine (tiny estates)."""
 from __future__ import annotations
+
+import dataclasses
 
 import pytest
 
 from tests.conftest import requires_engine, drop_graph
 from sever.agent.llm import OfflineNarrator  # noqa: F401  (import integrity check)
+from sever.core.falkor_port import FalkorGraphPort
+from sever.etl.ad_collectors import NormalizedGraph
 from sever.findings.attack_map import ATTACK_MAP, narrate
 from sever.findings.stream import Finding, FindingStream, apply_finding, default_timeline
 
@@ -47,6 +52,95 @@ def test_timeline_f003_targets_real_id_not_placeholder():
     f003 = timeline[2]
     assert f003.target == "B"
     assert "placeholder" not in (f003.target or "")
+
+
+# ---- DB-free: stream exhaustion + apply_finding rejection semantics ----
+
+
+def test_stream_exhaustion_raises_stopiteration():
+    stream = FindingStream(default_timeline(HERO, "B", "C"))
+    while stream.remaining():
+        next(stream)
+    assert stream.remaining() == 0
+    for _ in range(3):  # an exhausted stream keeps raising — it never wraps around
+        with pytest.raises(StopIteration):
+            next(stream)
+    assert list(stream) == []  # re-iterating a spent stream yields nothing
+
+
+def test_empty_stream_is_immediately_exhausted():
+    stream = FindingStream([])
+    assert stream.remaining() == 0
+    assert list(stream) == []
+    with pytest.raises(StopIteration):
+        next(stream)
+
+
+def test_stream_takes_a_snapshot_of_its_input():
+    src = default_timeline(HERO, "B", "C")
+    stream = FindingStream(src)
+    src.clear()  # caller-side mutations must not affect an armed stream
+    assert stream.remaining() == 4
+    assert next(stream).id == "F-001"
+
+
+def test_findings_are_immutable_stream_items():
+    f = Finding("F-1", "ace_granted", "A")
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        f.id = "X"  # replayed timelines can never be rewritten mid-flight
+
+
+class _RecordingClient:
+    """Stand-in for the falkordb-py graph object (wire-shape unit tests)."""
+
+    def __init__(self, results=None):
+        from collections import deque
+
+        self.calls: list[tuple[str, dict | None]] = []
+        self._results = deque(results or [])
+
+    def query(self, query, params=None, timeout=None):
+        self.calls.append((query, params))
+
+        class _R:
+            result_set = [self._results.popleft()] if self._results else [[0]]
+
+        return _R()
+
+
+def test_apply_finding_noop_paths_never_touch_the_engine():
+    port = FalkorGraphPort(client=_RecordingClient())
+    assert apply_finding(port, Finding("F-2", "kerberoastable_spn", "A")) is False  # no grant
+    assert apply_finding(port, Finding("F-3", "ace_granted", "A", target="B",
+                                       rel=None, grants_edge=True)) is False       # rel missing
+    assert apply_finding(port, Finding("F-3b", "ace_granted", "A", target="B",
+                                       rel="", grants_edge=True)) is False         # rel empty
+    assert apply_finding(port, Finding("F-4", "ace_granted", "A", target=None,
+                                       rel="GENERIC_ALL", grants_edge=True)) is False  # target missing
+    assert apply_finding(port, Finding("F-5", "ace_granted", "A",
+                                       rel="GENERIC_ALL", grants_edge=False)) is False  # grant off
+    assert port.graph.calls == []
+
+
+def test_apply_finding_rejects_schema_violating_rel_before_the_engine():
+    port = FalkorGraphPort(client=_RecordingClient(results=[[1]]))
+    for bad in ("generic_all", "GENERIC_ALL}) DETACH DELETE (n) //", "A B", "A\nB"):
+        f = Finding("F-1", "ace_granted", "A", target="B", rel=bad, grants_edge=True)
+        with pytest.raises(ValueError):
+            apply_finding(port, f)  # the closed rel vocabulary fires before interpolation
+    assert port.graph.calls == []  # nothing reached the engine
+
+
+def test_apply_finding_wire_contract():
+    f = Finding("F-77", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
+    port = FalkorGraphPort(client=_RecordingClient(results=[[1]]))
+    assert apply_finding(port, f) is True  # MERGE created -> count 1
+    q, params = port.graph.calls[0]
+    assert "MERGE (s)-[r:GENERIC_ALL]->(t)" in q
+    assert "SET r += $props" in q
+    assert params == {"src": "A", "dst": "B", "props": {"source": "F-77"}}
+    port2 = FalkorGraphPort(client=_RecordingClient(results=[[0]]))
+    assert apply_finding(port2, f) is False  # MERGE matched an existing edge -> count 0
 
 
 # ---- on the REAL engine: finding application mutates the graph ----

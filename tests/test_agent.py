@@ -5,7 +5,7 @@ import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph
 from sever.agent.investigator import Investigator
-from sever.agent.llm import OfflineNarrator, OpenAICompatLLM, build_llm
+from sever.agent.llm import LLM, OfflineNarrator, OpenAICompatLLM, build_llm
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 ALICE = "S-1-5-21-t-1101"
@@ -31,8 +31,75 @@ def test_build_llm_uses_env(monkeypatch):
     assert llm._model == "test-model"
 
 
+@pytest.mark.parametrize(
+    "base_url,api_key,model",
+    [
+        ("", "k", "m"),   # empty base URL
+        ("u", "", "m"),   # empty key
+        ("u", "k", ""),   # empty model
+        ("", "", "m"),
+        ("", "k", ""),
+        ("u", "", ""),
+        ("", "", ""),     # all malformed
+    ],
+)
+def test_build_llm_malformed_env_falls_back_offline(monkeypatch, base_url, api_key, model):
+    monkeypatch.setenv("SEVER_LLM_BASE_URL", base_url)
+    monkeypatch.setenv("SEVER_LLM_API_KEY", api_key)
+    monkeypatch.setenv("SEVER_LLM_MODEL", model)
+    assert isinstance(build_llm(), OfflineNarrator)  # any empty field -> offline, never a crash
+
+
+def test_build_llm_survives_constructor_failure(monkeypatch):
+    monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
+    monkeypatch.setenv("SEVER_LLM_MODEL", "test-model")
+
+    class _Unreachable:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("endpoint unreachable")
+
+    monkeypatch.setattr("sever.agent.llm.OpenAICompatLLM", _Unreachable)
+    assert isinstance(build_llm(), OfflineNarrator)  # the seam never hard-fails
+
+
+def test_build_llm_wires_env_into_the_provider(monkeypatch):
+    captured = {}
+
+    class _Stub:
+        def __init__(self, base_url, api_key, model, timeout=30.0):
+            captured.update(base_url=base_url, api_key=api_key, model=model, timeout=timeout)
+
+    monkeypatch.setattr("sever.agent.llm.OpenAICompatLLM", _Stub)
+    monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
+    monkeypatch.setenv("SEVER_LLM_MODEL", "test-model")
+    llm = build_llm()
+    assert isinstance(llm, _Stub)
+    assert captured == {
+        "base_url": "https://example.test/v1",
+        "api_key": "k-test",
+        "model": "test-model",
+        "timeout": 30.0,
+    }
+
+
 def test_offline_narrator_is_deterministic():
     assert OfflineNarrator().complete("s", "u") == OfflineNarrator().complete("s", "u") == ""
+
+
+def test_offline_narrator_contract_is_deterministic():
+    narrator = OfflineNarrator()
+    assert isinstance(narrator, LLM)
+    assert narrator.name == "null"
+    outs = {OfflineNarrator().complete(f"sys-{i}", f"usr-{i}") for i in range(5)}
+    outs |= {
+        narrator.complete("", ""),                       # empty prompts
+        narrator.complete("ünïcode ✓", "x" * 1000),      # unicode + long input
+        narrator.complete("s", "u"),
+        narrator.complete("s", "u"),                      # repeat calls
+    }
+    assert outs == {""}  # every prompt, every instance, every call -> the same silence
 
 
 # ---- investigator on the live engine ----
