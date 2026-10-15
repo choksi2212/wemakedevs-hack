@@ -43,7 +43,7 @@ holds attack paths to five crown jewels. The agent proposes the highest-leverage
 cut. First cut executes: reachability **1 → 1, verdict DEGRADED** — because the
 honest verdict is that this edge wasn't the real chokepoint. The agent
 re-scores, proposes the actual chokepoint, second gated cut: **1 → 0, COLLAPSED,
-re-query in 2.98 milliseconds.**
+re-query in 2.28 milliseconds.**
 
 I kept the "degraded" case in the demo on purpose. An agent that only ever
 prints success is lying to you.
