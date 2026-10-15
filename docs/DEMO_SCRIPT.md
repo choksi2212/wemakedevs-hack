@@ -36,8 +36,9 @@ approvals, timestamps. (As logged in
 [`docs/receipts/receipts_live_sever_demo.json`](receipts/receipts_live_sever_demo.json) —
 cut #1 verdict `degraded`, cut #2 verdict `collapsed`.)
 
-**2:20–2:40 — Scale wall.** Tenant switch: `sever_tenant002` is a completely
-different org (disjoint SIDs) — instant graph swap, native multi-tenancy.
+**2:20–2:40 — Scale wall.** In the FalkorDB browser UI (:3000), switch to the
+`sever_tenant002` graph — a completely different org (disjoint SIDs) —
+instant graph swap, native multi-tenancy.
 Then the generator: hundreds of tenant graphs in ONE FalkorDB instance,
 latency-flat. (FalkorDB's signature 10K-graphs-per-instance story, made real.)
 
@@ -73,9 +74,9 @@ every rung runs the real engine.
 ## CONSOLE CLICK-PATH (record this)
 
 1. Open the console (build host :8000) — estate panel: 1,480 nodes, 5 jewels
-2. Click "simulate breach" → red reachability **1**, paths light up with
+2. Click "Simulate breach finding" → red reachability **1**, paths light up with
    hop-by-hop rel types, ATT&CK narration banner
-3. Click "simulate new ACE grant" → the graph mutates live, agent re-scores
+3. Click "Grant new ACE (live mutation)" → the graph mutates live, agent re-scores
 4. Click **APPROVE CUT**, then **CONFIRM CUT** (the two-step gate) on the top
    proposal → verdict banner (DEGRADED keeps the story honest); approve +
    confirm the re-ranked proposal → **COLLAPSED**
