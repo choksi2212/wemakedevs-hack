@@ -75,8 +75,8 @@ matrices are not marketing.
   `MATCH p = shortestPath(...)` form that Neo4j tutorials teach is rejected.
 - shortest-path hop ranges must be upper-bounded (`*..12`, no lower bound).
 - `algo.SPpaths` is glorious for tie analysis but explodes combinatorially on
-  cross-domain path sets (15–25s+ per pair on my estate) — keep it for
-  offline analysis, use the canonical form for anything on-camera.
+  cross-domain path sets — keep it for offline analysis, use the canonical
+  form for anything on-camera.
 - The procedure returns raw integer node ids on edges, not node objects.
 - The shipped container has an aggressive default query timeout that fails
   *silently*. Set `GRAPH.CONFIG SET TIMEOUT_DEFAULT 0` and pass per-query

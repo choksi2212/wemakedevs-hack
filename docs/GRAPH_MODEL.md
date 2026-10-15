@@ -17,7 +17,8 @@ hackathon's rule 3). Identity graphs are ingested from BloodHound CE collector J
 | `CertTemplate`, `EnterpriseCA`, `RootCA`, `AIACA`, `NTAuthStore` | certtemplates / CAs | ADCS surface (ESC derivation D2) |
 
 Every node: `objectid` (natural key, MERGE target), `owned` (compromised flag),
-`unresolved` (true when referenced-but-uncollected — BloodHound-faithful).
+`unresolved` (true when the node was created for a referenced-but-uncollected
+principal — surfaced honestly, BloodHound-faithful).
 
 ## Relationship types (edges)
 
@@ -30,24 +31,21 @@ ACE rights are derived from per-record `Aces[]` lists; memberships from `Members
   `GET_CHANGES`, `GET_CHANGES_IN_FILTERED_SET`, `GET_CHANGES_ALL`, `DCSYNC`, `ADD_MEMBER`,
   `ADD_SELF`, `ADD_KEY_CREDENTIAL_LINK`, `ADD_ALLOWED_TO_ACT`, `WRITE_ACCOUNT_RESTRICTIONS`,
   `READ_GMSAPASSWORD`, `READ_LAPSPASSWORD`, `MANAGE_CA`, `MANAGE_CERTIFICATES`, `ENROLL`, …
-- Delegation/session: `ALLOWED_TO_DELEGATE`, `ALLOWED_TO_ACT`, `ADMIN_TO`, `HAS_SID_HISTORY`,
+- Delegation / local admin: `ALLOWED_TO_DELEGATE`, `ALLOWED_TO_ACT`, `ADMIN_TO`, `HAS_SID_HISTORY`,
   `HAS_SPN_TARGET`
-- Forest structure: `TRUSTED_BY` (domain trusts, incl. external placeholders), `CONTAINED_BY`,
-  `PUBLISHED_ON` (cert template → CA — BloodHound CE's `PublishedTo` direction)
-- Local admin: `ADMIN_TO` from local-group `Results` — only the local
-  ADMINISTRATORS group (RID -544), faithful to BloodHound CE's `AdminTo`
-- Delegation: `ALLOWED_TO_DELEGATE` runs delegator → target
-  (msDS-AllowedToDelegateTo); `ALLOWED_TO_ACT` runs actor → target computer
-  (msDS-AllowedToActOnBehalfOfOtherIdentity)
+- Forest structure: `TRUSTED_BY` (domain trusts, incl. external trust targets —
+  created as `external` Domain nodes), `CONTAINED_BY`,
+  `PUBLISHED_ON` (cert template → enterprise CA that publishes it)
 
-Full derivation code: `sever/etl/ad_collectors.py` (two-pass parse, unresolved
+Full derivation code: `sever/etl/ad_collectors.py` (two-pass parse, unresolved-principal
 creation, deterministic). Measured on the official sample: **31 collector files → 1,480 nodes /
-12,450 edges, zero dangling references** (`tests/test_etl.py`).
+12,437 edges, zero dangling references** (`tests/test_etl.py`).
 
 ## The traversal set (the product's core judgment)
 
 An attacker can chain only relationships in `sever/core/jewels.py::TRAVERSAL_RELS` —
-the abusable subset (memberships, ACL rights, delegation, sessions, trusts).
+the abusable subset (memberships, ACL rights, delegation, GMSA/LAPS password
+reads, trusts).
 Structural edges (`CONTAINED_BY`, `PUBLISHED_ON`) never count toward attack paths.
 This mirrors BloodHound's abuse semantics for every right present in the sample.
 
