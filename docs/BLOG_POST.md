@@ -68,7 +68,7 @@ bridge into on-prem Domain Admin chains. Sever the cross-world bridge:
 taken seriously: I generated **300 tenant graphs** (injective identity remaps,
 so every tenant is a distinct org) — **444,000 nodes and 3.74 million edges in a
 single instance consuming 1.59 GiB of RAM**, with canonical shortest-path
-queries flat at ~3.7ms median across every sampled tenant. Sparse adjacency
+queries flat at a 4.67ms median across every sampled tenant. Sparse adjacency
 matrices are not marketing.
 
 ## Things I learned shipping against FalkorDB 6.0.0
