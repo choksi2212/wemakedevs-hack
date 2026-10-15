@@ -10,7 +10,7 @@ findings are a labeled breach-timeline replay. All data public/synthetic.
 ## Timeline
 
 **0:00–0:20 — The estate.** FalkorDB browser (:3000) shows the `sever_demo`
-tenant graph: 1,480 nodes / 12,437 edges ingested in seconds. Headline metric
+tenant graph: 1,480 nodes / 12,450 edges ingested in seconds. Headline metric
 panel: **5 crown jewels** across 3 domains; reachability 0 (nothing owned yet).
 
 **0:20–0:50 — The breach.** Finding F-001 lands (infostealer dump —

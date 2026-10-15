@@ -19,7 +19,7 @@ on-call agent over an identity graph with one opinionated thesis:
 ## The architecture, honestly
 
 SEVER ingests the official BloodHound CE sample estates (Apache-2.0,
-SpecterOps — 3 domains, 1,480 nodes, 12,437 edges, zero dangling references
+SpecterOps — 3 domains, 1,480 nodes, 12,450 edges, zero dangling references
 after my ETL) into **FalkorDB**, plus the AzureHound Entra sample for the
 hybrid story. On a findings stream it:
 
