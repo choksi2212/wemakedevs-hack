@@ -1,0 +1,28 @@
+# GRAPH.PROFILE — live receipt (falkordb 6.0.0, sever_demo tenant)
+
+Query (canonical attack-path lookup, literals substituted for PROFILE which
+does not bind parameters):
+
+    MATCH (o {objectid: "S-1-5-21-...-2110"}), (t {objectid: "S-1-5-21-...-512"})
+    WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|...|AZKVContributor*..12]->(t)) AS p
+    RETURN p
+
+Execution plan (captured verbatim from the live engine, Oct 15 2026):
+
+```
+Project | Records produced: 1, Execution time: 0.001613 ms
+    Project | Records produced: 1, Execution time: 0.292865 ms
+        Cartesian Product | Records produced: 1, Execution time: 0.008168 ms
+            Filter | Records produced: 1, Execution time: 0.038534 ms
+                All Node Scan | (o) | Records produced: 1480, Execution time: 0.004168 ms
+            Filter | Records produced: 1, Execution time: 0.479396 ms
+                All Node Scan | (t) | Records produced: 1480, Execution time: 0.007715 ms
+```
+
+Total in-engine time: ~0.83 ms on a 1,480-node / 12,437-edge tenant.
+
+Note: range indexes on `objectid` are created per label at load
+(`sever/core/falkor_port.py::INDEXED_LABELS`); the canonical query binds
+endpoints without a label so the planner chooses All-Node-Scan — still
+sub-millisecond at this estate size, and the label indexes serve larger
+estates and label-qualified lookups.
