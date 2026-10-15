@@ -111,6 +111,7 @@ def build_app() -> FastAPI:
 
     # expose for tests/teardown
     build_app.port_obj = port
+    app.state.port = port  # canonical accessor (tests use this for drop_graph)
     return app
 
 
