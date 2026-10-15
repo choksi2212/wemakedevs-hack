@@ -23,9 +23,44 @@ ever reach ``approve_and_cut`` through the flow.
 from __future__ import annotations
 
 import json
+import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Iterator, TypedDict
+
+if sys.platform == "win32":
+    import time as _time
+
+    import msvcrt
+
+    def _lock_handle(f: Any) -> None:
+        # Spin on the non-blocking lock: msvcrt's blocking LK_LOCK retries at
+        # ~1s granularity, which makes contended handoff ~100x slower than
+        # needed. A crashed holder cannot wedge the ledger — Windows owns
+        # these locks and releases them when the process dies.
+        f.seek(0)
+        deadline = _time.monotonic() + 60.0
+        while True:
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                if _time.monotonic() > deadline:
+                    raise RuntimeError("CaseLog ledger lock is wedged (>60s)") from None
+                _time.sleep(0.002)
+
+    def _unlock_handle(f: Any) -> None:
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:  # POSIX
+    import fcntl
+
+    def _lock_handle(f: Any) -> None:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_handle(f: Any) -> None:
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -143,25 +178,46 @@ def resume_investigation(
 
 
 class CaseLog:
-    """Append-only case ledger per tenant — the receipts trail (JSONL)."""
+    """Append-only case ledger per tenant — the receipts trail (JSONL).
+
+    Multi-PROCESS safe: several operator processes share one tenant ledger
+    (concurrent console instances, resume drivers), and the naive append-mode
+    write is not atomic across processes — on Windows the CRT's O_APPEND
+    emulation is seek-then-write with no interlock and on POSIX any line
+    larger than the stdio buffer splits across write() calls. Measured on
+    the Windows substrate with the unlocked append: two concurrent writers
+    lost ~5-13% of events and minted unparseable partial lines. Every
+    append therefore holds an exclusive lock on a sidecar lock file, and
+    read() takes the same lock so a reader can never observe a torn line.
+    """
 
     def __init__(self, tenant: str, root: str | Path = "out/cases") -> None:
         self.path = Path(root) / f"{tenant}.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock_path = self.path.parent / (self.path.name + ".lock")
+
+    @contextmanager
+    def _locked(self) -> Iterator[None]:
+        with self._lock_path.open("a+b") as lockf:
+            _lock_handle(lockf)
+            try:
+                yield
+            finally:
+                _unlock_handle(lockf)
 
     def append(self, event: dict[str, Any]) -> None:
         event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(event, default=str) + "\n")
+        line = json.dumps(event, default=str) + "\n"
+        with self._locked():
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(line)
 
     def read(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
-        return [
-            json.loads(line)
-            for line in self.path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        with self._locked():
+            text = self.path.read_text(encoding="utf-8")
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
 
     def last_step(self) -> str | None:
         events = self.read()

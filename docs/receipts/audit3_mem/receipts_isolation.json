@@ -1,0 +1,715 @@
+{
+  "beat": "multi-thread isolation + fleet-2 resume-safety (live)",
+  "graph": "sever_audit3_mem",
+  "setup": {
+    "reset": {
+      "sever_audit3_mem": "deleted",
+      "sever_audit3_mem_checkpoints": "deleted"
+    },
+    "nodes": 1480,
+    "edges": 12450
+  },
+  "subject_b": {
+    "objectid": "S-1-5-21-2845847946-3451170323-4261139666-1104",
+    "mode": "inherent_path",
+    "candidates_tried": 1
+  },
+  "start_a": {
+    "args": [
+      "start",
+      "--thread",
+      "case-A",
+      "--graph",
+      "sever_audit3_mem",
+      "--finding-id",
+      "F-A",
+      "--subject",
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+    ],
+    "returncode": 0,
+    "stdout": "[t2] investigation paused at the HUMAN GATE (process 1 exiting)\n[t2] thread: case-A\n[t2] finding: F-A | subject: S-1-5-21-2697957641-2271029196-387917394-2110\n[t2] pending proposal (from shared case memory):\n        S-1-5-21-2697957641-2271029196-387917394-2101 -[MEMBER_OF]-> S-1-5-21-2697957641-2271029196-387917394-2102 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2102 -[READ_GMSAPASSWORD]-> S-1-5-21-2697957641-2271029196-387917394-2138 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 5 paths)\n[t2] reachability at pause: 1\n[t2] a FRESH process can resume this case from FalkorDB case memory\n",
+    "stderr": ""
+  },
+  "start_b": {
+    "args": [
+      "start",
+      "--thread",
+      "case-B",
+      "--graph",
+      "sever_audit3_mem",
+      "--finding-id",
+      "F-B",
+      "--subject",
+      "S-1-5-21-2845847946-3451170323-4261139666-1104"
+    ],
+    "returncode": 0,
+    "stdout": "[t2] investigation paused at the HUMAN GATE (process 1 exiting)\n[t2] thread: case-B\n[t2] finding: F-B | subject: S-1-5-21-2845847946-3451170323-4261139666-1104\n[t2] pending proposal (from shared case memory):\n        S-1-5-21-2697957641-2271029196-387917394-2101 -[MEMBER_OF]-> S-1-5-21-2697957641-2271029196-387917394-2102 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2102 -[READ_GMSAPASSWORD]-> S-1-5-21-2697957641-2271029196-387917394-2138 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 5 paths)\n[t2] reachability at pause: 2\n[t2] a FRESH process can resume this case from FalkorDB case memory\n",
+    "stderr": ""
+  },
+  "paused_case_A": {
+    "thread": "case-A",
+    "values": {
+      "finding_id": "F-A",
+      "finding_kind": "credential_breach",
+      "subject": "S-1-5-21-2697957641-2271029196-387917394-2110",
+      "triage": {
+        "finding": "F-A",
+        "kind": "credential_breach",
+        "applied": false,
+        "before": {
+          "reachability": 0,
+          "owned": [],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "technique": "T1078.002 Valid Accounts: Domain Accounts",
+        "narration": "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+        "paths": 5,
+        "proposal": [
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "rel": "MEMBER_OF",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "rel": "READ_GMSAPASSWORD",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "rel": "GENERIC_ALL",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "paths_on": 5
+          }
+        ]
+      },
+      "proposal": [
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "READ_GMSAPASSWORD",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+          "rel": "GENERIC_ALL",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "paths_on": 5
+        }
+      ],
+      "step": "awaiting_approval"
+    },
+    "next": [
+      "verify"
+    ]
+  },
+  "paused_case_B": {
+    "thread": "case-B",
+    "values": {
+      "finding_id": "F-B",
+      "finding_kind": "credential_breach",
+      "subject": "S-1-5-21-2845847946-3451170323-4261139666-1104",
+      "triage": {
+        "finding": "F-B",
+        "kind": "credential_breach",
+        "applied": false,
+        "before": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 2,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "technique": "T1078.002 Valid Accounts: Domain Accounts",
+        "narration": "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+        "paths": 1,
+        "proposal": [
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "rel": "MEMBER_OF",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "rel": "READ_GMSAPASSWORD",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "rel": "GENERIC_ALL",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "paths_on": 5
+          }
+        ]
+      },
+      "proposal": [
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "READ_GMSAPASSWORD",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+          "rel": "GENERIC_ALL",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "paths_on": 5
+        }
+      ],
+      "step": "awaiting_approval"
+    },
+    "next": [
+      "verify"
+    ]
+  },
+  "resume_a": {
+    "args": [
+      "resume",
+      "--thread",
+      "case-A",
+      "--graph",
+      "sever_audit3_mem",
+      "--approved-by",
+      "A-op",
+      "--out",
+      "out/audit3_mem/receipt_case-A.json"
+    ],
+    "returncode": 0,
+    "stdout": "[t2] resumed in a FRESH process \ufffd thread case-A\n[t2] triage was remembered from case memory: finding=F-A\n[t2] subject was remembered from case memory: subject=S-1-5-21-2697957641-2271029196-387917394-2110\n[t2] remembered proposal top: S-1-5-21-2697957641-2271029196-387917394-2101 -[MEMBER_OF]-> S-1-5-21-2697957641-2271029196-387917394-2102\n[t2] cut executed: {'src': 'S-1-5-21-2697957641-2271029196-387917394-2101', 'dst': 'S-1-5-21-2697957641-2271029196-387917394-2102', 'rel': 'MEMBER_OF', 'relationships_removed': 1}\n[t2] reachability 2 -> 1 | requery 2.55ms | verdict=collapsed\n[t2] receipts written to out\\audit3_mem\\receipt_case-A.json\n",
+    "stderr": ""
+  },
+  "resume_b": {
+    "args": [
+      "resume",
+      "--thread",
+      "case-B",
+      "--graph",
+      "sever_audit3_mem",
+      "--approved-by",
+      "B-op",
+      "--out",
+      "out/audit3_mem/receipt_case-B.json"
+    ],
+    "returncode": 0,
+    "stdout": "[t2] resumed in a FRESH process \ufffd thread case-B\n[t2] triage was remembered from case memory: finding=F-B\n[t2] subject was remembered from case memory: subject=S-1-5-21-2845847946-3451170323-4261139666-1104\n[t2] remembered proposal top: S-1-5-21-2697957641-2271029196-387917394-2101 -[MEMBER_OF]-> S-1-5-21-2697957641-2271029196-387917394-2102\n[t2] cut executed: {'src': 'S-1-5-21-2697957641-2271029196-387917394-2101', 'dst': 'S-1-5-21-2697957641-2271029196-387917394-2102', 'rel': 'MEMBER_OF', 'relationships_removed': 0}\n[t2] reachability 1 -> 1 | requery 1.11ms | verdict=no_effect\n[t2] receipts written to out\\audit3_mem\\receipt_case-B.json\n",
+    "stderr": ""
+  },
+  "resumed_case_A": {
+    "thread": "case-A",
+    "values": {
+      "finding_id": "F-A",
+      "finding_kind": "credential_breach",
+      "subject": "S-1-5-21-2697957641-2271029196-387917394-2110",
+      "triage": {
+        "finding": "F-A",
+        "kind": "credential_breach",
+        "applied": false,
+        "before": {
+          "reachability": 0,
+          "owned": [],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "technique": "T1078.002 Valid Accounts: Domain Accounts",
+        "narration": "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+        "paths": 5,
+        "proposal": [
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "rel": "MEMBER_OF",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "rel": "READ_GMSAPASSWORD",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "rel": "GENERIC_ALL",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "paths_on": 5
+          }
+        ]
+      },
+      "proposal": [
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "READ_GMSAPASSWORD",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+          "rel": "GENERIC_ALL",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "paths_on": 5
+        }
+      ],
+      "approved": true,
+      "approved_by": "A-op",
+      "receipt": {
+        "cut": {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "MEMBER_OF",
+          "relationships_removed": 1
+        },
+        "before": {
+          "reachability": 2,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12449
+        },
+        "requery_ms": 2.55,
+        "verdict": "collapsed",
+        "approved_by": "A-op",
+        "approved_at": "2026-10-15T17:21:42+00:00"
+      },
+      "step": "verified"
+    },
+    "next": []
+  },
+  "resumed_case_B": {
+    "thread": "case-B",
+    "values": {
+      "finding_id": "F-B",
+      "finding_kind": "credential_breach",
+      "subject": "S-1-5-21-2845847946-3451170323-4261139666-1104",
+      "triage": {
+        "finding": "F-B",
+        "kind": "credential_breach",
+        "applied": false,
+        "before": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 2,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "technique": "T1078.002 Valid Accounts: Domain Accounts",
+        "narration": "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+        "paths": 1,
+        "proposal": [
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "rel": "MEMBER_OF",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "rel": "READ_GMSAPASSWORD",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "rel": "GENERIC_ALL",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "paths_on": 5
+          }
+        ]
+      },
+      "proposal": [
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "READ_GMSAPASSWORD",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+          "rel": "GENERIC_ALL",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "paths_on": 5
+        }
+      ],
+      "approved": true,
+      "approved_by": "B-op",
+      "receipt": {
+        "cut": {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "MEMBER_OF",
+          "relationships_removed": 0
+        },
+        "before": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12449
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12449
+        },
+        "requery_ms": 1.11,
+        "verdict": "no_effect",
+        "approved_by": "B-op",
+        "approved_at": "2026-10-15T17:21:43+00:00"
+      },
+      "step": "verified"
+    },
+    "next": []
+  },
+  "verdicts": {
+    "A": "collapsed",
+    "B": "no_effect",
+    "B_cut_removed": 0
+  },
+  "double_resume_case_A": {
+    "raised": true,
+    "type": "ValueError",
+    "message": "thread 'case-A' is not paused at the gate"
+  },
+  "case_A_after_double_resume": {
+    "thread": "case-A",
+    "values": {
+      "finding_id": "F-A",
+      "finding_kind": "credential_breach",
+      "subject": "S-1-5-21-2697957641-2271029196-387917394-2110",
+      "triage": {
+        "finding": "F-A",
+        "kind": "credential_breach",
+        "applied": false,
+        "before": {
+          "reachability": 0,
+          "owned": [],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "technique": "T1078.002 Valid Accounts: Domain Accounts",
+        "narration": "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+        "paths": 5,
+        "proposal": [
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "rel": "MEMBER_OF",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "rel": "READ_GMSAPASSWORD",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "rel": "GENERIC_ALL",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "paths_on": 5
+          }
+        ]
+      },
+      "proposal": [
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "READ_GMSAPASSWORD",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+          "rel": "GENERIC_ALL",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "paths_on": 5
+        }
+      ],
+      "approved": true,
+      "approved_by": "A-op",
+      "receipt": {
+        "cut": {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "MEMBER_OF",
+          "relationships_removed": 1
+        },
+        "before": {
+          "reachability": 2,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "S-1-5-21-2845847946-3451170323-4261139666-1104"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12449
+        },
+        "requery_ms": 2.55,
+        "verdict": "collapsed",
+        "approved_by": "A-op",
+        "approved_at": "2026-10-15T17:21:42+00:00"
+      },
+      "step": "verified"
+    },
+    "next": []
+  },
+  "start_c": {
+    "returncode": 0,
+    "stdout": "[t2] investigation paused at the HUMAN GATE (process 1 exiting)\n[t2] thread: case-C\n[t2] finding: F-C | subject: S-1-5-21-2845847946-3451170323-4261139666-1104\n[t2] pending proposal (from shared case memory):\n        S-1-5-21-2845847946-3451170323-4261139666-1104 -[MEMBER_OF]-> S-1-5-21-2845847946-3451170323-4261139666-512 (on 1 paths)\n[t2] reachability at pause: 1\n[t2] a FRESH process can resume this case from FalkorDB case memory\n"
+  },
+  "standin_case_C": {
+    "step": "gate_closed",
+    "receipt_present": false,
+    "proposal_len": 1
+  },
+  "refuse_never_started": {
+    "raised": true,
+    "type": "ValueError",
+    "message": "thread 'audit3-never-started' is not paused at the gate"
+  },
+  "checkpoint_graph": {
+    "checkpoints": [
+      [
+        "case-A",
+        7
+      ],
+      [
+        "case-B",
+        7
+      ],
+      [
+        "case-C",
+        7
+      ]
+    ],
+    "blobs": [
+      [
+        "case-A",
+        42
+      ],
+      [
+        "case-B",
+        42
+      ],
+      [
+        "case-C",
+        39
+      ]
+    ]
+  },
+  "failures": [],
+  "all_pass": true
+}
