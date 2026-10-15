@@ -116,7 +116,11 @@ BloodHound CE + AzureHound collectors ──▶ ETL (two-pass, BloodHound-faithf
   `NullLLM` fallback — the product never depends on a model to function.
 - **Case memory**: investigations are resumable LangGraph flows checkpointed
   by `FalkorDBSaver` — state lives in the graph DB, shared across processes
-  and agents (Track 2's "agents that remember across sessions and share state").
+  and agents (Track 2's "agents that remember across sessions and share state";
+  full key-focus mapping in [`docs/T2_MEMORY.md`](docs/T2_MEMORY.md)).
+- **Eval ablation**: the same estate questions answered by graph traversal
+  (5/5) vs keyword-only retrieval (0/5) — the rule-3 proof, quantified:
+  [`docs/receipts/ablation.json`](docs/receipts/ablation.json).
 
 ## Tests
 
