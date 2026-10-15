@@ -14,12 +14,23 @@ any handler runs:
 - 422 schema: malformed JSON, wrong types, missing fields, empty required
   strings, oversized fields (100KB subject dies here), rel syntax violations
   (injection payloads, trailing newlines, >64 chars), truthy non-bool
-  ``approved`` (1, 1.0, "true", "yes", "on", "1"), lone surrogates.
-- 400 vocabulary: a syntactically valid but unknown rel (e.g. "generic_all")
+  ``approved`` (1, 1.0, "true", "yes", "on", "1"), lone surrogates,
+  unknown finding ``kind`` (closed ATT&CK vocabulary) and ``ace_granted``
+  findings without a real target/rel grant (audit3/console-logic).
+- 400 vocabulary/estate: a syntactically valid but unknown rel (e.g. "generic_all")
   reaches FalkorGraphPort's closed-vocabulary guard and is a client error,
-  never a 500.
+  never a 500. A finding whose subject/target does not resolve to a
+  principal of the loaded estate is likewise a client error — pre-fix it was
+  a 200 phantom no-op narrated as "this principal is now assumed controlled"
+  (audit3/console-logic, live-verified).
 - 403 gate: the cut handler accepts only ``approved is True`` — the schema's
   StrictBool guarantees nothing else can ever be True here.
+- 503 engine outage: FalkorDB connection failures surface as a clean JSON
+  503 — never a bare 500 with an unparseable body (which left the UI banner
+  rendering a JSON-parse artifact instead of the cause). A finding/cut that
+  was mid-flight when the engine died is recorded on the receipts ledger as
+  ``finding_failed``/``cut_failed`` with ``outcome: unknown`` — the trail
+  never invents a success and never loses the attempt.
 """
 from __future__ import annotations
 
@@ -30,7 +41,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import Response
 from dotenv import load_dotenv
 
@@ -39,13 +50,31 @@ from sever.console.security import BodySizeLimitMiddleware
 from sever.console.schemas import CutRequest, FindingRequest
 from sever.console.security import BodySizeLimitMiddleware
 from sever.core.falkor_port import FalkorGraphPort
+from sever.core.port import GraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
 from sever.findings.stream import Finding
 from sever.memory.flow import CaseLog
 
 
-def build_app() -> FastAPI:
+def _engine_outage_errors() -> tuple[type[BaseException], ...]:
+    """The exception types a dead/unreachable FalkorDB raises (redis-py,
+    which falkordb wraps). The console maps these to a clean 503."""
+    try:
+        from redis.exceptions import ConnectionError, TimeoutError
+
+        return (ConnectionError, TimeoutError)
+    except ImportError:  # pragma: no cover — falkordb always ships redis-py
+        return (ConnectionError,)
+
+
+ENGINE_ERRORS = _engine_outage_errors()
+
+
+def build_app(port: GraphPort | None = None) -> FastAPI:
+    """Assemble the console. ``port`` is injectable for engine-free tests of
+    the HTTP layer (resilience contract); production always builds a
+    FalkorGraphPort."""
     load_dotenv()  # .env at the repo root, if present — real environment always wins
 
     # OpenAPI/Swagger is opt-in (SEVER_DOCS=1). The console is deployed on a
@@ -103,13 +132,26 @@ def build_app() -> FastAPI:
         body = json.dumps({"detail": errors}, ensure_ascii=True, default=str)
         return Response(content=body, status_code=422, media_type="application/json")
 
-    port = FalkorGraphPort(
-        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
-        username=os.environ.get("SEVER_FALKOR_USER"),
-        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-    )
+    async def _engine_outage(request, exc: Exception):
+        # The engine IS the product: when FalkorDB is unreachable the console
+        # fails cleanly — machine-readable 503 JSON. Pre-fix this surfaced as
+        # a bare 500 "Internal Server Error" whose unparseable body left the
+        # UI banner showing a JSON-parse artifact instead of the cause
+        # (audit3/console-logic, live-verified by killing the engine between
+        # /api/finding and /api/cut).
+        return JSONResponse(status_code=503, content={"detail": f"engine unreachable: {exc}"})
+
+    for _exc_cls in ENGINE_ERRORS:
+        app.add_exception_handler(_exc_cls, _engine_outage)
+
+    if port is None:
+        port = FalkorGraphPort(
+            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+            graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
+            username=os.environ.get("SEVER_FALKOR_USER"),
+            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+        )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
             "SEVER_SAMPLE_DIR",
@@ -135,6 +177,14 @@ def build_app() -> FastAPI:
         if res.result_set and res.result_set[0][0]:
             return str(res.result_set[0][0])
         return oid
+
+    def _objectid_exists(oid: str) -> bool:
+        """Resolves against the loaded estate — the honest-rejection probe:
+        a finding about a principal that does not exist is a client error,
+        never a narrated phantom no-op."""
+        res = port.graph.query(
+            "MATCH (n {objectid: $o}) RETURN count(n) AS c", {"o": oid})
+        return bool(res.result_set and int(res.result_set[0][0]) > 0)
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
@@ -168,6 +218,20 @@ def build_app() -> FastAPI:
 
     @app.post("/api/finding")
     async def finding(req: FindingRequest) -> dict[str, Any]:
+        # Honest rejection (audit3/console-logic): a finding is about real
+        # principals of the loaded estate. Pre-fix, a breach on a nonexistent
+        # objectid was a 200 phantom no-op whose narration claimed "this
+        # principal is now assumed controlled" (live-verified).
+        if not _objectid_exists(req.subject):
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown subject: no principal with objectid {req.subject!r} in the estate",
+            )
+        if req.target is not None and not _objectid_exists(req.target):
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown target: no principal with objectid {req.target!r} in the estate",
+            )
         f = Finding(
             # 4 random bytes (8 hex chars): the old 2-byte id space (65,536)
             # collides visibly in the ledger after a few hundred findings.
@@ -183,6 +247,16 @@ def build_app() -> FastAPI:
             # rejects it before any Cypher runs. It must surface as a 400,
             # not an unhandled 500 with a stack trace.
             raise HTTPException(status_code=400, detail=str(e))
+        except ENGINE_ERRORS:
+            # The engine died mid-triage: the finding may have partially
+            # reached the graph (apply_finding is a single atomic MERGE, but
+            # the caller cannot know). Record the attempt with outcome
+            # unknown — the receipts trail never invents a success, never
+            # loses the attempt, and never corrupts a line.
+            log.append({"step": "finding_failed", "finding": f.id, "kind": f.kind,
+                        "subject": f.subject,
+                        "error": "engine unreachable mid-triage", "outcome": "unknown"})
+            raise
         log.append({"step": "finding", "finding": f.id, "kind": f.kind, "triage": report.as_dict()})
         story = narrate(f)
         return {
@@ -208,6 +282,16 @@ def build_app() -> FastAPI:
             # handled the not-approved case, and FalkorGraphPort.cut rejects
             # bad rels before any Cypher runs. Client error -> 400, not 500.
             raise HTTPException(status_code=400, detail=str(e))
+        except ENGINE_ERRORS:
+            # Engine died mid-cut (audit3/console-logic: live-verified by
+            # killing FalkorDB between /api/finding and /api/cut). The
+            # DELETE may or may not have landed — outcome unknown, honestly
+            # recorded; the ledger stays valid and complete.
+            log.append({"step": "cut_failed",
+                        "cut": {"src": req.src, "dst": req.dst, "rel": req.rel},
+                        "approved_by": req.approved_by,
+                        "error": "engine unreachable mid-cut", "outcome": "unknown"})
+            raise
         log.append({"step": "cut", "receipt": receipt})
         return receipt
 
@@ -224,4 +308,10 @@ def names(hops):
     return [{"src": s, "rel": r, "dst": d} for s, r, d in hops]
 
 
-app = build_app()
+if os.environ.get("SEVER_CONSOLE_NO_BOOTSTRAP") == "1":
+    # engine-free test import (audit3 resilience suite): the module-level app
+    # is skipped and the test builds one explicitly with an injected port —
+    # production (uvicorn) never sets this and always bootstraps.
+    app = None  # type: ignore[assignment]
+else:
+    app = build_app()

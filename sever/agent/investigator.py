@@ -136,6 +136,14 @@ class Investigator:
         if finding.kind == "credential_breach":
             self.port.mark_owned(finding.subject)
         after = snapshot(self.port, self.hop_cap)
+        if finding.kind == "credential_breach" and finding.subject in after["owned"]:
+            # Honest applied-reporting (audit3/console-logic): a breach that
+            # sticks IS a mutation (owned=true), yet the report used to say
+            # applied=False for every credential_breach — live-verified
+            # against the engine: applied:false while reachability moved
+            # 0->1. A breach on a subject that does not resolve stays
+            # honestly False.
+            applied = True
         paths = self.port.paths_to_jewels(finding.subject, self.hop_cap) if after["owned"] else []
         story = narrate(finding)
 

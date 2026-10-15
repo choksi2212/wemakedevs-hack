@@ -8,6 +8,7 @@ import pytest
 from tests.conftest import requires_engine, requires_sample, drop_graph
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
+GMSA = "S-1-5-21-2697957641-2271029196-387917394-2102"
 GRAPH = "sever_test_console"
 
 pytestmark = [requires_engine, requires_sample]
@@ -104,7 +105,7 @@ def test_approved_cut_collapses_via_console(client):
 def test_finding_with_invalid_rel_is_rejected_400_not_500(client):
     before = client.get("/api/state").json()
     r = client.post("/api/finding", json={
-        "kind": "ace_granted", "subject": HERO, "target": "S-1-5-21-t-9999",
+        "kind": "ace_granted", "subject": HERO, "target": GMSA,
         "rel": "member_of",  # lowercase -> rejected by the closed rel vocabulary
     })
     assert r.status_code == 400
@@ -221,6 +222,7 @@ def test_gate_403_only_for_wellformed_requests(client):
 
 
 
+
 def test_cut_handler_gate_is_identity_checked_past_the_schema(client):
     """Defense-in-depth, pinned (audit3 mutation M13 flipped the handler's
     ``is not True`` to truthiness and ZERO tests noticed — the StrictBool
@@ -294,4 +296,97 @@ def test_docs_and_schema_are_opt_in_via_sever_docs(client, monkeypatch):
     assert tc.get("/docs").status_code == 200
     assert tc.get("/openapi.json").status_code == 200
     assert "SEVER console" in tc.get("/openapi.json").json()["info"]["title"]
+
+
+# ---- audit3/console-logic: honest rejection + verdict semantics ----
+
+def test_unknown_finding_kind_is_422_not_a_fabricated_attck_label(client):
+    """Pre-fix (live-verified): kind='totally_unknown_kind' answered 200 with
+    a FABRICATED 'T1595.002 Vulnerability Scanning' technique and wrote a
+    phantom finding to the receipts ledger."""
+    r = client.post("/api/finding", json={"kind": "totally_unknown_kind", "subject": HERO})
+    assert r.status_code == 422
+    assert "unknown finding kind" in r.json()["detail"][0]["msg"]
+    r = client.post("/api/finding", json={"kind": "<img src=x onerror=1>", "subject": HERO})
+    assert r.status_code == 422
+    assert not any(e.get("kind") == "totally_unknown_kind"
+                   for e in client.get("/api/receipts").json())
+
+
+def test_every_documented_kind_round_trips_over_http(client):
+    from sever.console.schemas import KNOWN_FINDING_KINDS
+
+    for kind in KNOWN_FINDING_KINDS:
+        # audit3: ace_granted is only valid WITH a real grant; the
+        # informational kinds accept the targetless replay shape.
+        body = ({"kind": "ace_granted", "subject": HERO, "target": GMSA,
+                 "rel": "GENERIC_ALL"} if kind == "ace_granted"
+                else {"kind": kind, "subject": HERO})
+        r = client.post("/api/finding", json=body)
+        assert r.status_code == 200, kind
+        assert r.json()["simulated"] is True
+
+
+def test_ace_granted_without_target_is_422_not_a_phantom_grant(client):
+    r = client.post("/api/finding", json={"kind": "ace_granted", "subject": HERO})
+    assert r.status_code == 422
+    r = client.post("/api/finding", json={"kind": "ace_granted", "subject": HERO,
+                                          "target": HERO, "rel": "GENERIC_ALL"})
+    assert r.status_code == 422  # self-grant: engine rejects it, so no mutation claim
+    before = client.get("/api/state").json()["edges"]
+    assert client.get("/api/state").json()["edges"] == before
+
+
+def test_finding_on_unknown_principal_is_400(client):
+    """Pre-fix (live-verified): a breach on a nonexistent objectid was a 200
+    phantom no-op narrated as 'this principal is now assumed controlled'."""
+    ghost = "S-1-5-21-2697957641-2271029196-387917394-9999"
+    r = client.post("/api/finding", json={"kind": "credential_breach", "subject": ghost})
+    assert r.status_code == 400
+    assert "unknown subject" in r.json()["detail"]
+    r = client.post("/api/finding", json={"kind": "ace_granted", "subject": HERO,
+                                          "target": ghost, "rel": "GENERIC_ALL"})
+    assert r.status_code == 400
+    assert "unknown target" in r.json()["detail"]
+    assert ghost not in client.get("/api/state").json()["owned"]
+
+
+def test_breach_that_sticks_reports_applied_true(client):
+    """Pre-fix (live-verified): reachability moved 0->1 while the response
+    claimed applied:false — a mutation the report refused to admit."""
+    r = client.post("/api/finding", json={"kind": "credential_breach", "subject": HERO})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["applied"] is True
+    assert body["reachability"] >= 1
+
+
+def test_zero_removal_cut_claims_only_no_effect(client):
+    """Verdict semantics for the 0-removal case: a cut on an edge that does
+    not exist claims NOTHING — 0 relationships removed, reachability
+    unchanged, verdict 'no_effect' — and the approved no-op still lands on
+    the receipts trail."""
+    r = client.post("/api/cut", json={"src": HERO, "dst": "S-1-5-21-t-9999",
+                                      "rel": "MEMBER_OF", "approved": True,
+                                      "approved_by": "audit3"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["cut"]["relationships_removed"] == 0
+    assert body["verdict"] == "no_effect"
+    assert body["before"]["reachability"] == body["after"]["reachability"]
+    recs = client.get("/api/receipts").json()
+    assert any(e.get("step") == "cut"
+              and e["receipt"]["verdict"] == "no_effect"
+              and e["receipt"]["cut"]["relationships_removed"] == 0
+              for e in recs)
+
+
+def test_cut_gate_null_and_absent_approved_are_422(client):
+    for body in (
+        {"src": HERO, "dst": HERO, "rel": "MEMBER_OF", "approved": None},
+        {"src": HERO, "dst": HERO, "rel": "MEMBER_OF"},
+    ):
+        r = client.post("/api/cut", json=body)
+        assert r.status_code == 422
+        assert client.get("/api/state").json()["edges"]  # engine untouched
 
