@@ -3,120 +3,288 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SEVER — attack-path interdiction console</title>
+<title>SEVER — interdiction console</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-         background: #0b0f14; color: #d7e0e8; }
-  header { padding: 18px 28px; border-bottom: 1px solid #1d2731; display: flex;
-           align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  h1 { font-size: 20px; margin: 0; letter-spacing: 2px; color: #ff5f56; }
-  .meta { color: #6f8394; font-size: 12px; }
-  main { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; padding: 18px 28px;
-         max-width: 1280px; margin: 0 auto; }
-  .card { background: #101720; border: 1px solid #1d2731; border-radius: 10px; padding: 16px 18px; }
-  .card h2 { font-size: 13px; color: #7ba0bf; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 1.4px; }
-  .big { font-size: 44px; line-height: 1; margin: 4px 0; }
-  .big.bad { color: #ff5f56; }
-  .big.ok { color: #3fd18b; }
-  button { background: #1a2733; color: #d7e0e8; border: 1px solid #2b3c4c; padding: 8px 12px;
-           border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
-  button:hover { background: #23394c; }
-  button.approve { border-color: #3fd18b; color: #7ef0b6; font-weight: bold; }
-  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px;
-         padding: 7px 8px; border-bottom: 1px dashed #1b2530; font-size: 12.5px; }
-  .hop { font-size: 12.5px; padding: 5px 0 5px 10px; border-left: 2px solid #2b3c4c; margin: 4px 0; }
-  .rel { color: #ffb35c; }
-  .quiet { color: #6f8394; font-size: 12px; }
-  pre { background: #0a0e13; border: 1px solid #1d2731; padding: 10px; border-radius: 6px;
-        font-size: 11px; max-height: 320px; overflow: auto; }
-  #banner { margin: 12px 0 0; font-size: 13px; min-height: 20px; color: #ffb35c; }
+  :root {
+    color-scheme: dark;
+    --bg: #0A0C10;
+    --surface: #11141A;
+    --surface-2: #151922;
+    --border: #1E232C;
+    --border-strong: #2A3140;
+    --text: #E6EAF0;
+    --text-2: #9BA3AF;
+    --text-3: #6C7686;
+    --danger: #E5484D;
+    --danger-dim: #B3363B;
+    --success: #46A758;
+    --warn: #D4993F;
+    --focus: #7BA2C9;
+    --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", monospace;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.45; min-height: 100vh; }
+  button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: 14px; }
+  .wordmark b { color: var(--danger); font-weight: 700; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; background: var(--bg); }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .chip.paused .dot { background: var(--warn); }
+  .chip.down .dot { background: var(--danger); }
+  .spacer { flex: 1; }
+  .tagline { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+  .tagline b { color: var(--text-2); font-weight: 600; }
+  main { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; padding: 16px 20px; max-width: 1440px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .card + .card { margin-top: 16px; }
+  .card-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .card-head h2 { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
+  .card-head .hint { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 16px; }
+  .metric-row { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  .metric .label { font-size: 11px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
+  .metric .value { font-family: var(--mono); font-size: 40px; font-weight: 600; line-height: 1.05; }
+  .metric .value.danger { color: var(--danger); }
+  .metric .value.ok { color: var(--success); }
+  .metric .sub { font-size: 11px; color: var(--text-3); font-family: var(--mono); margin-top: 4px; }
+  .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 4px; padding: 8px 12px; font-size: 12.5px; transition: background 150ms ease, border-color 150ms ease; }
+  .btn:hover { background: #1B2130; }
+  .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+  .btn.approve { border-color: var(--success); color: #7ED08C; font-weight: 600; }
+  .btn.approve:hover { background: #14231A; }
+  .btn.confirm { border-color: var(--success); background: #14231A; }
+  .btn.cancel { border-color: var(--border); color: var(--text-2); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .banner { margin-top: 14px; padding: 10px 12px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); font-size: 12.5px; color: var(--text-2); display: none; }
+  .banner.show { display: block; }
+  .banner .technique { color: var(--warn); font-family: var(--mono); font-size: 11px; display: block; margin-bottom: 4px; }
+  .banner .res { color: var(--text); font-family: var(--mono); font-size: 11.5px; display: block; margin-top: 4px; }
+  .path-block { margin: 14px 0; }
+  .path-block + .path-block { border-top: 1px solid var(--border); padding-top: 14px; }
+  .path-head { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+  .path-head b { color: var(--text); font-weight: 600; }
+  .hops { margin-top: 6px; border-left: 2px solid var(--border-strong); }
+  .hop { display: flex; gap: 10px; align-items: baseline; padding: 4px 0 4px 12px; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; }
+  .hop .node { color: var(--text); }
+  .hop .node.mut { color: var(--warn); }
+  .hop .rel { color: var(--text-3); font-size: 11px; }
+  .hop .jewel { color: var(--danger); }
+  .empty { color: var(--text-3); font-size: 12.5px; padding: 8px 0; }
+  .prop-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .prop-row:last-child { border-bottom: none; }
+  .prop-main { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; }
+  .prop-main .rel { color: var(--warn); }
+  .prop-main .quiet { color: var(--text-3); font-size: 11px; margin-left: 8px; }
+  .prop-cta { display: flex; gap: 8px; }
+  .ledger { max-height: 300px; overflow-y: auto; }
+  .entry { display: flex; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
+  .entry:last-child { border-bottom: none; }
+  .badge { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; border: 1px solid var(--border-strong); color: var(--text-2); border-radius: 3px; padding: 1px 6px; flex-shrink: 0; text-transform: uppercase; }
+  .badge.cut { border-color: var(--danger-dim); color: var(--danger); }
+  .badge.finding { border-color: #4A5A2E; color: var(--warn); }
+  .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
+  footer { padding: 12px 20px; font-size: 11px; color: var(--text-3); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: 16px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>SEVER</h1>
-  <span class="meta">attack-path interdiction agent · <span id="backend">…</span></span>
-  <span class="meta" id="estate">…</span>
-  <span class="meta" style="margin-left:auto">the graph is the engine — remove FalkorDB and this breaks</span>
+  <span class="wordmark">SE<b>VER</b></span>
+  <span class="chip" id="engine-chip"><span class="dot"></span><span id="engine-label">engine</span></span>
+  <span class="chip" id="estate-chip">loading…</span>
+  <span class="chip" id="refresh-chip" title="Toggle auto-refresh"><span class="dot"></span><button id="refresh-toggle" style="all:unset;font:inherit;cursor:pointer">live · auto</button></span>
+  <span class="spacer"></span>
+  <span class="tagline">ranked cut → <b>human gate</b> → re-query → receipts</span>
 </header>
 <main>
-  <section class="card">
-    <h2>Live attack surface</h2>
-    <div>owned principals that can reach a crown jewel:</div>
-    <div class="big bad" id="reach">–</div>
-    <div class="quiet" id="jewels"></div>
-    <div id="banner"></div>
-    <h2 style="margin-top:18px">Actions</h2>
-    <div style="display:flex; gap:10px; flex-wrap:wrap">
-      <button onclick="fireFinding('credential_breach')">▶ simulate breach (mark owned)</button>
-      <button onclick="fireFinding('ace_granted')">▶ simulate new ACE grant (live mutation)</button>
-      <button onclick="refresh()">refresh</button>
+  <section>
+    <div class="card">
+      <div class="card-head"><h2>Attack surface</h2><span class="hint" id="updated-at">—</span></div>
+      <div class="card-body">
+        <div class="metric-row">
+          <div class="metric">
+            <div class="label">Owned principals reaching a crown jewel</div>
+            <div class="value" id="reach">–</div>
+            <div class="sub" id="estate-detail"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn" id="btn-breach" aria-label="Simulate a credential breach finding"><svg viewBox="0 0 16 16"><path d="M8 1 3 8l5 7 5-7z"/></svg> Simulate breach finding</button>
+          <button class="btn" id="btn-grant" aria-label="Simulate a new ACE grant, mutating the graph live"><svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12"/></svg> Grant new ACE (live mutation)</button>
+          <button class="btn" id="btn-refresh" aria-label="Refresh state"><svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-2-4M13 2v3h-3"/></svg> Refresh</button>
+        </div>
+        <div class="banner" id="banner" role="status" aria-live="polite"></div>
+      </div>
     </div>
-    <h2 style="margin-top:18px">Attack paths</h2>
-    <div id="paths" class="quiet">no owned principals</div>
+    <div class="card">
+      <div class="card-head"><h2>Attack paths</h2><span class="hint">canonical shortest path per crown jewel · hop chains</span></div>
+      <div class="card-body" id="paths"><div class="empty">No owned principals — simulate a breach to begin.</div></div>
+    </div>
   </section>
-  <section class="card">
-    <h2>Interdiction proposal <span class="quiet">(edge on most paths)</span></h2>
-    <div id="proposal" class="quiet">nothing to propose</div>
-    <h2 style="margin-top:18px">Receipts</h2>
-    <pre id="receipts">—</pre>
+  <section>
+    <div class="card">
+      <div class="card-head"><h2>Interdiction proposal</h2><span class="hint">edges ranked by path coverage</span></div>
+      <div id="proposal"><div class="empty" style="padding:12px 16px">Nothing to propose.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Receipts</h2><span class="hint">append-only case ledger</span></div>
+      <div class="ledger" id="receipts"><div class="entry"><span class="line" style="color:var(--text-3)">—</span></div></div>
+    </div>
   </section>
 </main>
+<footer>SEVER · identity attack-path interdiction on FalkorDB · remove the database and nothing here works — the graph is the engine</footer>
 <script>
-const $ = (id) => document.getElementById(id);
-const banner = (msg) => { $('banner').textContent = msg || ''; };
-async function api(path, opts) {
-  const res = await fetch(path, opts);
-  if (!res.ok) throw new Error((await res.json()).detail || res.status);
-  return res.json();
-}
-async function refresh() {
-  const s = await api('/api/state');
-  $('backend').textContent = s.backend + ' · ' + s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges';
-  $('estate').textContent = 'owned: ' + s.owned.length + ' · jewels: ' + s.jewels.length;
-  const r = $('reach');
-  r.textContent = s.reachability;
-  r.className = 'big ' + (s.reachability > 0 ? 'bad' : 'ok');
-  const paths = await api('/api/paths');
-  $('paths').innerHTML = paths.paths.length
-    ? paths.paths.map(p => '<div style="margin:10px 0">' +
-        '<div style="color:#7ba0bf">' + p.principal + ' → crown jewel</div>' +
-        p.hops.map(h => '<div class="hop">' + h.src + ' <span class="rel">-[' + h.rel + ']-></span> ' + h.dst + '</div>').join('') +
-        '</div>').join('')
-    : '<span class="quiet">no owned principals — simulate a breach to begin</span>';
-  const prop = await api('/api/proposal');
-  $('proposal').innerHTML = prop.length
-    ? prop.map(c => '<div class="row"><span>' +
-        c.src.slice(-6) + ' <span class="rel">-[' + c.rel + ']-></span> ' + c.dst.slice(-6) +
-        ' <span class="quiet">(on ' + c.paths_on + ' paths)</span></span>' +
-        '<button class="approve" onclick="approveCut(\'' + c.src + '\',\'' + c.dst + '\',\'' + c.rel + '\')">APPROVE CUT</button></div>').join('')
-    : '<span class="quiet">nothing to propose</span>';
-  const rec = await api('/api/receipts');
-  $('receipts').textContent = rec.slice(-8).map(e => JSON.stringify(e)).join('\n') || '—';
-}
-async function fireFinding(kind) {
-  banner('finding ' + kind + ' — re-scoring all attack paths…');
-  const r = await api('/api/finding', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(kind === 'ace_granted'
-      ? {kind: kind, subject: 'S-1-5-21-2697957641-2271029196-387917394-2110',
-         target: 'S-1-5-21-2697957641-2271029196-387917394-2102', rel: 'GENERIC_ALL'}
-      : {kind: kind, subject: 'S-1-5-21-2697957641-2271029196-387917394-2110'})});
-  banner('[' + r.technique + '] ' + r.narration);
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null };
+  const short = (id) => id.length > 26 ? '\u2026' + id.slice(-8) : id;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  async function api(path, opts) {
+    const res = await fetch(path, opts);
+    if (!res.ok) throw new Error((await res.json()).detail || ('HTTP ' + res.status));
+    return res.json();
+  }
+  function banner(html) { const b = $('banner'); b.innerHTML = html; b.classList.add('show'); }
+
+  async function refresh() {
+    let s;
+    try { s = await api('/api/state'); }
+    catch (e) {
+      $('engine-chip').className = 'chip down';
+      $('engine-label').textContent = 'engine unreachable';
+      return;
+    }
+    $('engine-chip').className = 'chip';
+    $('engine-label').textContent = 'falkordb · ' + (s.graph || '');
+    $('estate-chip').textContent = s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges · ' + s.jewels.length + ' jewels';
+    $('updated-at').textContent = 'updated ' + new Date().toLocaleTimeString();
+    const r = $('reach');
+    r.textContent = s.reachability;
+    r.className = 'value ' + (s.reachability > 0 ? 'danger' : 'ok');
+    $('estate-detail').textContent = 'owned: ' + (s.owned.length ? s.owned.map(short).join(', ') : 'none');
+
+    const paths = await api('/api/paths');
+    $('paths').innerHTML = paths.paths.length
+      ? paths.paths.map((p) =>
+          '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> → crown jewel</div>' +
+          '<div class="hops">' + p.hops.map((h, i) =>
+            '<div class="hop"><span class="node' + (i === 0 ? ' mut' : '') + '" title="' + esc(h.src_id) + '">' + esc(i === 0 ? h.src : short(h.src_id)) + '</span>' +
+            '<span class="rel">-[' + esc(h.rel) + ']-></span>' +
+            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id) + '">' + esc(i >= p.hops.length - 1 ? h.dst : short(h.dst_id)) + '</span></div>'
+          ).join('') + '</div></div>')
+        .join('')
+      : '<div class="empty">No owned principals — simulate a breach to begin.</div>';
+
+    const prop = await api('/api/proposal');
+    $('proposal').innerHTML = prop.length
+      ? prop.map((c) =>
+          '<div class="prop-row"><div class="prop-main"><span title="' + esc(c.src) + '">' + esc(short(c.src)) + '</span> ' +
+          '<span class="rel">-[' + esc(c.rel) + ']-></span> ' +
+          '<span title="' + esc(c.dst) + '">' + esc(short(c.dst)) + '</span>' +
+          '<span class="quiet">on ' + c.paths_on + ' path-edge occurrences</span></div>' +
+          '<div class="prop-cta"><button class="btn approve" data-src="' + esc(c.src) + '" data-dst="' + esc(c.dst) + '" data-rel="' + esc(c.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button></div></div>')
+        .join('')
+      : '<div class="empty" style="padding:12px 16px">Nothing to propose.</div>';
+    document.querySelectorAll('#proposal button.approve').forEach((b) =>
+      b.addEventListener('click', () => armGate(b.dataset.src, b.dataset.dst, b.dataset.rel)));
+
+    const rec = await api('/api/receipts');
+    $('receipts').innerHTML = rec.slice(-40).reverse().map((e) => {
+      const step = e.step || 'state';
+      const badge = step === 'cut' ? 'cut' : (step === 'finding' ? 'finding' : '');
+      let line = '';
+      if (step === 'cut' && e.receipt) {
+        const rc = e.receipt;
+        line = 'cut ' + short(rc.cut.src) + ' -[' + rc.cut.rel + ']-> ' + short(rc.cut.dst) +
+               ' · removed ' + rc.cut.relationships_removed +
+               ' · reachability ' + rc.before.reachability + ' → ' + rc.after.reachability +
+               ' · ' + rc.requery_ms + 'ms · ' + rc.verdict + ' · by ' + rc.approved_by;
+      } else if (step === 'finding' && e.triage) {
+        line = 'finding ' + e.finding + ' · ' + e.kind + ' · reachability ' +
+               (e.triage.before ? e.triage.before.reachability : '?') + ' → ' + (e.triage.after ? e.triage.after.reachability : '?');
+      } else {
+        line = 'state · reachability ' + (e.reachability ?? '?') + ' · ' + (e.nodes ?? '?') + ' nodes';
+      }
+      return '<div class="entry"><span class="badge ' + badge + '">' + step + '</span>' +
+             '<span class="line" title="' + esc(line) + '">' + esc(line) + '</span>' +
+             '<span class="ts">' + esc((e.ts || '').slice(11, 19)) + '</span></div>';
+    }).join('') || '<div class="entry"><span class="line">—</span></div>';
+  }
+
+  function armGate(src, dst, rel) {
+    if (state.pending) { state.pending = null; refresh(); return; }
+    const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(src) + '"][data-dst="' + CSS.escape(dst) + '"]');
+    if (!btn) return;
+    const cta = btn.closest('.prop-cta');
+    cta.innerHTML =
+      '<button class="btn confirm" aria-label="Confirm the cut">CONFIRM CUT</button>' +
+      '<button class="btn cancel" aria-label="Cancel the cut">cancel</button>';
+    const cf = cta.querySelector('.confirm');
+    const cn = cta.querySelector('.cancel');
+    cn.addEventListener('click', () => { state.pending = null; refresh(); });
+    state.pending = { src, dst, rel };
+    cf.addEventListener('click', async () => {
+      cf.disabled = cn.disabled = true;
+      banner('<span class="res">human gate: executing approved cut…</span>');
+      try {
+        const r = await api('/api/cut', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({src, dst, rel, approved: true, approved_by: 'console-operator'}),
+        });
+        banner('<span class="technique">INTERDICTION RECEIPT</span>' +
+               'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
+               r.before.reachability + ' → <b>' + r.after.reachability + '</b> · re-query ' +
+               r.requery_ms + 'ms · verdict <b>' + r.verdict + '</b>');
+      } catch (e) {
+        banner('<span class="res">cut failed: ' + esc(e.message) + '</span>');
+      }
+      state.pending = null;
+      refresh();
+    });
+  }
+
+  const HERO = 'S-1-5-21-2697957641-2271029196-387917394-2110';
+  const GMSA = 'S-1-5-21-2697957641-2271029196-387917394-2102';
+
+  async function fire(kind) {
+    banner('<span class="res">finding ' + kind + ' — re-scoring all attack paths…</span>');
+    const body = kind === 'ace_granted'
+      ? {kind, subject: HERO, target: GMSA, rel: 'GENERIC_ALL'}
+      : {kind, subject: HERO};
+    try {
+      const r = await api('/api/finding', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      banner('<span class="technique">' + esc(r.technique) + '</span>' + esc(r.narration));
+    } catch (e) {
+      banner('<span class="res">finding failed: ' + esc(e.message) + '</span>');
+    }
+    refresh();
+  }
+  $('btn-breach').addEventListener('click', () => fire('credential_breach'));
+  $('btn-grant').addEventListener('click', () => fire('ace_granted'));
+  $('btn-refresh').addEventListener('click', refresh);
+
+  let timer = null;
+  function setAuto(on) {
+    state.auto = on;
+    $('refresh-chip').className = 'chip' + (on ? '' : ' paused');
+    $('refresh-toggle').textContent = on ? 'live · auto' : 'paused';
+    if (timer) { clearInterval(timer); timer = null; }
+    if (on) timer = setInterval(refresh, 15000);
+  }
+  $('refresh-toggle').addEventListener('click', () => setAuto(!state.auto));
+
   refresh();
-}
-async function approveCut(src, dst, rel) {
-  banner('HUMAN GATE: executing approved cut…');
-  const r = await api('/api/cut', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({src, dst, rel, approved: true, approved_by: 'console-operator'})});
-  banner('cut executed · removed=' + r.cut.relationships_removed +
-         ' · reachability ' + r.before.reachability + ' → ' + r.after.reachability +
-         ' · ' + r.requery_ms + 'ms · verdict=' + r.verdict);
-  refresh();
-}
-refresh();
-if (!new URLSearchParams(location.search).get('static')) setInterval(refresh, 15000);
+  setAuto(state.auto);
+})();
 </script>
 </body>
 </html>
