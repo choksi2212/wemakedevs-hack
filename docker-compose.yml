@@ -7,6 +7,7 @@ services:
       - "3000:3000"   # browser UI — explore the tenant graphs live
     volumes:
       - ./out/falkordb-data:/data
-    # optional tuning (see sever/core/falkor_port.py config notes):
+    # optional server tuning — e.g. disable the default query timeout
+    # for deep traversals: FALKORDB_ARGS=TIMEOUT_DEFAULT 0
     # environment:
     #   - FALKORDB_ARGS=TIMEOUT_DEFAULT 0

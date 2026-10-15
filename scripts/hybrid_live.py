@@ -58,7 +58,7 @@ def main() -> int:
     report = inv.triage(Finding("F-H1", "credential_breach", AZ_ANDY))
     reach = report.after["reachability"]
     print(f"[hybrid] compromised the CLOUD identity of synced user Andy -> reachability 0->{reach}")
-    print(f"[hybrid] the identity pivots the SYNCED_TO bridge into on-prem Domain Admin chains")
+    print("[hybrid] the identity pivots the SYNCED_TO bridge into on-prem Domain Admin chains")
 
     # interdiction: sever the cross-world bridge (cloud -> on-prem direction)
     receipt = inv.approve_and_cut(AZ_ANDY, AD_ANDY, "SYNCED_TO", approved_by="console-operator")

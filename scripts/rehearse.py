@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sever.agent.investigator import Investigator
 from sever.agent.llm import build_llm
 from sever.etl.ad_collectors import parse_ad_dir
-from sever.findings.stream import Finding, FindingStream, default_timeline
+from sever.findings.stream import FindingStream, default_timeline
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"  # T1_TONYMONTANA@PHANTOM.CORP
 SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")

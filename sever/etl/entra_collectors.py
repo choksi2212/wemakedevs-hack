@@ -16,8 +16,6 @@ from pathlib import Path
 
 from sever.etl.ad_collectors import NormalizedGraph
 
-GA_HOLDER_SUFFIX = "-GlobalAdministrator"
-
 # kind -> (label, id_field)
 _KIND_LABELS: dict[str, str] = {
     "AZUser": ("AZUser", "id"),
@@ -64,16 +62,6 @@ _EDGE_KINDS: dict[str, tuple[str, str, str]] = {
     "AZKeyVaultContributor": ("AZKVContributor", "principalId", "keyVaultId"),
     "AZKeyVaultKVContributor": ("AZKVContributor", "principalId", "keyVaultId"),
 }
-
-
-def _endpoint(data: dict, spec: str) -> str:
-    """Extract an object id from an edge record per the extractor spec."""
-    if spec in ("owner", "member"):
-        nested = data.get(f"{spec}s") or []
-        first = nested[0] if nested else {}
-        inner = first.get(spec, first) if isinstance(first, dict) else {}
-        return str(inner.get("id") or first.get("id") or "") if isinstance(first, dict) else ""
-    return str(data.get(spec) or "")
 
 
 def parse_entra_file(path: str | Path) -> NormalizedGraph:

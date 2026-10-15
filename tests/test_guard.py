@@ -49,31 +49,6 @@ class _RecordingClient:
 
 
 def test_falkor_cut_uses_count_then_delete():
-    from sever.core.falkor_port import FalkorGraphPort
-
-    rec = _RecordingClient(results=[[1]])  # count query returns 1
-    port = FalkorGraphPort(client=rec)
-    deleted = port.cut("S-src", "S-dst", "GENERIC_ALL")
-    assert deleted == 1
-    queries = [q for q, _ in rec.calls]
-    assert any("count(r)" in q for q in queries)
-    assert any("DELETE r" in q for q in queries)
-    assert all((p or {}).get("src") == "S-src" and (p or {}).get("dst") == "S-dst" for _, p in rec.calls)
-
-
-def test_cypher_injection_guard():
-    from sever.core.falkor_port import FalkorGraphPort
-
-    port = FalkorGraphPort(client=_RecordingClient())
-    for evil in ("GENERIC_ALL}) DETACH DELETE (n) //", "a-b-c", "x' OR '1'='1", "",
-                 "A}) DETACH", "MATCH (x) DETACH DELETE (x)", "A B"):
-        with pytest.raises(ValueError):
-            port.add_edge("A", "B", evil)
-        with pytest.raises(ValueError):
-            port.cut("A", "B", evil)
-
-
-def test_falkor_cut_uses_count_then_delete():
     rec = _RecordingClient(results=[[1]])  # count query returns 1
     port = FalkorGraphPort(client=rec)
     deleted = port.cut("S-src", "S-dst", "GENERIC_ALL")

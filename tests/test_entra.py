@@ -41,19 +41,16 @@ def test_entra_ga_holder_present():
 def test_merged_graph_bridges():
     ad = parse_ad_dir(AD_DIR)
     az = parse_entra_file(ENTRA_FILE)
+    ad_nodes_before = len(ad.nodes)          # merge_entra mutates `ad` in place
     merged = merge_entra(ad, az)
     assert merged.stats["entra_bridges"] == 9
-    assert len(merged.nodes) > len(ad.nodes) + 1000
+    assert len(merged.nodes) > ad_nodes_before + 1000
     synced = [e for e in merged.edges.values() if e["rel"] == "SYNCED_TO"]
     assert len(synced) == 2 * 9  # bidirectional: one identity, two worlds
 
 
 def test_cross_world_reachability_on_engine():
     pytest.importorskip("sever.core.falkor_port")
-    from tests.conftest import requires_engine
-
-    if requires_engine.args[1] if False else True:
-        pass
     # skip cleanly when no engine
     try:
         from sever.core.falkor_port import FalkorGraphPort

@@ -9,7 +9,6 @@ from tests.conftest import drop_graph
 import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample
-from sever.core.falkor_port import FalkorGraphPort
 from sever.findings.stream import Finding
 from sever.memory.flow import (
     CaseLog,

@@ -41,8 +41,8 @@ AI-assist disclosure; one-command repro (`python scripts/rehearse.py`).
 ## Fallback ladder (pre-recorded segments)
 
 1. Live deploy (FalkorDB Cloud w/ heartbeat) → 2. Self-host Docker on the build
-host → 3. `scripts/rehearse.py --falkor` output recording. The mock engine never
-appears in the video — only the live engine.
+host → 3. `scripts/rehearse.py` output recording. Only the live engine
+appears in the video.
 
 ---
 

@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import Any
 
 from sever.etl.ad_collectors import NormalizedGraph
 
@@ -92,7 +91,3 @@ def make_tenant(base: NormalizedGraph, tenant_index: int) -> NormalizedGraph:
 def tenant_graph_name(tenant_index: int) -> str:
     """FalkorDB graph key — one isolated graph per tenant org."""
     return f"sever_tenant{tenant_index:03d}"
-
-
-def load_tenant_names(port: Any, count: int) -> list[str]:
-    return [tenant_graph_name(i) for i in range(1, count + 1)]

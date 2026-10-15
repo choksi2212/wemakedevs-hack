@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import requires_engine, requires_sample, SAMPLE_DIR, make_live_port, drop_graph
+from tests.conftest import requires_engine, requires_sample, SAMPLE_DIR, drop_graph
 from sever.eval.ablation import run_ablation
 
 pytestmark = [requires_engine, requires_sample]
