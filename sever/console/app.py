@@ -85,7 +85,11 @@ def build_app() -> FastAPI:
             kind=req.kind, subject=req.subject,
             target=req.target, rel=req.rel, grants_edge=bool(req.target and req.rel),
         )
-        report = inv.triage(f)
+        try:
+            report = inv.triage(f)
+        except ValueError as exc:
+            # invalid rel on an ace_granted finding -> closed-vocabulary 400
+            raise HTTPException(status_code=400, detail=str(exc))
         log.append({"step": "finding", "finding": f.id, "kind": f.kind, "triage": report.as_dict()})
         story = narrate(f)
         return {
@@ -101,7 +105,12 @@ def build_app() -> FastAPI:
     async def cut(req: CutRequest) -> dict[str, Any]:
         if req.approved is not True:
             raise HTTPException(status_code=403, detail="interdiction requires explicit human approval")
-        receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
+        try:
+            receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
+        except ValueError as exc:
+            # the closed rel vocabulary / human-gate contract violations are
+            # client errors, not server faults (audit/agent-flow finding)
+            raise HTTPException(status_code=400, detail=str(exc))
         log.append({"step": "cut", "receipt": receipt})
         return receipt
 
