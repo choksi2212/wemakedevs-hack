@@ -43,3 +43,33 @@ AI-assist disclosure; one-command repro (`python scripts/rehearse.py`).
 1. Live deploy (FalkorDB Cloud w/ heartbeat) → 2. Self-host Docker on the build
 host → 3. `scripts/rehearse.py --falkor` output recording. The mock engine never
 appears in the video — only the live engine.
+
+---
+
+## LIVE-VERIFIED NUMBERS (Oct 15, measured on the build host — use these)
+
+- Hero beat: breach → 5 canonical paths to 5 crown jewels → gated cut rounds →
+  reachability 1 → 1 DEGRADED → 1 → 0 **COLLAPSED, re-query 2.98ms**
+- Console arc (HTTP E2E): breach → proposal → ONE gated cut → **1 → 0 in 1.99ms**
+- T2 cross-process: fresh process resumes from FalkorDBSaver case memory →
+  "triage remembered" → gated cut → **1 → 0 in 2.01ms**
+- Hybrid: cloud identity → bridge pivot → Domain Admins; bridge severed →
+  **1 → 0 in 2.76ms**
+- Scale wall: 300 tenants / 444,000 nodes / 3.7M edges in **1.29 GiB**, queries
+  flat (median 3.66ms, p95 4.11ms)
+- PROFILE receipt: docs/receipts/profile.txt (0.83ms in-engine on the tenant)
+
+## CONSOLE CLICK-PATH (record this)
+
+1. Open the console (build host :8000) — estate panel: 1,480 nodes, 5 jewels
+2. Click "simulate breach" → red reachability **1**, paths light up with
+   hop-by-hop rel types, ATT&CK narration banner
+3. Click "simulate new ACE grant" → the graph mutates live, agent re-scores
+4. Click **APPROVE CUT** on the top proposal → verdict banner (DEGRADED keeps
+   the story honest), re-click on the re-ranked proposal → **COLLAPSED**
+5. Show the receipts ledger scrolling — every action, timestamped
+6. Cut to the FalkorDB browser UI (:3000) for the raw graph, then the scale
+   wall receipts (docs/receipts/scale_wall.json)
+
+The Playwright backup take lives in `out/demo/sever_demo.webm` (recorded from
+the live console with `scripts/demo_video.py`).
