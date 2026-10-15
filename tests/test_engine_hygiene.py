@@ -77,17 +77,11 @@ def test_cloud_jewel_is_reachable_via_the_az_arm():
         drop_graph(port, name)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "known divergence (audit3/test-forensics, mutation M11b): arm 2 of "
-        "REACHABILITY_ARM_TEMPLATES matches t.name case-SENSITIVELY while "
-        "crown_jewels()/AZ_JEWELS_QUERY match toLower — a case-varied GA "
-        "holder is a jewel and its paths enumerate, but reachability does "
-        "not count it. Fix arm 2 to toLower(t.name) and remove this xfail."
-    ),
-)
 def test_case_varied_ga_holder_is_counted_by_reachability():
+    """Divergence FIXED (audit3/interdiction-logic): arm 2 now mirrors
+    AZ_JEWELS_QUERY with toLower, so case-varied GA holders are counted by
+    reachability exactly like crown_jewels() counts them as jewels. The
+    xfail pin from test-forensics (M11b) flipped to a positive assertion."""
     name = "sever_audit3_tf_azcase"
     port = _fresh_port(name)
     try:
@@ -99,6 +93,6 @@ def test_case_varied_ga_holder_is_counted_by_reachability():
         assert port.crown_jewels() == ["az-ga"]  # jewel by the toLower match
         port.mark_owned("az-pwned")
         assert port.paths_to_jewels("az-pwned")  # paths DO enumerate ...
-        assert port.reachability() == 1  # ... but arm 2 misses the case-varied name
+        assert port.reachability() == 1  # arm 2 counts the case-varied GA jewel (toLower)
     finally:
         drop_graph(port, name)
