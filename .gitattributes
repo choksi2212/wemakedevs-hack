@@ -1,0 +1,4 @@
+# Line-ending policy: the index is 100% LF; pin checkout to LF everywhere so
+# each cloner's core.autocrlf no longer decides. Python/YAML/JSON/MD are all
+# LF-safe on every platform SEVER targets.
+* text=auto eol=lf

@@ -21,6 +21,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dotenv import load_dotenv
+
+load_dotenv()  # .env at the repo root, if present — real environment always wins
+
 from sever.core.falkor_port import CANONICAL_PATH_QUERY_TEMPLATE, FalkorGraphPort
 from sever.core.jewels import cypher_traversal_pattern
 from sever.etl.ad_collectors import parse_ad_dir
@@ -47,6 +51,8 @@ def main() -> int:
     falkor = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        username=os.environ.get("SEVER_FALKOR_USER"),
+        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
     )
     raw = falkor.graph.client
 
@@ -65,6 +71,8 @@ def main() -> int:
                 host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
                 port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
                 graph_name=f"{args.graph_prefix}{i:03d}",
+                username=os.environ.get("SEVER_FALKOR_USER"),
+                password=os.environ.get("SEVER_FALKOR_PASSWORD"),
             )
             t0 = time.time()
             port.load(tenant)
@@ -97,7 +105,9 @@ def main() -> int:
     pattern = cypher_traversal_pattern(12)
     q = CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern)
     fdb = FalkorDB(host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-                   port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")))
+                   port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+                   username=os.environ.get("SEVER_FALKOR_USER"),
+                   password=os.environ.get("SEVER_FALKOR_PASSWORD"))
     latencies: list[float] = []
     step = max(1, args.tenants // 30)
     for i in range(1, args.tenants + 1, step):

@@ -2,6 +2,9 @@ services:
   falkordb:
     # SEVER's engine (rule 3: remove it and the product breaks)
     image: falkordb/falkordb:6.0.0
+    # survive host reboots / docker-daemon restarts — the same policy the
+    # deployed demo box runs; `docker compose down` still removes it cleanly
+    restart: unless-stopped
     ports:
       # SECURITY NOTE (audit/security): a bare "host:container" mapping binds
       # 0.0.0.0 — ALL interfaces. FalkorDB RESP ships with NO authentication

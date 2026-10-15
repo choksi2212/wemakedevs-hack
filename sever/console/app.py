@@ -5,7 +5,9 @@ and the operator clicks APPROVE — the cut executes only on that explicit call.
 
 Run:
     uvicorn sever.console.app:app --host 0.0.0.0 --port 8000
-Env: SEVER_FALKOR_HOST/PORT, SEVER_FALKOR_GRAPH, SEVER_SAMPLE_DIR
+Env: SEVER_FALKOR_HOST/PORT/USER/PASSWORD, SEVER_FALKOR_GRAPH,
+     SEVER_SAMPLE_DIR — a .env at the repo root is loaded automatically
+     (real environment always wins).
 
 API contract (audit2/api-contract), enforced by sever.console.schemas BEFORE
 any handler runs:
@@ -30,6 +32,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse
 from starlette.responses import Response
+from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
 from sever.console.schemas import CutRequest, FindingRequest
@@ -41,6 +44,7 @@ from sever.memory.flow import CaseLog
 
 
 def build_app() -> FastAPI:
+    load_dotenv()  # .env at the repo root, if present — real environment always wins
     app = FastAPI(title="SEVER console", version="0.2.0")
 
     @app.exception_handler(RequestValidationError)
@@ -58,10 +62,13 @@ def build_app() -> FastAPI:
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
         graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
+        username=os.environ.get("SEVER_FALKOR_USER"),
+        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
     )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")))
+            "SEVER_SAMPLE_DIR",
+            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
 
     inv = Investigator(port)
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
