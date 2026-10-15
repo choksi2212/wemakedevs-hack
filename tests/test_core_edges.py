@@ -214,3 +214,19 @@ def test_interdict_verdict_table_audit3_regressions():
     # and the full-matrix closure: no_effect ONLY when nothing was removed
     ghost_zero = interdict(_StubPort(reach_seq=[0, 0], removed=0), "O", "J", "R")
     assert ghost_zero["verdict"] == "no_effect"
+
+
+def test_reachability_arm_predicates_mirror_jewel_queries():
+    """audit3 regression (structure, DB-free): each two-arm target predicate
+    must mirror the crown_jewels() query it replaces — the AZ arm matched the
+    GA suffix case-SENSITIVELY while AZ_JEWELS_QUERY matches case-insensitively
+    (toLower), silently undercounting breaches to case-varied GA holders. The
+    live equivalence/regression is tests/test_live_interdiction_invariants.py."""
+    from sever.core.falkor_port import AZ_JEWELS_QUERY, REACHABILITY_ARM_TEMPLATES
+
+    group_arm, az_arm = REACHABILITY_ARM_TEMPLATES
+    assert "t.objectid ENDS WITH '-512' OR t.objectid ENDS WITH '-519'" in group_arm
+    assert "toLower(t.name) ENDS WITH '-globaladministrator'" in az_arm
+    # the arm's predicate is the AZ_JEWELS_QUERY predicate, not a lookalike
+    assert "toLower(u.name) ENDS WITH '-globaladministrator'" in AZ_JEWELS_QUERY
+    assert "t.name ENDS WITH '-GlobalAdministrator'" not in az_arm
