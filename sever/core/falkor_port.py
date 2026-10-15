@@ -37,8 +37,8 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 
 REACH_QUERY_TEMPLATE = (
     "MATCH (o {{owned: true}}) "
-    "MATCH (o)-{pattern}->(t) "
-    "WHERE t.objectid IN $jewels "
+    "MATCH (t) WHERE t.objectid IN $jewels "
+    "MATCH p = shortestPath((o)-{pattern}->(t)) "
     "RETURN count(DISTINCT o) AS reachable"
 )
 
@@ -97,8 +97,8 @@ class FalkorGraphPort(GraphPort):
                     f"first_row={str(rows[0])[:300] if rows else 'n/a'}"
                 ) from exc
 
-    def _scalar(self, query: str, params: dict[str, Any] | None = None) -> Any:
-        res = self.graph.query(query, params or {})
+    def _scalar(self, query: str, params: dict[str, Any] | None = None, timeout_ms: int = 60000) -> Any:
+        res = self.graph.query(query, params or {}, timeout=timeout_ms)
         return res.result_set[0][0] if res.result_set else None
 
     def node_count(self) -> int:
@@ -130,7 +130,7 @@ class FalkorGraphPort(GraphPort):
         paths: list[list[tuple[str, str, str]]] = []
         for jewel in self.crown_jewels():
             query = PATH_QUERY_TEMPLATE.format(pattern=pattern)
-            res = self.graph.query(query, {"oid": objectid, "target": jewel})
+            res = self.graph.query(query, {"oid": objectid, "target": jewel}, timeout=60000)
             for row in res.result_set:
                 hops = _row_to_hops(row)
                 if hops:
