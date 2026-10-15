@@ -22,7 +22,12 @@ ever reach ``approve_and_cut`` through the flow.
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
@@ -143,25 +148,151 @@ def resume_investigation(
 
 
 class CaseLog:
-    """Append-only case ledger per tenant — the receipts trail (JSONL)."""
+    """Append-only case ledger per tenant — the receipts trail (JSONL).
+
+    Durability contract (audit3/console-logic):
+    - a receipt is ONE raw OS append-write (raw binary handle, no userspace
+      buffering), so concurrent writers — threads today, multiple console
+      workers tomorrow — can only interleave WHOLE lines, never bytes of the
+      same line;
+    - a writer killed mid-line leaves a torn TRAILING fragment: ``read``
+      tolerates it (the endpoint must stay readable) and the next ``append``
+      terminates it with a ``ledger_repair`` record so the fragment can never
+      MERGE with a new receipt line (which would corrupt a mid-file record
+      and permanently 500 GET /api/receipts);
+    - a COMPLETE line that does not parse is real mid-file corruption: read
+      raises loudly — corruption is surfaced, never silently dropped.
+    """
 
     def __init__(self, tenant: str, root: str | Path = "out/cases") -> None:
         self.path = Path(root) / f"{tenant}.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._write_lock = threading.Lock()  # intra-process fast path
+
+    @staticmethod
+    def _encode(event: dict[str, Any]) -> bytes:
+        stamped = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **event,
+        }
+        # ensure_ascii: a lone surrogate can never poison the file bytes
+        # (they arrive escaped), so read() can never fail on our own writes.
+        return (json.dumps(stamped, default=str, ensure_ascii=True) + "\n").encode("utf-8")
 
     def append(self, event: dict[str, Any]) -> None:
-        event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(event, default=str) + "\n")
+        line = self._encode(event)
+
+        @contextlib.contextmanager
+        def _writer():
+            # Windows append mode is NOT atomic: the CRT re-seeks to EOF
+            # before every write, so two writers opened in append mode can
+            # seek to the same offset and overwrite each other's bytes —
+            # the 20-thread regression in tests/test_caselog_atomicity.py
+            # caught exactly that (a receipt truncated mid-file). The
+            # intra-process threading.Lock above is the fast path; the OS
+            # byte-range lock below serializes CROSS-process writers
+            # (uvicorn --workers). On POSIX, O_APPEND is atomic per
+            # write(2) and no lock is needed.
+            f = self.path.open("ab", buffering=0)  # raw FileIO: single write
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    f.seek(0)
+                    # LK_NBLCK + own retry: the CRT's LK_LOCK gives up after
+                    # only 10 one-second-spaced attempts, which 20-way thread
+                    # contention exhausts (observed: EDEADLK); a 5ms backoff
+                    # keeps the wait microseconds under the thread lock.
+                    deadline = time.monotonic() + 10.0
+                    while True:
+                        try:
+                            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                            break
+                        except OSError:
+                            if time.monotonic() > deadline:
+                                raise
+                            time.sleep(0.005)
+                    try:
+                        yield f
+                    finally:
+                        f.seek(0)
+                        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    yield f
+            finally:
+                f.close()
+
+        with self._write_lock, _writer() as f:
+            if self.path.exists() and self.path.stat().st_size:
+                with self.path.open("rb") as probe:
+                    probe.seek(-1, os.SEEK_END)
+                    if probe.read(1) != b"\n":
+                        # a previous writer died mid-line: terminate the torn
+                        # fragment and stamp the repair so it can never merge
+                        # with this line (read() then skips the fragment).
+                        line = (
+                            b"\n"
+                            + self._encode({
+                                "step": "ledger_repair",
+                                "note": "terminated a torn trailing fragment left by a crashed writer",
+                            })
+                            + line
+                        )
+            written = 0
+            while written < len(line):
+                n = f.write(line[written:])
+                if not n:  # e.g. disk full — never spin
+                    raise OSError("case ledger append made no progress")
+                written += n
 
     def read(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
-        return [
-            json.loads(line)
-            for line in self.path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        raw = self.path.read_text(encoding="utf-8")
+        lines = raw.split("\n")
+        torn_tail: str | None = None
+        if lines and lines[-1] == "":
+            lines.pop()
+        elif lines:
+            torn_tail = lines.pop()
+        events: list[dict[str, Any]] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if not line.strip():
+                i += 1
+                continue
+            try:
+                events.append(json.loads(line))
+                i += 1
+            except json.JSONDecodeError:
+                # a broken line is tolerated ONLY when the very next line is
+                # a repair record (i.e. it was a torn tail that append()
+                # terminated) — anything else is genuine mid-file
+                # corruption and must surface loudly, never hide.
+                nxt = lines[i + 1] if i + 1 < len(lines) else ""
+                try:
+                    repaired = json.loads(nxt).get("step") == "ledger_repair"
+                except Exception:
+                    repaired = False
+                if not repaired:
+                    raise RuntimeError(
+                        f"{self.path}: corrupt ledger line {i + 1}: {line[:120]!r}"
+                    ) from None
+                events.append(json.loads(nxt))  # the repair record stays visible
+                i += 2  # skip the repaired fragment + consume the repair record
+        if torn_tail is not None and torn_tail.strip():
+            # the writer died mid-line before the trailing newline: tolerate
+            # the fragment (warn) instead of 500ing every future read.
+            try:
+                events.append(json.loads(torn_tail))
+            except json.JSONDecodeError:
+                print(
+                    f"WARNING: {self.path}: torn trailing ledger line dropped: "
+                    f"{torn_tail[:120]!r}",
+                    file=sys.stderr,
+                )
+        return events
 
     def last_step(self) -> str | None:
         events = self.read()
