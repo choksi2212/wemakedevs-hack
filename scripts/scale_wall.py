@@ -35,6 +35,7 @@ def main() -> int:
     parser.add_argument("--tenants", type=int, default=300)
     parser.add_argument("--graph-prefix", default="sever_tenant")
     parser.add_argument("--sample-dir", default=os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"))
+    parser.add_argument("--skip-load", action="store_true", help="graphs already loaded — measurement only")
     args = parser.parse_args()
 
     print(f"[scale] base sample: {args.sample_dir}")
@@ -54,19 +55,23 @@ def main() -> int:
 
     load_times: list[float] = []
     t_all = time.time()
-    for i in range(1, args.tenants + 1):
-        tenant = make_tenant(base, i)
-        port = FalkorGraphPort(
-            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-            graph_name=f"{args.graph_prefix}{i:03d}",
-        )
-        t0 = time.time()
-        port.load(tenant)
-        load_times.append(time.time() - t0)
-        if i % 25 == 0 or i == args.tenants:
-            print(f"[scale] loaded tenant {i:03d}/{args.tenants} "
-                  f"(+{load_times[-1]:.2f}s, total {time.time()-t_all:.1f}s)")
+    if args.skip_load:
+        print(f"[scale] --skip-load: measuring {args.tenants} existing graphs")
+        load_times = [0.0]
+    else:
+        for i in range(1, args.tenants + 1):
+            tenant = make_tenant(base, i)
+            port = FalkorGraphPort(
+                host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+                port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+                graph_name=f"{args.graph_prefix}{i:03d}",
+            )
+            t0 = time.time()
+            port.load(tenant)
+            load_times.append(time.time() - t0)
+            if i % 25 == 0 or i == args.tenants:
+                print(f"[scale] loaded tenant {i:03d}/{args.tenants} "
+                      f"(+{load_times[-1]:.2f}s, total {time.time()-t_all:.1f}s)")
     total_load = time.time() - t_all
 
     # memory usage across graphs
@@ -82,23 +87,15 @@ def main() -> int:
             print(f"[scale] GRAPH.MEMORY err tenant {i}: {str(e)[:80]}")
             break
 
-    # query latency flatness across sampled tenants
+    # query latency flatness across sampled tenants (python client)
+    from falkordb import FalkorDB
     pattern = cypher_traversal_pattern(12)
     q = CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern)
-    latencies: list[float] = []
-    for i in range(1, args.tenants + 1, max(1, args.tenants // 30)):
-        g = falkor.graph  # same client; graph selected per query below
-        gname = f"{args.graph_prefix}{i:03d}"
-        t0 = time.time()
-        res = raw.execute_command("GRAPH.QUERY", gname, q, "--c", "--p",
-                                  "oid", _remap_sid(HERO, i), "target", _remap_sid(DA, i))
-        latencies.append((time.time() - t0) * 1000)
-    # NOTE: raw param passing differs; use the python client instead for latency
-    latencies = []
-    from falkordb import FalkorDB
     fdb = FalkorDB(host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
                    port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")))
-    for i in range(1, args.tenants + 1, max(1, args.tenants // 30)):
+    latencies: list[float] = []
+    step = max(1, args.tenants // 30)
+    for i in range(1, args.tenants + 1, step):
         gg = fdb.select_graph(f"{args.graph_prefix}{i:03d}")
         t0 = time.time()
         res = gg.query(q, {"oid": _remap_sid(HERO, i), "target": _remap_sid(DA, i)})
