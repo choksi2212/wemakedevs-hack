@@ -1,11 +1,26 @@
 """Parse BloodHound CE collector JSON dumps into a normalized graph model.
 
 Input: directory of `<timestamp>_<type>.json` files (SharpHound CE v6 format),
-each `{"data": [...], "meta": {"type": "...", "version": N}}`.
+each ``{"data": [...], "meta": {"type": "...", "version": N}}``.
 
 Output: ``NormalizedGraph`` — nodes and edges ready for Cypher batch emission
 or direct in-memory graph construction. Every edge endpoint is guaranteed to
 resolve (external trust targets get unresolved Domain nodes).
+
+Deliberately NOT derived (verified against the CE sample, all 34 computer
+records): ``Sessions``/``PrivilegedSessions``/``RegistrySessions`` (presence
+data — a session is exposure, not a grant; the engine's TRAVERSAL_RELS models
+privilege edges only, so HasSession/CanRDP edges would be dead weight), and
+``UserRights``/``Status``/``DCRegistryData``/``GPO Links`` (display/metadata
+the traversal set does not consume). These fields are accepted on records
+without effect — the hostile-input tests pin that they never crash the
+parser or leak into node props.
+
+Hostile-input contract: structurally corrupt files fail LOUD (FileNotFoundError
+for an empty dir, JSONDecodeError for bad JSON, ValueError with the file name
+for a non-object document or non-list ``data``). Wrong-typed or malformed
+record fields are counted in ``stats["skipped"]`` and skipped — parse cleanly
+and visibly, never crash silently, never emit a garbage edge.
 """
 from __future__ import annotations
 
@@ -101,9 +116,27 @@ class NormalizedGraph:
                 node["props"].setdefault(k, v)
 
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
+        """Add an edge, deduped on (src, dst, rel, canonical props).
+
+        Self-loops (src == dst) are dropped on purpose: a self-ACL (e.g.
+        ENTERPRISE ADMINS holds WriteDacl on itself — 32 such group self-ACEs
+        in the CE sample) can never change reachability of any other node, and
+        FalkorDB paths cannot traverse a self-loop usefully. Dropping is also
+        the hostile-input defense: a record referencing its own SID never
+        yields a garbage edge.
+
+        Prop values are coerced to FalkorDB-safe primitives (bool/int/float/str;
+        dict/list become canonical JSON strings) — FalkorDB rejects
+        non-primitive map values, so a hostile collector file must fail at
+        parse time, not at load time.
+        """
         if not src or not dst or src == dst:
             return False
-        clean = {k: v for k, v in (props or {}).items() if v is not None and v != ""}
+        clean = {}
+        for k, v in (props or {}).items():
+            if v is None or v == "":
+                continue
+            clean[k] = _prim(v)
         key = (src, dst, rel, json.dumps(clean, sort_keys=True, default=str))
         if key not in self.edges:
             self.edges[key] = {"src": src, "dst": dst, "rel": rel, "props": clean}
@@ -111,8 +144,24 @@ class NormalizedGraph:
         return False
 
 
-def _clean_props(raw: dict[str, Any] | None) -> dict[str, Any]:
-    if not raw:
+def _prim(v: Any) -> Any:
+    """Coerce one prop value to a FalkorDB-safe primitive."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v
+    if isinstance(v, (dict, list)):
+        return json.dumps(v, sort_keys=True, default=str)
+    return str(v)
+
+
+def _clean_props(raw: Any) -> dict[str, Any]:
+    """Flatten a collector ``Properties`` dict into primitive-typed props.
+
+    Non-dict input (a hostile or corrupt file: string, list, ...) yields {}
+    rather than a crash — the record is still counted by the caller.
+    """
+    if not isinstance(raw, dict):
         return {}
     out: dict[str, Any] = {}
     for k, v in raw.items():
@@ -137,15 +186,35 @@ def _name_of(props: dict[str, Any]) -> str:
     return ""
 
 
-def _sid_refs(records: list[dict[str, Any]]) -> list[tuple[str, str]]:
-    """Collect (ObjectIdentifier, ObjectType) from reference dicts (Members, ...)."""
-    refs: list[tuple[str, str]] = []
-    for entry in records:
-        if isinstance(entry, dict):
-            sid = entry.get("ObjectIdentifier")
-            if sid:
-                refs.append((str(sid), str(entry.get("ObjectType") or "")))
-    return refs
+def _list_field(rec: dict[str, Any], key: str, skipped: dict[str, int], counter: str) -> list:
+    """Fetch ``rec[key]`` as a list, counting truthy non-list values.
+
+    A hostile or corrupt collector file may put a string (or dict, int, ...)
+    where a list belongs. Iterating a bare string would walk it CHARACTER BY
+    CHARACTER — for HasSIDHistory that emitted one garbage HAS_SID_HISTORY
+    edge per character. Wrong-typed fields are counted and treated as empty:
+    parse cleanly and visibly, never crash, never emit garbage.
+    """
+    val = rec.get(key)
+    if val is None:
+        return []
+    if not isinstance(val, list):
+        skipped[counter] = skipped.get(counter, 0) + 1
+        return []
+    return val
+
+
+def _ref_sid(entry: Any, skipped: dict[str, int], counter: str) -> str:
+    """ObjectIdentifier of a {ObjectIdentifier, ObjectType} ref entry; only
+    string SIDs are accepted (str() of a dict would invent a garbage id)."""
+    if not isinstance(entry, dict):
+        skipped[counter] = skipped.get(counter, 0) + 1
+        return ""
+    sid = entry.get("ObjectIdentifier")
+    if not isinstance(sid, str) or not sid:
+        skipped[counter] = skipped.get(counter, 0) + 1
+        return ""
+    return sid
 
 
 _KNOWN_LABELS: frozenset[str] = frozenset(
@@ -192,8 +261,20 @@ def parse_ad_dir(path: str | Path) -> NormalizedGraph:
             skipped[f"unknown_type:{ftype}"] = skipped.get(f"unknown_type:{ftype}", 0) + 1
             continue
         doc = json.loads(f.read_text(encoding="utf-8"))
-        docs.append((label, doc.get("data", [])))
-        for rec in doc.get("data", []):
+        # fail loud on structurally-corrupt documents — never half-ingest
+        if not isinstance(doc, dict):
+            raise ValueError(
+                f"collector file {f.name}: top level must be a JSON object, got {type(doc).__name__}"
+            )
+        data = doc.get("data", [])
+        if data is None:
+            data = []
+        if not isinstance(data, list):
+            raise ValueError(
+                f"collector file {f.name}: 'data' must be a list, got {type(data).__name__}"
+            )
+        docs.append((label, data))
+        for rec in data:
             _parse_record(g, rec, label, skipped, edges=False)
 
     for label, records in docs:
@@ -215,12 +296,20 @@ def parse_ad_dir(path: str | Path) -> NormalizedGraph:
     return g
 
 
-def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: dict[str, int], edges: bool = True) -> None:
+def _parse_record(g: NormalizedGraph, rec: Any, label: str, skipped: dict[str, int], edges: bool = True) -> None:
+    # ---- record-level guard: a non-dict record is counted, never a crash ----
+    if not isinstance(rec, dict):
+        skipped["malformed_record"] = skipped.get("malformed_record", 0) + 1
+        return
     oid = str(rec.get("ObjectIdentifier") or "")
     if not oid:
         skipped["no_objectid"] = skipped.get("no_objectid", 0) + 1
         return
-    props = _clean_props(rec.get("Properties"))
+    props = rec.get("Properties")
+    if props is not None and not isinstance(props, dict):
+        skipped["malformed_properties"] = skipped.get("malformed_properties", 0) + 1
+        props = None
+    props = _clean_props(props)
     for flag in ("IsACLProtected", "IsDeleted", "IsDC", "DumpSMSAPassword"):
         val = rec.get(flag)
         if val is None:
@@ -238,61 +327,91 @@ def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: 
         return
 
     # ---- ACL edges ----
-    for ace in rec.get("Aces", []) or []:
-        principal = str(ace.get("PrincipalSID") or "")
+    # Every ACE on the record becomes principal --RIGHT--> record. The
+    # IsInherited flag propagates verbatim onto the edge (`inherited` prop),
+    # so inherited vs direct ACEs stay distinguishable in the graph.
+    for ace in _list_field(rec, "Aces", skipped, "malformed_aces"):
+        if not isinstance(ace, dict):
+            skipped["ace_malformed_entry"] = skipped.get("ace_malformed_entry", 0) + 1
+            continue
+        principal = ace.get("PrincipalSID")
         right = ace.get("RightName")
         if not principal or not right:
             skipped["ace_missing_fields"] = skipped.get("ace_missing_fields", 0) + 1
+            continue
+        # str() of a dict/int principal or right would invent a garbage id/rel
+        if not isinstance(principal, str) or not isinstance(right, str):
+            skipped["ace_malformed_fields"] = skipped.get("ace_malformed_fields", 0) + 1
             continue
         _ensure_node(g, principal, str(ace.get("PrincipalType") or ""))
         g.add_edge(principal, oid, _right_to_rel(right), {"inherited": bool(ace.get("IsInherited", False))})
 
     # ---- membership edges ----
-    for member_sid, member_type in _sid_refs(rec.get("Members", []) or []):
-        _ensure_node(g, member_sid, member_type)
+    for member in _list_field(rec, "Members", skipped, "malformed_members"):
+        member_sid = _ref_sid(member, skipped, "member_malformed_entry")
+        if not member_sid:
+            continue
+        _ensure_node(g, member_sid, str((member or {}).get("ObjectType") or ""))
         g.add_edge(member_sid, oid, "MEMBER_OF")
-    if rec.get("PrimaryGroupSID"):
-        pgid = str(rec["PrimaryGroupSID"])
-        _ensure_node(g, pgid, "Group")
-        g.add_edge(oid, pgid, "MEMBER_OF", {"primary": True})
+    pg = rec.get("PrimaryGroupSID")
+    if pg is not None:
+        if not isinstance(pg, str) or not pg:
+            skipped["malformed_primarygroupsid"] = skipped.get("malformed_primarygroupsid", 0) + 1
+        else:
+            _ensure_node(g, pg, "Group")
+            g.add_edge(oid, pg, "MEMBER_OF", {"primary": True})
 
     # ---- container/OU hierarchy ----
     cb = rec.get("ContainedBy")
-    if isinstance(cb, dict) and cb.get("ObjectIdentifier"):
-        parent = str(cb["ObjectIdentifier"])
-        _ensure_node(g, parent, "Container")
-        g.add_edge(oid, parent, "CONTAINED_BY")
+    if cb is not None and not isinstance(cb, dict):
+        skipped["malformed_containedby"] = skipped.get("malformed_containedby", 0) + 1
+    elif isinstance(cb, dict):
+        parent = cb.get("ObjectIdentifier")
+        if not isinstance(parent, str) or not parent:
+            skipped["malformed_containedby"] = skipped.get("malformed_containedby", 0) + 1
+        else:
+            _ensure_node(g, parent, "Container")
+            g.add_edge(oid, parent, "CONTAINED_BY")
 
     # ---- user-specific ----
-    for sid in rec.get("HasSIDHistory", []) or []:
-        if isinstance(sid, str):
-            _ensure_node(g, sid, "User")
-            g.add_edge(oid, sid, "HAS_SID_HISTORY")
-    for tgt in rec.get("SPNTargets", []) or []:
-        if isinstance(tgt, dict) and tgt.get("EndpointAddress"):
-            endpoint = str(tgt["EndpointAddress"])
-            _ensure_node(g, endpoint, "Computer")  # keep the zero-dangling invariant
-            g.add_edge(oid, endpoint, "HAS_SPN_TARGET", {"service": tgt.get("Service")})
+    for sid in _list_field(rec, "HasSIDHistory", skipped, "malformed_hassidhistory"):
+        if not isinstance(sid, str) or not sid:
+            skipped["sidhistory_malformed_entry"] = skipped.get("sidhistory_malformed_entry", 0) + 1
+            continue
+        _ensure_node(g, sid, "User")
+        g.add_edge(oid, sid, "HAS_SID_HISTORY")
+    for tgt in _list_field(rec, "SPNTargets", skipped, "malformed_spntargets"):
+        if not isinstance(tgt, dict):
+            skipped["spntarget_malformed_entry"] = skipped.get("spntarget_malformed_entry", 0) + 1
+            continue
+        endpoint = tgt.get("EndpointAddress")
+        if not isinstance(endpoint, str) or not endpoint:
+            skipped["spntarget_malformed_entry"] = skipped.get("spntarget_malformed_entry", 0) + 1
+            continue
+        _ensure_node(g, endpoint, "Computer")  # keep the zero-dangling invariant
+        g.add_edge(oid, endpoint, "HAS_SPN_TARGET", {"service": tgt.get("Service")})
 
     # ---- delegation / RBCD (users & computers) ----
     # msDS-AllowedToDelegateTo lists the TARGETS the record's principal may
     # delegate to, so the edge runs record -> target — BloodHound CE: the edge
     # "points from the principal that holds the privilege to the target it can
     # delegate to" (sample: KRB-DEL-01 -> DC01, never the reverse).
-    for ref in rec.get("AllowedToDelegate", []) or []:
-        if isinstance(ref, dict):
-            sid = str(ref.get("ObjectIdentifier") or "")
-            _ensure_node(g, sid, str(ref.get("ObjectType") or "Computer"))
-            g.add_edge(oid, sid, "ALLOWED_TO_DELEGATE")
+    for ref in _list_field(rec, "AllowedToDelegate", skipped, "malformed_allowedtodelegate"):
+        sid = _ref_sid(ref, skipped, "delegate_malformed_entry")
+        if not sid:
+            continue
+        _ensure_node(g, sid, str((ref or {}).get("ObjectType") or "Computer"))
+        g.add_edge(oid, sid, "ALLOWED_TO_DELEGATE")
     # msDS-AllowedToActOnBehalfOfOtherIdentity lives ON the target computer:
     # the refs are the principals allowed to act on rec, so the edge runs
     # ref -> record (BloodHound CE: "from the principal that can act to the
     # computer that trusts it"). Sample: EXTCA02 -> EXTCA01.
-    for ref in rec.get("AllowedToAct", []) or []:
-        if isinstance(ref, dict):
-            sid = str(ref.get("ObjectIdentifier") or "")
-            _ensure_node(g, sid, str(ref.get("ObjectType") or "Computer"))
-            g.add_edge(sid, oid, "ALLOWED_TO_ACT")
+    for ref in _list_field(rec, "AllowedToAct", skipped, "malformed_allowedtoact"):
+        sid = _ref_sid(ref, skipped, "act_malformed_entry")
+        if not sid:
+            continue
+        _ensure_node(g, sid, str((ref or {}).get("ObjectType") or "Computer"))
+        g.add_edge(sid, oid, "ALLOWED_TO_ACT")
 
     # ---- computer local groups -> local admin ----
     # SharpHound CE v6 carries local-group members under "Results" (verified
@@ -303,28 +422,48 @@ def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: 
     # RemoteDesktopUsers (-555)/Account Operators (-548)... whose members are
     # NOT local admins — e.g. RID -513 (Domain Users) sits in local "Users".
     # Non-admin groups produce no edge, faithful to BH.
-    for lg in rec.get("LocalGroups", []) or []:
+    for lg in _list_field(rec, "LocalGroups", skipped, "malformed_localgroups"):
         if not isinstance(lg, dict):
+            skipped["localgroup_malformed_entry"] = skipped.get("localgroup_malformed_entry", 0) + 1
             continue
-        lg_oid = str(lg.get("ObjectIdentifier") or "")
+        lg_oid = lg.get("ObjectIdentifier")
+        if not isinstance(lg_oid, str) or not lg_oid:
+            skipped["localgroup_malformed_entry"] = skipped.get("localgroup_malformed_entry", 0) + 1
+            continue
         if lg_oid.rsplit("-", 1)[-1] != "544":
             continue
-        for member in lg.get("Results") or lg.get("Members") or []:
-            if not isinstance(member, dict):
+        results = lg.get("Results")
+        if results is None:
+            results = lg.get("Members")
+        if results is None:
+            continue
+        if not isinstance(results, list):
+            skipped["localgroup_malformed_results"] = skipped.get("localgroup_malformed_results", 0) + 1
+            continue
+        for member in results:
+            sid = _ref_sid(member, skipped, "localgroup_malformed_member")
+            if not sid:
                 continue
-            sid = str(member.get("ObjectIdentifier") or "")
-            if sid:
-                _ensure_node(g, sid, str(member.get("ObjectType") or "User"))
-                g.add_edge(sid, oid, "ADMIN_TO", {"group": lg.get("Name"), "local_group_id": lg_oid})
+            _ensure_node(g, sid, str((member or {}).get("ObjectType") or "User"))
+            g.add_edge(sid, oid, "ADMIN_TO", {"group": lg.get("Name"), "local_group_id": lg_oid})
 
     # ---- domain trusts ----
-    for trust in rec.get("Trusts", []) or []:
+    # One TRUSTED_BY edge per trust, record domain -> TargetDomainSid,
+    # direction kept as a prop — exactly what BloodHound CE models (it does
+    # NOT reverse or drop the edge for Inbound trusts; direction is data).
+    # Uncollected target domains materialize as Domain nodes flagged external
+    # (sample: REVENANT.CORP, CHILD.WRAITH.CORP).
+    for trust in _list_field(rec, "Trusts", skipped, "malformed_trusts"):
         if not isinstance(trust, dict):
+            skipped["trust_malformed_entry"] = skipped.get("trust_malformed_entry", 0) + 1
             continue
-        target_sid = str(trust.get("TargetDomainSid") or "")
-        target_name = str(trust.get("TargetDomainName") or "")
-        if not target_sid:
+        target_sid = trust.get("TargetDomainSid")
+        if not isinstance(target_sid, str) or not target_sid:
+            skipped["trust_missing_target_sid"] = skipped.get("trust_missing_target_sid", 0) + 1
             continue
+        target_name = trust.get("TargetDomainName")
+        if target_name is not None and not isinstance(target_name, str):
+            target_name = json.dumps(target_name, default=str)
         if target_sid not in g.nodes:
             g.add_node(target_sid, "Domain", {"name": target_name, "external": True})
         g.add_edge(
@@ -335,6 +474,9 @@ def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: 
         )
 
     # ---- enterprise CA publishes templates ----
-    for tpl_sid, _ in _sid_refs(rec.get("EnabledCertTemplates", []) or []):
+    for tpl in _list_field(rec, "EnabledCertTemplates", skipped, "malformed_enabledcerttemplates"):
+        tpl_sid = _ref_sid(tpl, skipped, "certtemplate_malformed_entry")
+        if not tpl_sid:
+            continue
         _ensure_node(g, tpl_sid, "CertTemplate")
         g.add_edge(tpl_sid, oid, "PUBLISHED_ON")
