@@ -221,8 +221,13 @@ class FalkorGraphPort(GraphPort):
 
     # ---- receipts ----
     def profile(self, query: str, params: dict[str, Any] | None = None) -> str:
+        # GRAPH.PROFILE needs the CYPHER params header in the query string —
+        # the client builds it for graph.query/profile, so reuse its builder
+        # but keep the RAW response (the wrapped ExecutionPlan drops ms timings,
+        # and the ms numbers are the point of profile receipts).
+        q = self.graph._build_params_header(params) + query
         res = self.graph.client.execute_command(
-            "GRAPH.PROFILE", self.graph_name, query
+            "GRAPH.PROFILE", self.graph_name, q
         )
         return str(res)
 

@@ -34,8 +34,10 @@ def port():
 
 
 def test_load_counts(port):
+    # 12450 edges post ETL-hardening (SPN targets pointed at existing Computer
+    # nodes, so node count is unchanged); fresh-load verified on the engine.
     assert port.node_count() == 1480
-    assert port.edge_count() == 12437
+    assert port.edge_count() == 12450
 
 
 def test_crown_jewels(port):
@@ -70,5 +72,5 @@ def test_edge_frequency_and_cut_collapses(port):
 
 def test_profile_returns_execution_plan(port):
     q = PATH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(12))
-    out = port.profile(q)
+    out = port.profile(q, {"oid": HERO, "target": "S-1-5-21-2697957641-2271029196-387917394-512"})
     assert "Project" in out and "ms" in out
