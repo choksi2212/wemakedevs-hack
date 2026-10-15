@@ -51,6 +51,8 @@ def main() -> int:
     falkor = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        username=os.environ.get("SEVER_FALKOR_USER"),
+        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
     )
     raw = falkor.graph.client
 
@@ -69,6 +71,8 @@ def main() -> int:
                 host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
                 port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
                 graph_name=f"{args.graph_prefix}{i:03d}",
+                username=os.environ.get("SEVER_FALKOR_USER"),
+                password=os.environ.get("SEVER_FALKOR_PASSWORD"),
             )
             t0 = time.time()
             port.load(tenant)
@@ -101,7 +105,9 @@ def main() -> int:
     pattern = cypher_traversal_pattern(12)
     q = CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern)
     fdb = FalkorDB(host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-                   port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")))
+                   port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+                   username=os.environ.get("SEVER_FALKOR_USER"),
+                   password=os.environ.get("SEVER_FALKOR_PASSWORD"))
     latencies: list[float] = []
     step = max(1, args.tenants // 30)
     for i in range(1, args.tenants + 1, step):

@@ -51,6 +51,8 @@ def build_app() -> FastAPI:
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
         graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
+        username=os.environ.get("SEVER_FALKOR_USER"),
+        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
     )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(

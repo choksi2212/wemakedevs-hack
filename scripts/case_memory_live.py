@@ -40,6 +40,8 @@ def _checkpointer(graph: str):
     return FalkorDBSaver(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        username=os.environ.get("SEVER_FALKOR_USER"),
+        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
         database=f"{graph}_checkpoints",
     )
 
@@ -49,6 +51,8 @@ def _port(graph: str) -> FalkorGraphPort:
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
         graph_name=graph,
+        username=os.environ.get("SEVER_FALKOR_USER"),
+        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
     )
 
 
