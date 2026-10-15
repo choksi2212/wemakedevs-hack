@@ -112,8 +112,12 @@ class FalkorGraphPort(GraphPort):
                     f"query={batch['query'][:120]}... "
                     f"first_row={str(rows[0])[:300] if rows else 'n/a'}"
                 ) from exc
-        # range indexes on the natural key — every objectid lookup becomes an
-        # index scan instead of an all-node scan (see PROFILE receipts)
+        # range indexes on the natural key. Honest planner note (measured,
+        # falkordb 6.0.0): the planner uses these only when the label is bound
+        # in the pattern — (o:User {objectid: $oid}) is a Node By Index Scan
+        # (0.01ms); label-free matches (o {objectid: $oid}) fall back to an
+        # All Node Scan (~4-8ms at 1480 nodes; flat per-tenant at any wall
+        # size). See docs/receipts/profile.txt for both plans, measured live.
         for label in self.INDEXED_LABELS:
             try:
                 self.graph.query(f"CREATE INDEX FOR (n:{label}) ON (n.objectid)")

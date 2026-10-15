@@ -1,8 +1,8 @@
 {
   "beat": "hybrid cross-world interdiction",
   "graph": "sever_hybrid",
-  "merged_nodes": 14402,
-  "merged_edges": 25072,
+  "merged_nodes": 14422,
+  "merged_edges": 29191,
   "bridges": 9,
   "cloud_identity_compromised": "3892f15b-2264-4927-8366-74b0f7f49761",
   "reachability_after_breach": 1,
@@ -26,8 +26,8 @@
         "S-1-5-21-3702535222-3822678775-2090119576-519",
         "fd06da8c-30ea-4692-b1c7-69d818f68d37"
       ],
-      "nodes": 14402,
-      "edges": 20632
+      "nodes": 14422,
+      "edges": 29191
     },
     "after": {
       "reachability": 0,
@@ -42,12 +42,12 @@
         "S-1-5-21-3702535222-3822678775-2090119576-519",
         "fd06da8c-30ea-4692-b1c7-69d818f68d37"
       ],
-      "nodes": 14402,
-      "edges": 20631
+      "nodes": 14422,
+      "edges": 29190
     },
-    "requery_ms": 2.76,
+    "requery_ms": 3.0,
     "verdict": "collapsed",
     "approved_by": "console-operator",
-    "approved_at": "2026-10-15T08:02:51"
+    "approved_at": "2026-10-15T16:12:06"
   }
 }

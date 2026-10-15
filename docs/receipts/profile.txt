@@ -1,28 +1,46 @@
-# GRAPH.PROFILE — live receipt (falkordb 6.0.0, sever_demo tenant)
+# GRAPH.PROFILE — live receipt (falkordb 6.0.0, sever_demo tenant, regenerated 2026-10-15)
 
-Query (canonical attack-path lookup, literals substituted for PROFILE which
-does not bind parameters):
+Query (canonical attack-path lookup, hero -> Domain Admins, 12-hop traversal
+pattern over the abusable-relationship vocabulary):
 
-    MATCH (o {objectid: "S-1-5-21-...-2110"}), (t {objectid: "S-1-5-21-...-512"})
+    MATCH (o {objectid: $oid}), (t {objectid: $target})
     WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|...|AZKVContributor*..12]->(t)) AS p
     RETURN p
 
-Execution plan (captured verbatim from the live engine, Oct 15 2026):
+GRAPH.PROFILE binds parameters through the CYPHER params header (the same
+transport GRAPH.QUERY uses); the earlier "PROFILE does not bind parameters"
+note was wrong — params-bound PROFILE is the transport below, measured live
+via sever.core.falkor_port.FalkorGraphPort.profile().
 
-```
-Project | Records produced: 1, Execution time: 0.001613 ms
-    Project | Records produced: 1, Execution time: 0.292865 ms
-        Cartesian Product | Records produced: 1, Execution time: 0.008168 ms
-            Filter | Records produced: 1, Execution time: 0.038534 ms
-                All Node Scan | (o) | Records produced: 1480, Execution time: 0.004168 ms
-            Filter | Records produced: 1, Execution time: 0.479396 ms
-                All Node Scan | (t) | Records produced: 1480, Execution time: 0.007715 ms
-```
+## Label-free point lookup (label unknown a priori — how reachability queries run)
 
-Total in-engine time: ~0.83 ms on a 1,480-node / 12,437-edge tenant.
+    Project | Records produced: 1, Execution time: 0.001444 ms
+    Project | Records produced: 1, Execution time: 0.159980 ms
+        Cartesian Product | Records produced: 1, Execution time: 0.007554 ms
+            Filter | Records produced: 1, Execution time: 0.043354 ms
+                All Node Scan | (o) | Records produced: 1480, Execution time: 0.004830 ms
+            Filter | Records produced: 1, Execution time: 0.308237 ms
+                All Node Scan | (t) | Records produced: 1480, Execution time: 0.006693 ms
 
-Note: range indexes on `objectid` are created per label at load
-(`sever/core/falkor_port.py::INDEXED_LABELS`); the canonical query binds
-endpoints without a label so the planner chooses All-Node-Scan — still
-sub-millisecond at this estate size, and the label indexes serve larger
-estates and label-qualified lookups.
+## Label-bound point lookup (planner uses the range index we create on load)
+
+    MATCH (o:User {objectid: $oid}), (t:Group {objectid: $target}) WITH shortestPath(...) AS p RETURN p
+
+    Project | Records produced: 1, Execution time: 0.001313 ms
+    Project | Records produced: 1, Execution time: 0.186302 ms
+        Cartesian Product | Records produced: 1, Execution time: 0.003407 ms
+            Filter | Records produced: 1, Execution time: 0.003606 ms
+                Node By Index Scan | (o:User) | Records produced: 1, Execution time: 0.013056 ms
+            Filter | Records produced: 1, Execution time: 0.012093 ms
+                Node By Index Scan | (t:Group) | Records produced: 1, Execution time: 0.106797 ms
+
+## Honest read
+
+The 6.0.0 planner resolves `objectid` range indexes only when the label is
+bound in the pattern. Load-bearing SEVER queries match by objectid alone
+(owned principals and crown jewels carry several possible labels), so they
+take the All Node Scan path: ~4-8ms of scan per 1480-node tenant — flat and
+sub-10ms per query at every wall size we measured (444K nodes / 3.73M edges,
+median 3.66ms — see scale_wall.json). Label-bound lookups are 2-3 orders
+faster via Node By Index Scan; binding labels into the hot templates is a
+known future optimization, deliberately not smuggled in mid-event.

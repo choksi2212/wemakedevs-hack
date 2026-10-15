@@ -1,35 +1,21 @@
 {
-  "beat": "eval ablation \u2014 graph traversal vs keyword-only retrieval",
+  "beat": "eval ablation \u2014 graph traversal vs keyword-only retrieval (live engine)",
   "questions": [
     {
       "question": "Can compromised T1_TONYMONTANA reach a crown jewel within 12 hops?",
       "graph": {
-        "answer": "Yes \u2014 1 owned principal(s) reach jewels; 10 canonical shortest paths enumerated",
-        "evidence": [
-          [
-            "S-1-5-21-2697957641-2271029196-387917394-2110->S-1-5-21-2697957641-2271029196-387917394-2101",
-            "S-1-5-21-2697957641-2271029196-387917394-2101->S-1-5-21-2697957641-2271029196-387917394-2102"
-          ],
-          [
-            "S-1-5-21-2697957641-2271029196-387917394-2110->S-1-5-21-2697957641-2271029196-387917394-2101",
-            "S-1-5-21-2697957641-2271029196-387917394-2101->S-1-5-21-2697957641-2271029196-387917394-2102"
-          ],
-          [
-            "S-1-5-21-2697957641-2271029196-387917394-2110->S-1-5-21-2697957641-2271029196-387917394-2101",
-            "S-1-5-21-2697957641-2271029196-387917394-2101->S-1-5-21-2697957641-2271029196-387917394-2102"
-          ]
-        ],
+        "answer": "Yes \u2014 reachability 1; 5 canonical shortest paths enumerated (reaches Domain Admins: True)",
         "correct": true
       },
       "keywords": {
-        "answer": "Retrieved 4 nodes mentioning the terms \u2014 connectivity undeterminable from text",
+        "answer": "0 nodes mention the terms \u2014 connectivity undeterminable from text",
         "correct": false
       }
     },
     {
       "question": "Which SINGLE edge lies on the most attack paths (the cut target)?",
       "graph": {
-        "answer": "S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 10 of 58 path-edge occurrences)",
+        "answer": "S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 5 path-edge occurrences)",
         "correct": true
       },
       "keywords": {
@@ -40,7 +26,7 @@
     {
       "question": "If that edge is removed, can the principal still reach a crown jewel?",
       "graph": {
-        "answer": "Verified by re-query: reachability 1 -> 0",
+        "answer": "Verified by re-query on the engine: reachability 1 -> 0",
         "correct": true
       },
       "keywords": {
@@ -51,18 +37,18 @@
     {
       "question": "Do cross-domain trust edges create paths into other domains' admins?",
       "graph": {
-        "answer": "Yes \u2014 PHANTOM->GHOST/WRAITH TRUSTED_BY edges are in the traversal set; jewels from all 3 domains appear in enumeration",
+        "answer": "Yes \u2014 TRUSTED_BY edges are in the traversal set; jewels from all 3 domains appear in enumeration",
         "correct": true
       },
       "keywords": {
-        "answer": "Retrieved 8 nodes mentioning 'trust' \u2014 which trusts are abusable and what they reach stays unknown",
+        "answer": "0 nodes mention 'trust' \u2014 which trusts are abusable and what they reach stays unknown",
         "correct": false
       }
     },
     {
       "question": "Who holds DCSync rights in the estate?",
       "graph": {
-        "answer": "0 DCSYNC edges enumerated with exact (src, dst) principals",
+        "answer": "0 DCSYNC relationships enumerated with exact (src, dst)",
         "correct": true
       },
       "keywords": {
