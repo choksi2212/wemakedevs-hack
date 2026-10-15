@@ -66,7 +66,9 @@ uvicorn sever.console.app:app --host 0.0.0.0 --port 8000   # env: .env.example
 
 Live attack-surface panel, breach/ACE-grant simulation buttons, hop-by-hop path
 chains, and the human gate as a literal **APPROVE CUT** button — every action
-lands in the receipts ledger.
+lands in the receipts ledger. Every entry point loads a `.env` at the repo
+root if present (exported variables win); all knobs are in
+[`.env.example`](.env.example).
 
 ## Demo video
 
@@ -112,10 +114,11 @@ human-gate and LLM-seam semantics — execute without the engine.
 ## Deployment
 
 - **Self-hosted (shipped)**: `docker compose up -d` — FalkorDB 6.0.0 on :6379
-  (browser UI on :3000), persisted in `./out/falkordb-data`. Any self-hosted or
+  (browser UI on :3000), persisted in `./out/falkordb-data`, restarted
+  automatically on reboot (`restart: unless-stopped`). Any self-hosted or
   remote FalkorDB works by pointing `SEVER_FALKOR_HOST/PORT` at it
-  (`.env.example`); FalkorDB Cloud equally (nothing in the client is
-  docker-specific).
+  (`.env.example`); FalkorDB Cloud equally — set `SEVER_FALKOR_USER/PASSWORD`
+  (nothing in the client is docker-specific).
 - **Console**: `uvicorn sever.console.app:app --host 0.0.0.0 --port 8000`.
 - Optional tuning (only for long cross-domain tie-set analysis): uncomment the
   `FALKORDB_ARGS` block in `docker-compose.yml` (`TIMEOUT_DEFAULT 0`) — the
