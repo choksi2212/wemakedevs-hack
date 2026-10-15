@@ -93,6 +93,8 @@ class OpenAICompatLLM(LLM):
             # ~120 content tokens a one-liner commentary needs.
             max_tokens=4096,
         )
+        if not resp.choices:
+            return ""
         return resp.choices[0].message.content or ""
 
 

@@ -4,6 +4,7 @@ every graph-mutating assertion runs on the REAL engine (tiny estates)."""
 from __future__ import annotations
 
 import os
+import re
 import dataclasses
 from dataclasses import FrozenInstanceError
 
@@ -71,6 +72,32 @@ def test_every_timeline_kind_has_attack_map_entry():
 def test_narrate_falls_back_on_unknown_kind():
     f = Finding("F-9", "mystery_kind", "A", detail="odd")
     assert narrate(f).technique_id == "T1595.002"
+
+
+def test_attack_map_ids_and_names_match_mitre_enterprise():
+    # Pinned against attack.mitre.org (Enterprise). Exact ID->name contract:
+    # DCSync is T1003.006 (T1003.002 is Security Account Manager), and the
+    # official T1558 parent name is "Steal or Forge Kerberos Tickets".
+    expected = {
+        "credential_breach": ("T1078.002", "Valid Accounts: Domain Accounts"),
+        "kerberoastable_spn": ("T1558.003", "Steal or Forge Kerberos Tickets: Kerberoasting"),
+        "ace_granted": ("T1098", "Account Manipulation"),
+        "dcsync_right": ("T1003.006", "OS Credential Dumping: DCSync"),
+        "cross_domain_trust": ("T1482", "Domain Trust Discovery"),
+        "cert_esc1": ("T1649", "Steal or Forge Authentication Certificates"),
+    }
+    assert set(ATTACK_MAP) == set(expected)
+    for kind, (technique_id, technique) in expected.items():
+        assert ATTACK_MAP[kind].technique_id == technique_id, kind
+        assert ATTACK_MAP[kind].technique == technique, kind
+
+
+def test_attack_map_narrations_and_ids_are_wellformed():
+    for kind, narrative in ATTACK_MAP.items():
+        assert narrative.narration.strip(), kind
+        assert narrative.narration == narrative.narration.strip(), kind
+        # canonical ATT&CK wire format: what the UI banner renders
+        assert re.fullmatch(r"T\d{4}(?:\.\d{3})?", narrative.technique_id), kind
 
 
 def test_timeline_f003_targets_real_id_not_placeholder():

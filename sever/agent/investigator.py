@@ -98,7 +98,9 @@ class Investigator:
         after = snapshot(self.port, self.hop_cap)
         paths = self.port.paths_to_jewels(finding.subject, self.hop_cap) if after["owned"] else []
         story = narrate(finding)
+
         garnish = self._narrate_garnish(finding, paths)
+
         proposal = rank_cut_candidates(self.port.edge_frequency(self.hop_cap), limit=3) if paths else []
         report = TriageReport(
             finding=finding,

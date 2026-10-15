@@ -138,6 +138,7 @@ def build_app() -> FastAPI:
             "kind": f.kind,
             "technique": f"{story.technique_id} {story.technique}",
             "narration": story.narration,
+            "simulated": True,  # findings stream is a labeled breach-timeline replay, not live telemetry
             "applied": report.applied,
             "reachability": report.after["reachability"],
         }

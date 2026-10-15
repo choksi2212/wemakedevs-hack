@@ -23,12 +23,12 @@ ATTACK_MAP: dict[str, AttackNarrative] = {
     "credential_breach": AttackNarrative(
         "T1078.002",
         "Valid Accounts: Domain Accounts",
-        "Compromised domain credentials confirmed. This principal is now assumed controlled by the attacker — every path it can reach is in scope.",
+        "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker — every path it can reach is in scope.",
     ),
     "kerberoastable_spn": AttackNarrative(
         "T1558.003",
-        "Steal or Forge Authentication Tickets: Kerberoasting",
-        "A service principal name is exposed on this principal. An attacker can request a service ticket offline and crack it at leisure.",
+        "Steal or Forge Kerberos Tickets: Kerberoasting",
+        "A service principal name is exposed on this principal. An attacker with a valid ticket-granting ticket can request its service ticket from the domain controller and crack it offline at leisure.",
     ),
     "ace_granted": AttackNarrative(
         "T1098",
@@ -36,19 +36,19 @@ ATTACK_MAP: dict[str, AttackNarrative] = {
         "An excessive access control right was just granted. The identity graph now carries a new abusable edge — re-scoring all attack paths.",
     ),
     "dcsync_right": AttackNarrative(
-        "T1003.002",
+        "T1003.006",
         "OS Credential Dumping: DCSync",
         "Directory replication rights detected. Whoever holds them can impersonate the domain controller and harvest every credential hash.",
     ),
     "cross_domain_trust": AttackNarrative(
         "T1482",
         "Domain Trust Discovery",
-        "A path crosses a domain trust. Compromise in one domain now cascades into another forest's crown jewels.",
+        "A path crosses a domain trust. Compromise in one domain now cascades into the trusted domain's crown jewels.",
     ),
     "cert_esc1": AttackNarrative(
         "T1649",
         "Steal or Forge Authentication Certificates",
-        "A misconfigured certificate template allows enrollee-supplied subjects. An attacker can mint a certificate as ANY identity, including administrators.",
+        "A misconfigured certificate template allows enrollee-supplied subjects. An attacker with enrollment rights can mint a certificate as any identity, including administrators.",
     ),
 }
 

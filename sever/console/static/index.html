@@ -95,6 +95,7 @@
 <body>
 <header>
   <span class="wordmark">SE<b>VER</b></span>
+  <span class="chip" id="sim-chip" title="Simulated identity estate &mdash; findings are a labeled breach-timeline replay. All data public/synthetic.">SIMULATED ESTATE &middot; REPLAY</span>
   <span class="chip" id="engine-chip"><span class="dot"></span><span id="engine-label">engine</span></span>
   <span class="chip" id="estate-chip">loading…</span>
   <span class="chip" id="refresh-chip" title="Toggle auto-refresh"><span class="dot"></span><button id="refresh-toggle" style="all:unset;font:inherit;cursor:pointer">live · auto</button></span>
@@ -253,7 +254,7 @@
   const GMSA = 'S-1-5-21-2697957641-2271029196-387917394-2102';
 
   async function fire(kind) {
-    banner('<span class="res">finding ' + kind + ' — re-scoring all attack paths…</span>');
+    banner('<span class="res">simulated finding ' + kind + ' — re-scoring all attack paths…</span>');
     const body = kind === 'ace_granted'
       ? {kind, subject: HERO, target: GMSA, rel: 'GENERIC_ALL'}
       : {kind, subject: HERO};
@@ -262,7 +263,8 @@
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
       });
-      banner('<span class="technique">' + esc(r.technique) + '</span>' + esc(r.narration));
+      const sim = r.simulated ? 'SIMULATED · ' : '';  // honesty: never pass replay findings off as live telemetry
+      banner('<span class="technique">' + sim + esc(r.technique) + '</span>' + esc(r.narration));
     } catch (e) {
       banner('<span class="res">finding failed: ' + esc(e.message) + '</span>');
     }
