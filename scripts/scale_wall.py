@@ -77,12 +77,17 @@ def main() -> int:
     # memory usage across graphs
     mem_bytes = 0
     sample_mems = []
+    per_graph_mb = []
     for i in range(1, args.tenants + 1):
         try:
             usage = raw.execute_command("GRAPH.MEMORY", "USAGE", f"{args.graph_prefix}{i:03d}")
-            mem_bytes += int(usage)
+            # response: [b"total_graph_sz_mb", <n>] (MB precision; sub-MB graphs report 0)
+            vals = [v for v in (usage if isinstance(usage, list) else [usage]) if isinstance(v, int)]
+            mb = vals[0] if vals else 0
+            mem_bytes += mb * 1024 * 1024
+            per_graph_mb.append(mb)
             if i % 25 == 0:
-                sample_mems.append((i, int(usage)))
+                sample_mems.append((i, mb))
         except Exception as e:
             print(f"[scale] GRAPH.MEMORY err tenant {i}: {str(e)[:80]}")
             break
@@ -111,6 +116,8 @@ def main() -> int:
         "total_load_seconds": round(total_load, 2),
         "mean_load_per_tenant_s": round(statistics.mean(load_times), 3),
         "instance_ram_mb": round(mem_bytes / (1024 * 1024), 1),
+        "per_graph_mb_mean": round(sum(per_graph_mb) / len(per_graph_mb), 2) if per_graph_mb else None,
+        "docker_rss": os.popen("docker stats --no-stream --format {{.MemUsage}} sever-falkordb").read().strip() or None,
         "sample_graph_memories_mb": [(i, round(m / (1024 * 1024), 2)) for i, m in sample_mems],
         "query_latency_ms": {
             "samples": len(latencies),
