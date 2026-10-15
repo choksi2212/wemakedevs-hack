@@ -37,14 +37,14 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 
 REACH_QUERY_TEMPLATE = (
     "MATCH (o {{owned: true}}) "
-    "MATCH (o)-[{pattern}]->(t) "
+    "MATCH (o)-{pattern}->(t) "
     "WHERE t.objectid IN $jewels "
     "RETURN count(DISTINCT o) AS reachable"
 )
 
 PATH_QUERY_TEMPLATE = (
     "MATCH p = shortestPath("
-    "(o {{objectid: $oid}})-[{pattern}]->(t:Group {{objectid: $target}})) "
+    "(o {{objectid: $oid}})-{pattern}->(t {{objectid: $target}})) "
     "RETURN p"
 )
 
@@ -87,7 +87,15 @@ class FalkorGraphPort(GraphPort):
     # ---- load ----
     def load(self, graph: NormalizedGraph) -> None:
         for batch in build_batches(graph):
-            self.graph.query(batch["query"], batch["params"])
+            try:
+                self.graph.query(batch["query"], batch["params"])
+            except Exception as exc:  # surface the exact failing batch for debugging
+                rows = batch["params"].get("rows", [])
+                raise RuntimeError(
+                    f"batch load failed ({batch['kind']}, {len(rows)} rows): "
+                    f"query={batch['query'][:120]}... "
+                    f"first_row={str(rows[0])[:300] if rows else 'n/a'}"
+                ) from exc
 
     def _scalar(self, query: str, params: dict[str, Any] | None = None) -> Any:
         res = self.graph.query(query, params or {})
