@@ -1,0 +1,65 @@
+{
+  "beat": "eval ablation \u2014 graph traversal vs keyword-only retrieval (live engine)",
+  "questions": [
+    {
+      "question": "Can compromised T1_TONYMONTANA reach a crown jewel within 12 hops?",
+      "graph": {
+        "answer": "Yes \u2014 reachability 1; 5 canonical shortest paths enumerated (reaches Domain Admins: True)",
+        "correct": true
+      },
+      "keywords": {
+        "answer": "0 nodes mention the terms \u2014 connectivity undeterminable from text",
+        "correct": false
+      }
+    },
+    {
+      "question": "Which SINGLE edge lies on the most attack paths (the cut target)?",
+      "graph": {
+        "answer": "S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 5 path-edge occurrences)",
+        "correct": true
+      },
+      "keywords": {
+        "answer": "No text retrieval can rank edges by path coverage",
+        "correct": false
+      }
+    },
+    {
+      "question": "If that edge is removed, can the principal still reach a crown jewel?",
+      "graph": {
+        "answer": "Verified by re-query on the engine: reachability 1 -> 0",
+        "correct": true
+      },
+      "keywords": {
+        "answer": "Counterfactual connectivity is not expressible as text search",
+        "correct": false
+      }
+    },
+    {
+      "question": "Do cross-domain trust edges create paths into other domains' admins?",
+      "graph": {
+        "answer": "Yes \u2014 TRUSTED_BY edges are in the traversal set; jewels from all 3 domains appear in enumeration",
+        "correct": true
+      },
+      "keywords": {
+        "answer": "0 nodes mention 'trust' \u2014 which trusts are abusable and what they reach stays unknown",
+        "correct": false
+      }
+    },
+    {
+      "question": "Who holds DCSync rights in the estate?",
+      "graph": {
+        "answer": "0 DCSYNC relationships enumerated with exact (src, dst)",
+        "correct": true
+      },
+      "keywords": {
+        "answer": "ACE rights are relationship data, not node text \u2014 keyword retrieval cannot see them at all",
+        "correct": false
+      }
+    }
+  ],
+  "score": {
+    "graph_answers_correct": "5/5",
+    "keyword_only_correct": "0/5",
+    "verdict": "connectivity questions are only answerable via graph traversal \u2014 the graph is load-bearing, not decoration (rule 3)"
+  }
+}

@@ -1,0 +1,72 @@
+"""GraphPort tests against the REAL engine (no substitutes exist).
+
+Each module loads its own tenant graph once; the hero arc is the scripted,
+deterministic sequence the demo runs.
+"""
+from __future__ import annotations
+
+from tests.conftest import drop_graph
+
+import pytest
+
+from tests.conftest import make_live_port, requires_engine, requires_sample
+from sever.core.falkor_port import PATH_QUERY_TEMPLATE
+from sever.core.jewels import TRAVERSAL_RELS, cypher_traversal_pattern
+
+HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"  # T1_TONYMONTANA@PHANTOM.CORP
+
+pytestmark = [requires_engine, requires_sample]
+
+
+@pytest.fixture(scope="module")
+def port():
+    p = make_live_port("sever_test_ports")
+    yield p
+    drop_graph(p, "sever_test_ports")
+
+
+def test_load_counts(port):
+    # 12450 edges post ETL-hardening (SPN targets pointed at existing Computer
+    # nodes, so node count is unchanged); fresh-load verified on the engine.
+    assert port.node_count() == 1480
+    assert port.edge_count() == 12450
+
+
+def test_crown_jewels(port):
+    jewels = port.crown_jewels()
+    assert len(jewels) == 5
+    assert all(j.endswith(("-512", "-519")) for j in jewels)
+
+
+def test_hero_reachability_and_paths(port):
+    port.mark_owned(HERO)
+    assert port.owned_ids() == [HERO]
+    assert port.reachability() == 1
+    paths = port.paths_to_jewels(HERO)
+    assert len(paths) == 5  # one canonical shortest path per reached jewel
+    assert all(len(p) > 0 for p in paths)
+    assert all(hop[1] in set(TRAVERSAL_RELS) for path in paths for hop in path)
+
+
+def test_edge_frequency_and_cut_collapses(port):
+    # hermetic (audit3/test-forensics ordering sweep): this test previously
+    # depended on test_hero_reachability_and_paths having marked HERO owned
+    # first — run standalone it failed on `assert freq`
+    port.mark_owned(HERO)
+    freq = port.edge_frequency()
+    assert freq
+    (src, rel, dst), count = max(freq.items(), key=lambda kv: kv[1])
+    assert count >= 5  # on every canonical path to the reached jewels
+    removed = port.cut(src, dst, rel)
+    assert removed >= 1
+    assert port.reachability() == 0
+    assert port.paths_to_jewels(HERO) == []
+    # idempotent second cut: no-op
+    assert port.cut(src, dst, rel) == 0
+    assert port.receipt()["reachability"] == 0
+
+
+def test_profile_returns_execution_plan(port):
+    q = PATH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(12))
+    out = port.profile(q, {"oid": HERO, "target": "S-1-5-21-2697957641-2271029196-387917394-512"})
+    assert "Project" in out and "ms" in out

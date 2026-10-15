@@ -1,0 +1,28 @@
+[project]
+name = "sever"
+version = "0.1.0"
+description = "SEVER — attack-path interdiction agent for identity graphs on FalkorDB"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "falkordb>=1.8.0",
+    "langgraph>=1.2",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+agent = ["openai>=1.50"]
+console = ["fastapi>=0.115", "uvicorn>=0.32"]
+dev = ["pytest>=8.0", "httpx>=0.28"]
+memory = ["langchain-falkordb[langgraph]>=0.2"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sever*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

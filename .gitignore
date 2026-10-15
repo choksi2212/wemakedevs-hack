@@ -1,0 +1,28 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+build/
+dist/
+
+# agent tooling — local only, never shipped
+.agents/
+
+# secrets — never in history (.env.example ships; every other .env* is local)
+.env
+.env.*
+!.env.example
+.secrets/
+*.key
+
+# data artifacts (downloaded/generated, not source)
+data/
+out/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
