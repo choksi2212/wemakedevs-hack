@@ -89,7 +89,8 @@ def test_query_constants_shape():
     assert "MEMBER_OF" in pattern and "GENERIC_ALL" in pattern and "*..12" in pattern
     assert "shortestPath" in REACHABILITY_METHOD  # per-pair existence count
     path_q = PATH_QUERY_TEMPLATE.format(pattern=pattern)
-    assert path_q.startswith("MATCH p = shortestPath((")
+    assert path_q.startswith("MATCH (o {objectid: $oid})")
+    assert "algo.SPpaths" in path_q and "pathCount: 100" in path_q
     assert "$oid" in path_q and "$target" in path_q
     assert "$src" in CUT_COUNT_QUERY_TEMPLATE.format(rel="GENERIC_ALL")
     assert "DELETE r" in CUT_DELETE_QUERY_TEMPLATE.format(rel="GENERIC_ALL")

@@ -41,9 +41,20 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 # returned path. Parity with the mock engine is asserted in tests/test_ports.py.
 REACHABILITY_METHOD = "per-pair shortestPath existence (PATH_QUERY_TEMPLATE)"
 
+# Per-pair SHORTEST-path enumeration (ties included, capped at 100 — mirrors
+# MockGraphPort.MAX_PATHS_PER_PAIR). FalkorDB quirk: shortestPath works only as
+# a WITH-clause expression; algo.SPpaths enumerates ties but yields raw node
+# ids on edges — hence the index-zip hop parser below.
 PATH_QUERY_TEMPLATE = (
-    "MATCH p = shortestPath("
-    "(o {{objectid: $oid}})-{pattern}->(t {{objectid: $target}})) "
+    "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
+    "CALL algo.SPpaths({{sourceNode: o, targetNode: t, pathCount: 100}}) "
+    "YIELD path "
+    "RETURN path"
+)
+
+CANONICAL_PATH_QUERY_TEMPLATE = (
+    "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
+    "WITH shortestPath((o)-{pattern}->(t)) AS p "
     "RETURN p"
 )
 
@@ -197,22 +208,22 @@ class FalkorGraphPort(GraphPort):
 
 
 def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:
-    """Convert a falkordb-py Path into hop triples.
+    """Convert a falkordb-py Path into hop triples via index-zip.
 
-    Path API (falkordb-py): row.nodes() / row.edges() are METHODS;
-    Edge.src_node/.dest_node are Node objects; objectid lives in node.properties.
+    algo.SPpaths yields edges whose src/dest are raw node ids, so hops are
+    derived from the path's ORDERED node list: nodes[i] -[edges[i]]-> nodes[i+1].
     """
     hops: list[tuple[str, str, str]] = []
     try:
-        nodes = row.nodes() if callable(getattr(row, "nodes", None)) else row[0]
-        edges = row.edges() if callable(getattr(row, "edges", None)) else row[1]
-        for e in edges:
-            src_n = getattr(e, "src_node", None)
-            dst_n = getattr(e, "dest_node", None)
-            src = str(src_n.properties.get("objectid", src_n.id)) if hasattr(src_n, "properties") else str(nodes[0].properties.get("objectid"))
-            dst = str(dst_n.properties.get("objectid", dst_n.id)) if hasattr(dst_n, "properties") else str(nodes[-1].properties.get("objectid"))
-            rel = str(getattr(e, "relation", "?"))
-            hops.append((src, rel, dst))
+        p = row[0] if isinstance(row, (list, tuple)) else row
+        if p is None:
+            return hops
+        nodes = p.nodes() if callable(getattr(p, "nodes", None)) else p[0]
+        edges = p.edges() if callable(getattr(p, "edges", None)) else p[1]
+        for i, e in enumerate(edges):
+            src_oid = nodes[i].properties.get("objectid", nodes[i].id)
+            dst_oid = nodes[i + 1].properties.get("objectid", nodes[i + 1].id)
+            hops.append((str(src_oid), str(getattr(e, "relation", "?")), str(dst_oid)))
     except Exception:
         return hops
     return hops
