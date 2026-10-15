@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import requires_engine, requires_sample, SAMPLE_DIR, drop_graph
+from tests.conftest import requires_engine, requires_sample, SAMPLE_DIR, drop_graph, prefixed
 from sever.eval.ablation import run_ablation
 
 pytestmark = [requires_engine, requires_sample]
@@ -13,7 +13,7 @@ pytestmark = [requires_engine, requires_sample]
 def port():
     from sever.core.falkor_port import FalkorGraphPort
 
-    name = "sever_test_ablation"
+    name = prefixed("sever_test_ablation")
     p = FalkorGraphPort(graph_name=name)
     drop_graph(p, name)
     from sever.etl.ad_collectors import parse_ad_dir

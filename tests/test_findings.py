@@ -10,7 +10,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from tests.conftest import requires_engine, drop_graph
+from tests.conftest import requires_engine, drop_graph, prefixed
 from sever.agent.llm import OfflineNarrator  # noqa: F401  (import integrity check)
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import NormalizedGraph
@@ -208,7 +208,7 @@ def test_apply_finding_wire_contract():
 def tiny_port():
     from sever.core.falkor_port import FalkorGraphPort
 
-    name = "sever_test_findings"
+    name = prefixed("sever_test_findings")
     port = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),

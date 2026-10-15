@@ -1,0 +1,130 @@
+{
+  "graph": "sever_audit4_receipt (sample estate, hero owned, deleted after capture)",
+  "collateral_aware_proposal_ms": 903.4,
+  "proposal_top": [
+    {
+      "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "rel": "MEMBER_OF",
+      "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+      "paths_on": 5,
+      "benign_usage": 0,
+      "benign_sample": {
+        "sampled": 25,
+        "pool": 98
+      }
+    },
+    {
+      "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+      "rel": "READ_GMSAPASSWORD",
+      "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+      "paths_on": 5,
+      "benign_usage": 0,
+      "benign_sample": {
+        "sampled": 25,
+        "pool": 98
+      }
+    },
+    {
+      "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+      "rel": "GENERIC_ALL",
+      "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "paths_on": 5,
+      "benign_usage": 0,
+      "benign_sample": {
+        "sampled": 25,
+        "pool": 98
+      }
+    }
+  ],
+  "plan_ms": 962.2,
+  "plan": {
+    "k": 3,
+    "method": "graph_copy_remeasure",
+    "base": {
+      "reachability": 1,
+      "owned": [
+        "S-1-5-21-2697957641-2271029196-387917394-2110"
+      ],
+      "jewels": [
+        "S-1-5-21-2697957641-2271029196-387917394-512",
+        "S-1-5-21-2697957641-2271029196-387917394-519",
+        "S-1-5-21-2845847946-3451170323-4261139666-512",
+        "S-1-5-21-3702535222-3822678775-2090119576-512",
+        "S-1-5-21-3702535222-3822678775-2090119576-519"
+      ]
+    },
+    "benign_sample_size": 25,
+    "steps": [
+      {
+        "step": 1,
+        "cut": {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102"
+        },
+        "paths_on": 5,
+        "benign_usage": 0,
+        "projected_reachability": 0,
+        "projected_delta": -1,
+        "projected_verdict": "collapsed"
+      }
+    ],
+    "plan_completes_at_step": 1,
+    "honesty": "projections are measured on an isolated GRAPH.COPY of the live estate after each cut; execution re-measures reality per step and stops at the first drift \u2014 a projected number is never the claim, the live receipt is"
+  },
+  "executed": {
+    "status": "completed",
+    "executed_steps": 1,
+    "steps": [
+      {
+        "cut": {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "MEMBER_OF",
+          "relationships_removed": 1
+        },
+        "before": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 0,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12449
+        },
+        "requery_ms": 11.98,
+        "verdict": "collapsed",
+        "approved_by": "on-call-analyst",
+        "approved_at": "2026-10-15T23:09:04+00:00",
+        "plan_step": 1,
+        "projected_reachability": 0,
+        "plan_drift": false
+      }
+    ]
+  },
+  "after": {
+    "reachability": 0,
+    "edges": 12449
+  }
+}

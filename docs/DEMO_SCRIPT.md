@@ -59,6 +59,12 @@ every rung runs the real engine.
 
 - Hero beat: breach → 5 canonical paths to 5 crown jewels → gated cut rounds →
   reachability 1 → 1 DEGRADED → 1 → 0 **COLLAPSED, re-query 2.28ms**
+- Plan beat (NEW): `GET /api/plan` → greedy 3-cut sequence projected on an isolated
+  GRAPH.COPY (**~0.96s**); the 4-way coverage tie (5 paths each) broken by
+  collateral — attacker-only edges (benign 0) over the shared DA-membership edge
+  (benign 1); `POST /api/plan/execute` → step re-measured live == projection →
+  **COLLAPSED** (docs/receipts/plan_receipt.json; collateral-aware proposal
+  **~0.90s**)
 - Console arc (HTTP E2E): breach → proposal → ONE gated cut → **1 → 0** —
   asserted over HTTP by
   `tests/test_console.py::test_approved_cut_collapses_via_console`
@@ -78,10 +84,16 @@ every rung runs the real engine.
    hop-by-hop rel types, ATT&CK narration banner
 3. Click "Grant new ACE (live mutation)" → the graph mutates live, agent re-scores
 4. Click **APPROVE CUT**, then **CONFIRM CUT** (the two-step gate) on the top
-   proposal → verdict banner (DEGRADED keeps the story honest); approve +
+   proposal → verdict banner (DEGRADED keeps the story honest); approve + 
    confirm the re-ranked proposal → **COLLAPSED**
-5. Show the receipts ledger scrolling — every action, timestamped
-6. Cut to the FalkorDB browser UI (:3000) for the raw graph, then the scale
+5. Click **Plan k-cut sequence** → the remediation plan card renders the greedy
+   sequence with per-step measured projections + benign usage; **APPROVE PLAN** →
+   **CONFIRM PLAN** → per-step live re-measure banner (`completed` — every step
+   matched its projection — or `drift stopped at step` if the estate mutated
+   mid-plan, later steps NOT executed)
+6. Show the receipts ledger scrolling — every action, timestamped (plan +
+   plan execute lines included)
+7. Cut to the FalkorDB browser UI (:3000) for the raw graph, then the scale
    wall receipts (docs/receipts/scale_wall.json)
 
 The Playwright backup take lives in `out/demo/sever_demo.webm` (recorded from

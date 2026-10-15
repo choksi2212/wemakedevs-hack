@@ -9,7 +9,7 @@ import httpx
 import openai
 import pytest
 
-from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph
+from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph, prefixed
 from sever.agent.investigator import Investigator, TriageReport
 
 from sever.agent.llm import LLM, OfflineNarrator, OpenAICompatLLM, ResilientLLM, build_llm
@@ -166,8 +166,10 @@ def test_triage_case_log_entry_is_json_serializable():
     # raw hop tuples never enter the ledger — only their count
     assert entry["paths"] == 2
     assert entry["proposal"] == [
-        {"src": ALICE, "rel": "GENERIC_ALL", "dst": TIER1, "paths_on": 2},
-        {"src": TIER1, "rel": "MEMBER_OF", "dst": DA, "paths_on": 1},
+        {"src": ALICE, "rel": "GENERIC_ALL", "dst": TIER1, "paths_on": 2,
+         "benign_usage": None},
+        {"src": TIER1, "rel": "MEMBER_OF", "dst": DA, "paths_on": 1,
+         "benign_usage": None},
     ]
 
 
@@ -214,7 +216,7 @@ def _tiny_estate(port):
 def tiny_port():
     from sever.core.falkor_port import FalkorGraphPort
 
-    name = "sever_test_agent_tiny"
+    name = prefixed("sever_test_agent_tiny")
     port = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
@@ -387,6 +389,23 @@ class FakeGraphPort(GraphPort):
 
     def profile(self, query: str, params=None) -> str:
         return "fake-graph-profile"
+
+    def user_objectids(self) -> list[str]:
+        """Principals of the fake estate: every edge source (its Users)."""
+        return sorted({e[0] for e in self._edges})
+
+    def scratch_copy(self, scratch_name: str) -> "FakeGraphPort":
+        """In-memory isolated copy — the same contract FalkorGraphPort
+        implements with GRAPH.COPY: mutations on the copy never touch the
+        original."""
+        copy = FakeGraphPort(jewels=tuple(self.crown_jewels()))
+        copy._edges = list(self._edges)
+        copy._owned = set(self._owned)
+        copy.graph_name = scratch_name
+        return copy
+
+    def drop(self) -> None:
+        pass  # nothing to delete in memory — mirrors the engine key delete
 
     def receipt(self) -> dict:
         return {

@@ -146,6 +146,13 @@ class ScriptedFlowPort:
                     freq[hop] = freq.get(hop, 0) + 1
         return freq
 
+    def user_objectids(self) -> list[str]:
+        # the estate's User principals (its edge sources) — the benign-usage
+        # sampling pool propose() consults; non-owned principals here have no
+        # jewel paths of their own, so every candidate edge receipts
+        # benign_usage 0 (attacker-only)
+        return sorted({src for src, _, _ in self.intact_edges} | {"S-a"})
+
     def cut(self, src: str, dst: str, rel: str) -> int:
         self.cut_calls.append((src, dst, rel))
         if (src, dst, rel) in self.intact_edges:

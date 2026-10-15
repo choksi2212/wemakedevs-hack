@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import drop_graph, requires_engine
+from tests.conftest import drop_graph, prefixed, requires_engine
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import NormalizedGraph
 
@@ -30,6 +30,7 @@ pytestmark = [requires_engine]
 
 
 def _fresh_port(name: str) -> FalkorGraphPort:
+    name = prefixed(name)
     port = FalkorGraphPort(graph_name=name)
     drop_graph(port, name)
     return port

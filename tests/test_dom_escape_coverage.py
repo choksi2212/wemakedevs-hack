@@ -28,6 +28,10 @@ TRUSTED = {
     "c.paths_on",
     # '' or 'SIMULATED · ' literal; fire() call-site literals
     "sim", "kind",
+    # plan-card fragment (renderPlan): composed exclusively of esc()-wrapped
+    # operands and server-fixed literals — each plan step's src/rel/dst/note
+    # is escaped at construction inside renderPlan()
+    "body",
 }
 
 
@@ -121,9 +125,10 @@ def test_every_innerhtml_sink_escapes_or_trusts_html_adjacent_operands():
     src = INDEX.read_text(encoding="utf-8")
     js = re.search(r"<script>(.*)</script>", src, re.S).group(1)
     sinks = _sink_statements(js)
-    # the console has exactly these six sinks today; a new sink must extend
-    # this test consciously, not slip through
-    assert len(sinks) == 6, [s[:60] for s in sinks]
+    # the console has exactly these eight sinks today (audit4 added the plan
+    # card + plan gate); a new sink must extend this test consciously, not
+    # slip through
+    assert len(sinks) == 8, [s[:60] for s in sinks]
 
     violations = []
     for stmt in sinks:
@@ -152,7 +157,11 @@ def test_no_untrusted_field_appears_raw_in_any_sink():
     sinks = _sink_statements(js)
     untrusted = ["p.principal", "h.src", "h.dst", "h.rel", "c.src", "c.dst",
                  "c.rel", "e.message", "r.technique", "r.narration", "p.src",
-                 "p.dst", "p.rel", "esc((e.ts"]
+                 "p.dst", "p.rel", "esc((e.ts",
+                 # plan surfaces (audit4): every dynamic plan field must be
+                 # esc()-wrapped at its sink too
+                 "s.cut.src", "s.cut.dst", "s.cut.rel", "plan.note",
+                 "plan.honesty", "plan.method"]
     for stmt in sinks:
         stripped = stmt
         # remove balanced esc(...) call spans, string-aware

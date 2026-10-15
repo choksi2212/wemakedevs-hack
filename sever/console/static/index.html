@@ -102,7 +102,7 @@
   <span class="chip" id="estate-chip" role="status" aria-live="polite">loading…</span>
   <span class="chip" id="refresh-chip"><span class="dot"></span><button id="refresh-toggle" class="chip-btn" type="button" aria-pressed="true" title="Toggle auto-refresh (15s)">live · auto</button></span>
   <span class="spacer"></span>
-  <span class="tagline">ranked cut → <b>human gate</b> → re-query → receipts</span>
+  <span class="tagline">collateral-ranked cut plans → <b>human gate</b> → re-query → receipts</span>
 </header>
 <main>
   <section>
@@ -119,6 +119,7 @@
         <div class="actions">
           <button class="btn" id="btn-breach" type="button" aria-label="Simulate a credential breach finding"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1 3 8l5 7 5-7z"/></svg> Simulate breach finding</button>
           <button class="btn" id="btn-grant" type="button" aria-label="Simulate a new ACE grant, mutating the graph live"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2v12M2 8h12"/></svg> Grant new ACE (live mutation)</button>
+          <button class="btn" id="btn-plan" type="button" aria-label="Plan a greedy k-cut remediation sequence with measured projections"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 4h10M3 8h7M3 12h4"/></svg> Plan k-cut sequence</button>
           <button class="btn" id="btn-refresh" type="button" aria-label="Refresh state"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-2-4M13 2v3h-3"/></svg> Refresh</button>
         </div>
         <div class="banner" id="banner" role="status" aria-live="polite"></div>
@@ -131,8 +132,12 @@
   </section>
   <section>
     <div class="card">
-      <div class="card-head"><h2>Interdiction proposal</h2><span class="hint">edges ranked by path coverage</span></div>
+      <div class="card-head"><h2>Interdiction proposal</h2><span class="hint">edges ranked by path coverage · benign usage breaks ties</span></div>
       <div id="proposal"><div class="empty" style="padding:12px 16px">Nothing to propose.</div></div>
+    </div>
+    <div class="card" id="plan-card" style="display:none">
+      <div class="card-head"><h2>Remediation plan</h2><span class="hint">k-cut sequence · projections measured on an isolated copy</span></div>
+      <div class="card-body" id="plan-body"></div>
     </div>
     <div class="card">
       <div class="card-head"><h2>Receipts</h2><span class="hint">append-only case ledger</span></div>
@@ -196,7 +201,9 @@
           '<div class="prop-row"><div class="prop-main"><span title="' + esc(c.src) + '">' + esc(short(c.src)) + '</span> ' +
           '<span class="rel">-[' + esc(c.rel) + ']-></span> ' +
           '<span title="' + esc(c.dst) + '">' + esc(short(c.dst)) + '</span>' +
-          '<span class="quiet">on ' + c.paths_on + ' path-edge occurrences</span></div>' +
+          '<span class="quiet">on ' + c.paths_on + ' path-edge occurrences' +
+          (c.benign_usage != null ? ' · benign ' + c.benign_usage + (c.benign_sample ? ' of ' + c.benign_sample.sampled + ' sampled' : '') : '') +
+          '</span></div>' +
           '<div class="prop-cta"><button class="btn approve" data-src="' + esc(c.src) + '" data-dst="' + esc(c.dst) + '" data-rel="' + esc(c.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button></div></div>')
         .join('')
       : '<div class="empty" style="padding:12px 16px">Nothing to propose.</div>';
@@ -218,6 +225,17 @@
                ' · removed ' + rc.cut.relationships_removed +
                ' · reachability ' + rc.before.reachability + ' → ' + rc.after.reachability +
                ' · ' + rc.requery_ms + 'ms · ' + rc.verdict + ' · by ' + rc.approved_by;
+      } else if (step === 'plan' && e.plan) {
+        const pl = e.plan;
+        line = 'plan · k=' + (pl.k ?? '?') + ' · ' + (pl.steps ? pl.steps.length : 0) + ' step(s)' +
+               ' · base reachability ' + (pl.base ? pl.base.reachability : '?') +
+               ' · projections measured on an isolated copy';
+      } else if (step === 'plan_execute' && e.result) {
+        const rr = e.result;
+        line = 'plan execute · ' + String(rr.status).replace(/_/g, ' ') + ' · ' + rr.executed_steps + ' step(s)' +
+               (rr.steps && rr.steps.length ? ' · reachability → ' + rr.steps[rr.steps.length - 1].after.reachability : '');
+      } else if (step === 'plan_execute_failed') {
+        line = step + ' · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
       } else if (step === 'finding' && e.triage) {
         line = 'finding ' + e.finding + ' · ' + e.kind + ' · reachability ' +
                (e.triage.before ? e.triage.before.reachability : '?') + ' → ' + (e.triage.after ? e.triage.after.reachability : '?');
@@ -335,6 +353,80 @@
 
   const HERO = 'S-1-5-21-2697957641-2271029196-387917394-2110';
   const GMSA = 'S-1-5-21-2697957641-2271029196-387917394-2102';
+
+  // ---- the remediation PLAN: approve a sequence, not one edge ----
+  // Projections come measured off an isolated GRAPH.COPY (never the live
+  // estate); execution POSTs the exact steps the operator reviewed, and the
+  // server re-measures each step — stopping at the first projection drift.
+  async function makePlan() {
+    banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>');
+    try {
+      state.plan = await api('/api/plan');
+      renderPlan();
+    } catch (e) {
+      banner('<span class="res">plan failed: ' + esc(e.message) + '</span>');
+    }
+  }
+  function renderPlan() {
+    const plan = state.plan;
+    const card = $('plan-card');
+    if (!plan) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const rows = (plan.steps || []).map((s) =>
+      '<div class="prop-row"><div class="prop-main">#' + esc(s.step) + ' cut ' +
+      '<span title="' + esc(s.cut.src) + '">' + esc(short(s.cut.src)) + '</span> ' +
+      '<span class="rel">-[' + esc(s.cut.rel) + ']-></span> ' +
+      '<span title="' + esc(s.cut.dst) + '">' + esc(short(s.cut.dst)) + '</span>' +
+      '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences · benign ' + esc(s.benign_usage) +
+      ' · projected reachability ' + esc(s.projected_reachability) + ' (' + esc(s.projected_verdict) + ')</span></div></div>'
+    ).join('');
+    const body = (plan.steps || []).length
+      ? rows + '<div class="actions"><button class="btn approve" id="btn-plan-approve" type="button" aria-label="Approve the whole cut sequence">APPROVE PLAN</button></div>'
+      : '<div class="empty" style="padding:12px 16px">' + esc(plan.note || 'nothing to plan — surface collapsed') + '</div>';
+    $('plan-body').innerHTML =
+      '<div style="font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:8px">k=' + esc(plan.k) +
+      ' · base reachability ' + esc(plan.base ? plan.base.reachability : '?') + ' · ' + esc(plan.method) + '</div>' +
+      body +
+      '<div style="font-size:11px;color:var(--text-3);margin-top:10px">' + esc(plan.honesty || '') + '</div>';
+    const b = $('btn-plan-approve');
+    if (b) b.addEventListener('click', armPlanGate);
+  }
+  function armPlanGate() {
+    // two-step gate, same contract as a single cut's APPROVE → CONFIRM
+    const cta = document.querySelector('#plan-body .actions');
+    cta.innerHTML =
+      '<button class="btn confirm" id="btn-plan-confirm" type="button" aria-label="Confirm the plan">CONFIRM PLAN</button>' +
+      '<button class="btn cancel" id="btn-plan-cancel" type="button" aria-label="Cancel the plan">cancel</button>';
+    $('btn-plan-confirm').addEventListener('click', executePlan);
+    $('btn-plan-cancel').addEventListener('click', renderPlan);
+    $('btn-plan-confirm').focus();
+  }
+  async function executePlan() {
+    const plan = state.plan;
+    banner('<span class="res">human gate: executing approved plan step-by-step — re-measuring each step live…</span>');
+    try {
+      const r = await api('/api/plan/execute', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          approved: true, approved_by: 'console-operator',
+          steps: (plan.steps || []).map((s) => ({
+            src: s.cut.src, rel: s.cut.rel, dst: s.cut.dst,
+            projected_reachability: s.projected_reachability,
+          })),
+        }),
+      });
+      const last = r.steps && r.steps.length ? r.steps[r.steps.length - 1].after.reachability : '?';
+      banner('<span class="technique">PLAN RECEIPT · ' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
+             'executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
+             (String(r.status).indexOf('drift') >= 0
+               ? ' · projection drift — later steps NOT executed, re-plan needed'
+               : ' · every step matched its live re-measure'));
+    } catch (e) {
+      banner('<span class="res">plan execution failed: ' + esc(e.message) + '</span>');
+    }
+    refresh();
+  }
+  $('btn-plan').addEventListener('click', makePlan);
 
   async function fire(kind) {
     banner('<span class="res">simulated finding ' + kind + ' — re-scoring all attack paths…</span>');

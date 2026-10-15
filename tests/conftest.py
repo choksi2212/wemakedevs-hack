@@ -18,6 +18,24 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_DIR = os.environ.get(
     "SEVER_SAMPLE_DIR", str(_REPO_ROOT / "data" / "ad_sample")
 )
+# Shared-engine hygiene: every engine key tests create (and every case-ledger
+# file those tests write) can be namespaced with one env var, so parallel
+# suites against ONE FalkorDB instance can never collide on a graph key or
+# poison each other's receipts. Default: no prefix, unchanged behavior.
+_GRAPH_PREFIX = os.environ.get("SEVER_TEST_GRAPH_PREFIX", "")
+
+
+def prefixed(name: str) -> str:
+    """Apply the optional SEVER_TEST_GRAPH_PREFIX to an engine key.
+
+    Idempotent: an already-prefixed name (e.g. port.graph_name handed back
+    from make_live_port) is never double-prefixed.
+    """
+    if _GRAPH_PREFIX and name.startswith(_GRAPH_PREFIX):
+        return name
+    return _GRAPH_PREFIX + name
+
+
 ENGINE_REACHABLE = False
 try:
     if os.environ.get("SEVER_FALKOR_HOST") is None:
@@ -25,7 +43,7 @@ try:
     probe = FalkorGraphPort(
         host=os.environ["SEVER_FALKOR_HOST"],
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        graph_name="sever_conftest_probe",
+        graph_name=prefixed("sever_conftest_probe"),
     )
     probe.node_count()
     ENGINE_REACHABLE = True
@@ -42,6 +60,7 @@ requires_sample = pytest.mark.skipif(
 
 def make_live_port(graph_name: str, load_sample: bool = True) -> FalkorGraphPort:
     """Fresh graph on the real engine; optionally loaded from the sample."""
+    graph_name = prefixed(graph_name)
     port = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
@@ -59,6 +78,6 @@ def make_live_port(graph_name: str, load_sample: bool = True) -> FalkorGraphPort
 def drop_graph(port, graph_name: str) -> None:
     """Delete a graph idempotently — GRAPH.DELETE on a missing key raises."""
     try:
-        port.graph.client.execute_command("GRAPH.DELETE", graph_name)
+        port.graph.client.execute_command("GRAPH.DELETE", prefixed(graph_name))
     except Exception:
         pass

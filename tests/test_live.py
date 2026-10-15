@@ -4,7 +4,7 @@ The engine is the product's only substrate — there is no offline double.
 """
 from __future__ import annotations
 
-from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph, SAMPLE_DIR
+from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph, prefixed, SAMPLE_DIR
 from sever.agent.investigator import Investigator
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.stream import Finding
@@ -17,7 +17,7 @@ pytestmark = [requires_engine, requires_sample]
 def test_load_matches_etl_counts():
     from sever.core.falkor_port import FalkorGraphPort
 
-    name = "sever_test_live_parity"
+    name = prefixed("sever_test_live_parity")
     port = FalkorGraphPort(graph_name=name)
     try:
         drop_graph(port, name)  # hermetic: leftovers must not fake parity
