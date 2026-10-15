@@ -4,7 +4,8 @@ hero arc and records it.
     python scripts/demo_video.py --console http://127.0.0.1:8000 --out out/demo
 
 Produces a webm screencast of: breach -> attack paths light up -> live ACE grant ->
-proposal -> HUMAN GATE (APPROVE) -> collapse -> receipts. Intended as the
+proposal -> HUMAN GATE (APPROVE CUT arms, CONFIRM CUT executes) -> collapse ->
+receipts. Intended as the
 video storyboard / backup take; the primary demo video is recorded with
 hardware encoding on the build host.
 """
@@ -43,25 +44,26 @@ def main() -> int:
         sleep(1)
 
         # 2) breach finding -> reachability 1, paths appear
-        page.click("text=simulate breach (mark owned)")
+        page.click("#btn-breach")  # "Simulate breach finding"
         page.wait_for_selector("#paths .hop", timeout=30000)
         sleep(1)
         page.screenshot(path=str(out_dir / "02_breach.png"))
 
         # 3) the live ACE grant (graph mutation on camera)
-        page.click("text=simulate new ACE grant (live mutation)")
+        page.click("#btn-grant")  # "Grant new ACE (live mutation)"
         page.wait_for_selector("button.approve", timeout=30000)
         sleep(1)
         page.screenshot(path=str(out_dir / "03_live_grant.png"))
 
-        # 4) the proposal + HUMAN GATE
+        # 4) the proposal + 2-STEP HUMAN GATE (APPROVE CUT arms, CONFIRM CUT fires)
         page.screenshot(path=str(out_dir / "04_proposal.png"))
         approve = page.query_selector("button.approve")
         rounds = 0
         while approve is not None and rounds < 4:
             approve.click()
+            page.wait_for_selector(".btn.confirm", timeout=30000).click()
             page.wait_for_function(
-                "document.querySelector('#banner') && document.querySelector('#banner').textContent.includes('verdict=')",
+                "document.querySelector('#banner') && document.querySelector('#banner').textContent.includes('verdict')",
                 timeout=30000)
             sleep(1.2)
             rounds += 1

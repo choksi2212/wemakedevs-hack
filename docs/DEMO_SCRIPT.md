@@ -23,8 +23,9 @@ granted mid-session — the edge appears **live** on the canvas; the agent
 re-scores all paths immediately. (Ties to FalkorDB sub-ms writes.)
 
 **1:10–2:20 — The interdiction cascade.** Agent proposes the top-frequency
-edge (`GMSA_SHS_PWD -[READ_GMSAPASSWORD]-> GMSA_SHS8$`). **Human gate:
-APPROVED.** Cut #1 executes → re-query → reachability **1→1 DEGRADED (4.84ms)** —
+edge (`GMSA_SHS_PWD -[READ_GMSAPASSWORD]-> GMSA_SHS8$`). **Human gate, two
+clicks: APPROVE CUT → CONFIRM CUT.** Cut #1 executes → re-query →
+reachability **1→1 DEGRADED (4.84ms)** —
 honest verdict: the top-frequency edge wasn't the real chokepoint. Agent
 re-ranks → proposes the remaining GMSA password-read edge. **APPROVED** →
 cut #2 → reachability **1→0 COLLAPSED, re-query 2.98ms**, receipts printed:
@@ -55,7 +56,7 @@ there is no second engine to fall back on. Every take runs on live FalkorDB
 
 ## LIVE-VERIFIED NUMBERS (Oct 15, measured on the build host — use these)
 
-- Hero beat: breach → 5 canonical paths to 5 crown jewels → gated cut rounds →
+- Hero beat: breach → 10 canonical paths to 5 crown jewels → gated cut rounds →
   reachability 1 → 1 DEGRADED → 1 → 0 **COLLAPSED, re-query 2.98ms**
 - Console arc (HTTP E2E): breach → proposal → ONE gated cut → **1 → 0
   COLLAPSED** — 3.46ms on the fastest of five live takes (every take logged in
@@ -73,25 +74,31 @@ there is no second engine to fall back on. Every take runs on live FalkorDB
 Bring-up (copy-paste): `docker compose up -d` (engine) ·
 `uvicorn sever.console.app:app --host 0.0.0.0 --port 8000` (console)
 
-1. Open `http://<build-host>:8000/?static=1` — estate panel: 1,480 nodes, 5
-   jewels (`?static=1` freezes the 15s auto-refresh for a clean take;
-   `scripts/demo_video.py` loads it automatically)
-2. Click **"▶ simulate breach (mark owned)"** → red reachability **1**, 10
-   paths light up with hop-by-hop rel types, ATT&CK narration banner
-   (*T1078.002 Valid Accounts: Domain Accounts*)
-3. Click **"▶ simulate new ACE grant (live mutation)"** → the graph mutates
-   live (a `GENERIC_ALL` edge onto the GMSA group), agent re-scores
-4. Click **APPROVE CUT** on the top proposal — `DF-MS-SHS -[MEMBER_OF]->
-   GMSA_SHS_PWD`, on 10 of 10 paths — the verdict banner prints the receipt
-   (reachability before → after, re-query ms, verdict). Live takes collapsed
-   on the first approved cut; if a take lands DEGRADED, approve the
-   re-ranked proposal until the banner reads **COLLAPSED**
-5. Show the receipts ledger scrolling — every action, timestamped (last 8
-   in the panel; full ledger in `out/cases/sever_demo.jsonl`)
+1. Open `http://<build-host>:8000/?static=1` — engine chip `falkordb ·
+   sever_demo`, estate chip 1,480 nodes · 12,437 edges · 5 jewels.
+   `?static=1` starts the page with auto-refresh PAUSED (the header
+   `live · auto` chip toggles it back on); `scripts/demo_video.py` passes
+   it automatically
+2. Click **"Simulate breach finding"** (`#btn-breach`) → red reachability
+   **1**, 10 paths light up with hop-by-hop rel types, ATT&CK narration
+   banner (*T1078.002 Valid Accounts: Domain Accounts*)
+3. Click **"Grant new ACE (live mutation)"** (`#btn-grant`) → the graph
+   mutates live (a `GENERIC_ALL` edge onto the GMSA group), agent re-scores
+4. The human gate is TWO clicks: **APPROVE CUT** arms the top proposal —
+   `DF-MS-SHS -[MEMBER_OF]-> GMSA_SHS_PWD`, the edge on all 10 paths —
+   then **CONFIRM CUT** executes it. The banner prints the interdiction
+   receipt (reachability before → after, re-query ms, verdict). Live takes
+   collapsed on the first confirmed cut; if a take lands DEGRADED, gate and
+   confirm the re-ranked proposal until the banner reads **COLLAPSED**
+5. Show the receipts ledger — append-only, every action timestamped (last
+   40 in the panel, newest first; full ledger in `out/cases/sever_demo.jsonl`)
 6. Cut to the FalkorDB browser UI (:3000) for the raw graph, then the scale
    wall receipts (docs/receipts/scale_wall.json)
 
 Backup take, headless from the live console:
 `python scripts/demo_video.py --console http://127.0.0.1:8000 --out out/demo`
-writes `out/demo/sever_demo.webm` (webm — Playwright's native container, not
-mp4) plus storyboard screenshots in the same directory.
+drives the same arc by element id (`#btn-breach`, `#btn-grant`, the
+two-click gate) and writes `out/demo/sever_demo.webm` (webm — Playwright's
+native container, not mp4) plus storyboard screenshots in the same directory.
+Re-record it on the demo host before the event — a take in `out/` from before
+the console rework is stale.
