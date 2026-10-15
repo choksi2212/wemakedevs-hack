@@ -94,6 +94,12 @@ class FalkorGraphPort(GraphPort):
             self.graph = fdb.select_graph(graph_name)
         self.graph_name = graph_name
 
+    INDEXED_LABELS = (
+        "User", "Group", "Computer", "Domain", "OU", "GPO", "Container",
+        "CertTemplate", "EnterpriseCA", "RootCA", "AIACA", "NTAuthStore",
+        "AZUser", "AZServicePrincipal", "AZApp",
+    )
+
     # ---- load ----
     def load(self, graph: NormalizedGraph) -> None:
         for batch in build_batches(graph):
@@ -106,6 +112,13 @@ class FalkorGraphPort(GraphPort):
                     f"query={batch['query'][:120]}... "
                     f"first_row={str(rows[0])[:300] if rows else 'n/a'}"
                 ) from exc
+        # range indexes on the natural key — every objectid lookup becomes an
+        # index scan instead of an all-node scan (see PROFILE receipts)
+        for label in self.INDEXED_LABELS:
+            try:
+                self.graph.query(f"CREATE INDEX FOR (n:{label}) ON (n.objectid)")
+            except Exception:
+                pass  # already indexed
 
     def _scalar(self, query: str, params: dict[str, Any] | None = None, timeout_ms: int = 60000) -> Any:
         res = self.graph.query(query, params or {}, timeout=timeout_ms)
