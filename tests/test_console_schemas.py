@@ -59,8 +59,11 @@ def test_finding_request_accepts_valid_input_and_defaults():
     req = FindingRequest(subject=HERO)
     assert req.kind == "credential_breach"
     assert req.target is None and req.rel is None
-    req = FindingRequest(kind="ace_granted", subject=HERO, target=HERO, rel="GENERIC_ALL")
-    assert (req.kind, req.target, req.rel) == ("ace_granted", HERO, "GENERIC_ALL")
+    # audit3/console-logic: ace_granted must carry a REAL grant (target+rel,
+    # target != subject) — a target-only or self-grant is a phantom mutation.
+    req = FindingRequest(kind="ace_granted", subject=HERO,
+                         target="S-1-5-21-t-2102", rel="GENERIC_ALL")
+    assert (req.kind, req.target, req.rel) == ("ace_granted", "S-1-5-21-t-2102", "GENERIC_ALL")
 
 
 def test_finding_request_rejects_oversized_fields():
@@ -136,9 +139,78 @@ def test_lone_surrogates_are_rejected_not_poisonous():
 
 def test_valid_astral_chars_still_pass():
     """Real emoji (surrogate PAIRS) reassemble in json.loads and encode fine —
-    the utf-8 validator must not over-reject them."""
+    the utf-8 validator must not over-reject them. (audit3: the target probe
+    uses a non-granting kind — ace_granted now requires target+rel.)"""
     emoji = "\U0001f512"  # 🔒 padlock
-    req = FindingRequest(kind="ace_granted", subject=HERO, target=emoji)
+    req = FindingRequest(kind="cross_domain_trust", subject=HERO, target=emoji)
     assert req.target == emoji
     req = CutRequest(src=emoji, dst=HERO, rel="MEMBER_OF", approved=True)
     assert req.src == emoji
+
+
+# ---- audit3/console-logic: honest rejection of impossible findings ----
+
+def test_known_kinds_are_exactly_the_attack_map_vocabulary():
+    from sever.console.schemas import KNOWN_FINDING_KINDS
+    from sever.findings.attack_map import ATTACK_MAP
+
+    assert set(KNOWN_FINDING_KINDS) == set(ATTACK_MAP) == {
+        "credential_breach", "kerberoastable_spn", "ace_granted", "dcsync_right",
+        "cross_domain_trust", "cert_esc1",
+    }
+
+
+def test_unknown_finding_kind_is_rejected_not_narrated():
+    """Pre-fix (live-verified): kind='totally_unknown_kind' was accepted and
+    answered with a FABRICATED 'T1595.002 Vulnerability Scanning' label; a
+    kind of '<img src=x onerror=1>' was accepted too."""
+    for kind in ("totally_unknown_kind", "<img src=x onerror=1>",
+                 "credential breach", "Credential_Breach", "x" * 65):
+        with pytest.raises(ValidationError):
+            FindingRequest(kind=kind, subject=HERO)
+
+
+def test_every_documented_kind_is_accepted():
+    from sever.console.schemas import KNOWN_FINDING_KINDS
+
+    for kind in KNOWN_FINDING_KINDS:
+        # ace_granted is only valid WITH a real grant; the informational
+        # kinds accept the targetless replay shape.
+        body = ({"kind": "ace_granted", "subject": HERO, "target": "S-1-5-21-t-2102",
+                 "rel": "GENERIC_ALL"} if kind == "ace_granted"
+                else {"kind": kind, "subject": HERO})
+        req = FindingRequest(**body)
+        assert req.kind == kind
+
+
+def test_ace_granted_requires_a_real_grant():
+    """Pre-fix (live-verified): ace_granted WITHOUT target/rel answered 200
+    with applied:false while the narration claimed the graph 'now carries a
+    new abusable edge' — a mutation that never happened."""
+    with pytest.raises(ValidationError):
+        FindingRequest(kind="ace_granted", subject=HERO)                       # nothing granted
+    with pytest.raises(ValidationError):
+        FindingRequest(kind="ace_granted", subject=HERO, target="S-1-5-21-t-2102")  # target only
+    with pytest.raises(ValidationError):
+        FindingRequest(kind="ace_granted", subject=HERO, rel="GENERIC_ALL")    # rel only
+    ok = FindingRequest(kind="ace_granted", subject=HERO,
+                        target="S-1-5-21-t-2102", rel="GENERIC_ALL")
+    assert (ok.target, ok.rel) == ("S-1-5-21-t-2102", "GENERIC_ALL")
+
+
+def test_self_edge_grant_is_rejected():
+    """add_edge refuses src==dst; accepting the finding would narrate a
+    phantom grant (pre-fix live-verified)."""
+    with pytest.raises(ValidationError):
+        FindingRequest(kind="ace_granted", subject=HERO, target=HERO, rel="GENERIC_ALL")
+    with pytest.raises(ValidationError):
+        FindingRequest(kind="cross_domain_trust", subject=HERO, target=HERO, rel="TRUSTED_BY")
+
+
+def test_informational_kinds_still_accept_targetless_shape():
+    """cross_domain_trust without target+rel is a legitimate informational
+    finding (timeline F-004) — the ace_granted rule must not over-reject."""
+    req = FindingRequest(kind="cross_domain_trust", subject=HERO)
+    assert req.target is None and req.rel is None
+    req = FindingRequest(kind="kerberoastable_spn", subject=HERO, rel="GENERIC_ALL")
+    assert req.rel == "GENERIC_ALL"   # rel is inert without target; no grant claimed
