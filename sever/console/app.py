@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from sever.agent.investigator import Investigator
@@ -43,6 +44,7 @@ class FindingRequest(BaseModel):
 
 
 def build_app() -> FastAPI:
+    load_dotenv()  # .env at the repo root, if present — real environment always wins
     app = FastAPI(title="SEVER console", version="0.2.0")
 
     port = FalkorGraphPort(

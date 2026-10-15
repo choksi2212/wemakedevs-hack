@@ -108,8 +108,11 @@ def run_ablation(port: GraphPort) -> dict[str, Any]:
 def main(out_path: str = "docs/receipts/ablation.json") -> int:
     import os
 
+    from dotenv import load_dotenv
     from sever.core.falkor_port import FalkorGraphPort
     from sever.etl.ad_collectors import parse_ad_dir
+
+    load_dotenv()  # .env at the repo root, if present — real environment always wins
 
     port = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),

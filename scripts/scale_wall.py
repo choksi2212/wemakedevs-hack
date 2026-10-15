@@ -21,6 +21,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dotenv import load_dotenv
+
+load_dotenv()  # .env at the repo root, if present — real environment always wins
+
 from sever.core.falkor_port import CANONICAL_PATH_QUERY_TEMPLATE, FalkorGraphPort
 from sever.core.jewels import cypher_traversal_pattern
 from sever.etl.ad_collectors import parse_ad_dir

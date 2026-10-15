@@ -17,6 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dotenv import load_dotenv
+
+load_dotenv()  # .env at the repo root, if present — real environment always wins
+
 from sever.agent.investigator import Investigator
 from sever.agent.llm import build_llm
 from sever.etl.ad_collectors import parse_ad_dir
