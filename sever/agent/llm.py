@@ -31,6 +31,41 @@ class OfflineNarrator(LLM):
         return ""
 
 
+class ResilientLLM(LLM):
+    """Degrade-to-offline wrapper around a live narrator.
+
+    A wrong SEVER_LLM_API_KEY cannot be detected at construction time (the
+    OpenAI client does no I/O until the first request), so the seam must
+    degrade on the first complete() FAILURE too — not only on missing env.
+    When the live narrator raises (auth rejected, provider down, timeout),
+    narration permanently falls back to the OfflineNarrator: the LLM is
+    garnish, so the agent loop never crashes on it (live-verified against a
+    rejected key on glm-5.3, audit2/agent-loop).
+    """
+
+    def __init__(self, live: LLM, fallback: LLM | None = None) -> None:
+        self._live = live
+        self._fallback = fallback if fallback is not None else OfflineNarrator()
+        self._degraded = False
+        self.name = live.name
+
+    @property
+    def degraded(self) -> bool:
+        return self._degraded
+
+    def complete(self, system: str, user: str) -> str:
+        if self._degraded:
+            return self._fallback.complete(system, user)
+        try:
+            return self._live.complete(system, user)
+        except Exception:
+            # auth failures do not heal — latch the degradation so a dead
+            # provider is never retried on the loop's hot path
+            self._degraded = True
+            self.name = "degraded->null"
+            return self._fallback.complete(system, user)
+
+
 class OpenAICompatLLM(LLM):
     """Any OpenAI-compatible endpoint (Vultr Inference, Ollama, Groq, ...)."""
 
@@ -55,13 +90,18 @@ class OpenAICompatLLM(LLM):
 
 
 def build_llm() -> LLM:
-    """From env; falls back to the OfflineNarrator so the agent never hard-fails offline."""
+    """From env; falls back to the OfflineNarrator so the agent never hard-fails.
+
+    Degrades on BOTH failure modes: missing env (offline product) AND a live
+    narrator that fails at request time (dead key, provider down) — the
+    ResilientLLM wrapper makes that degradation latch instead of raise.
+    """
     base_url = os.environ.get("SEVER_LLM_BASE_URL")
     api_key = os.environ.get("SEVER_LLM_API_KEY")
     model = os.environ.get("SEVER_LLM_MODEL")
     if not (base_url and api_key and model):
         return OfflineNarrator()
     try:
-        return OpenAICompatLLM(base_url, api_key, model)
+        return ResilientLLM(OpenAICompatLLM(base_url, api_key, model))
     except Exception:
         return OfflineNarrator()

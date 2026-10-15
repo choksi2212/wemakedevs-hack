@@ -10,8 +10,8 @@ Flow: finding -> apply -> measure -> narrate -> PROPOSE -> [human] -> interdict
 """
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 from sever.agent.llm import LLM, OfflineNarrator
@@ -59,6 +59,35 @@ class Investigator:
         self.llm = llm or OfflineNarrator()
         self.hop_cap = hop_cap
         self.case_log: list[dict[str, Any]] = []
+        self._step = 0
+
+    # ---- ledger stamps ----
+    def _ledger_entry(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Every ledger step carries a unique sequential id and an ISO-8601
+        UTC timestamp (with offset) — the receipts trail is auditable
+        end-to-end: complete steps, unique ids, unambiguous times."""
+        self._step += 1
+        return {
+            "step": self._step,
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **event,
+        }
+
+    def _narrate_garnish(self, finding: Finding, paths: list) -> str:
+        """LLM garnish — isolated. Narration must never abort triage: by this
+        point the finding is already applied to the graph and the before/
+        after measurements are the load-bearing deliverable, so any LLM
+        failure (dead key, provider down, timeout) degrades to '' — the
+        ATT&CK template narration still carries the report."""
+        try:
+            return self.llm.complete(
+                NARRATE_SYSTEM,
+                f"Finding: {finding.detail or finding.kind} on {finding.subject}. "
+                f"Graph context: {len(paths)} paths to crown jewels after this finding. "
+                f"One-line commentary for the on-call analyst:",
+            ).strip()
+        except Exception:
+            return ""
 
     # ---- triage ----
     def triage(self, finding: Finding) -> TriageReport:
@@ -69,12 +98,7 @@ class Investigator:
         after = snapshot(self.port, self.hop_cap)
         paths = self.port.paths_to_jewels(finding.subject, self.hop_cap) if after["owned"] else []
         story = narrate(finding)
-        garnish = self.llm.complete(
-            NARRATE_SYSTEM,
-            f"Finding: {finding.detail or finding.kind} on {finding.subject}. "
-            f"Graph context: {len(paths)} paths to crown jewels after this finding. "
-            f"One-line commentary for the on-call analyst:",
-        ).strip()
+        garnish = self._narrate_garnish(finding, paths)
         proposal = rank_cut_candidates(self.port.edge_frequency(self.hop_cap), limit=3) if paths else []
         report = TriageReport(
             finding=finding,
@@ -86,7 +110,7 @@ class Investigator:
             paths_for_subject=paths,
             proposal=proposal,
         )
-        self.case_log.append(report.as_dict())
+        self.case_log.append(self._ledger_entry(report.as_dict()))
         return report
 
     # ---- human gate ----
@@ -107,6 +131,6 @@ class Investigator:
             raise ValueError("interdiction requires explicit human approval")
         receipt = interdict(self.port, src, dst, rel, self.hop_cap)
         receipt["approved_by"] = approved_by
-        receipt["approved_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-        self.case_log.append({"cut": receipt})
+        receipt["approved_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self.case_log.append(self._ledger_entry({"cut": receipt}))
         return receipt
