@@ -66,8 +66,8 @@ every rung runs the real engine.
   "triage remembered" → gated cut → **1 → 0 in 2.47ms**
 - Hybrid: cloud identity → bridge pivot → Domain Admins; bridge severed →
   **1 → 0 in 3.0ms**
-- Scale wall: 300 tenants / 444,000 nodes / 3.7M edges in **1.29 GiB**, queries
-  flat (median 3.66ms, p95 4.11ms)
+- Scale wall: 300 tenants / 444,000 nodes / 3.74M edges in **1.59 GiB**, queries
+  flat (median 4.67ms, p95 4.81ms)
 - PROFILE receipt: docs/receipts/profile.txt (0.83ms in-engine on the tenant)
 
 ## CONSOLE CLICK-PATH (record this)

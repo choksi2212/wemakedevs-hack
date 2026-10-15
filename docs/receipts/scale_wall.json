@@ -2,14 +2,14 @@
   "beat": "multi-tenant scale wall",
   "tenants": 300,
   "nodes_per_tenant": 1480,
-  "edges_per_tenant": 12437,
+  "edges_per_tenant": 12450,
   "total_nodes": 444000,
-  "total_edges": 3731100,
-  "total_load_seconds": 0.0,
-  "mean_load_per_tenant_s": 0.0,
+  "total_edges": 3735000,
+  "total_load_seconds": 1030.53,
+  "mean_load_per_tenant_s": 3.391,
   "instance_ram_mb": 0.0,
   "per_graph_mb_mean": 0.0,
-  "docker_rss": "1.291GiB / 15.19GiB",
+  "docker_rss": "1.594GiB / 15.19GiB",
   "sample_graph_memories_mb": [
     [
       25,
@@ -62,10 +62,10 @@
   ],
   "query_latency_ms": {
     "samples": 30,
-    "mean": 3.57,
-    "median": 3.66,
-    "p95": 4.11,
-    "max": 4.47,
+    "mean": 4.52,
+    "median": 4.67,
+    "p95": 4.81,
+    "max": 4.98,
     "flat": true
   }
 }

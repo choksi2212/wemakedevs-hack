@@ -65,7 +65,7 @@ bridge into on-prem Domain Admin chains. Sever the cross-world bridge:
 **And the scale wall**, because FalkorDB's signature claim deserves to be
 taken seriously: I generated **300 tenant graphs** (injective identity remaps,
 so every tenant is a distinct org) — **444,000 nodes and 3.7 million edges in a
-single instance consuming 1.29 GiB of RAM**, with canonical shortest-path
+single instance consuming 1.59 GiB of RAM**, with canonical shortest-path
 queries flat at ~3.7ms median across every sampled tenant. Sparse adjacency
 matrices are not marketing.
 

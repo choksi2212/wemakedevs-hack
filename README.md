@@ -52,10 +52,10 @@ sever the cross-world bridge → 1 -> 0 in 3.0ms
 **4. The scale wall** — FalkorDB's native multi-tenancy, made real:
 
 ```
-300 tenant graphs in ONE instance · 444,000 nodes · 3,731,100 edges
-engine RSS: 1.29 GiB (~4.3MB per tenant) — sparse matrices are compact
+300 tenant graphs in ONE instance · 444,000 nodes · 3,735,000 edges
+engine RSS: 1.59 GiB (~5.4MB per tenant) — sparse matrices are compact
 canonical shortest-path query across sampled tenants:
-  median 3.66ms · p95 4.11ms · max 4.47ms — flat
+  median 4.67ms · p95 4.81ms · max 4.98ms — flat
 ```
 
 ## The console (agent cockpit)
