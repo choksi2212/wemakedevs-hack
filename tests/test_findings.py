@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import requires_engine
+from tests.conftest import requires_engine, drop_graph
 from sever.agent.llm import OfflineNarrator  # noqa: F401  (import integrity check)
 from sever.etl.ad_collectors import NormalizedGraph
 from sever.findings.attack_map import ATTACK_MAP, narrate
@@ -59,7 +59,7 @@ def tiny_port():
 
     name = "sever_test_findings"
     port = FalkorGraphPort(graph_name=name)
-    port.graph.client.execute_command("GRAPH.DELETE", name)
+    drop_graph(port, name)
     port.graph.query(
         "CREATE (a:User {objectid: 'A', name: 'alice', owned: false}), "
         "(b:Computer {objectid: 'B', name: 'srv'}), "
@@ -70,7 +70,7 @@ def tiny_port():
         "CREATE (a)-[:MEMBER_OF]->(c)",
     )
     yield port
-    port.graph.client.execute_command("GRAPH.DELETE", name)
+    drop_graph(port, name)
 
 
 @requires_engine

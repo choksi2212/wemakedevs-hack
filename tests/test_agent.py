@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import make_live_port, requires_engine, requires_sample
+from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph
 from sever.agent.investigator import Investigator
 from sever.agent.llm import OfflineNarrator, OpenAICompatLLM, build_llm
 
@@ -62,10 +62,10 @@ def tiny_port():
 
     name = "sever_test_agent_tiny"
     port = FalkorGraphPort(graph_name=name)
-    port.graph.client.execute_command("GRAPH.DELETE", name)
+    drop_graph(port, name)
     _tiny_estate(port)
     yield port
-    port.graph.client.execute_command("GRAPH.DELETE", name)
+    drop_graph(port, name)
 
 
 @requires_engine
@@ -125,4 +125,4 @@ def test_investigator_end_to_end_on_sample():
         assert receipt["after"]["reachability"] == 0
         assert receipt["verdict"] == "collapsed"
     finally:
-        port.graph.client.execute_command("GRAPH.DELETE", "sever_test_agent_sample")
+        drop_graph(port, "sever_test_agent_sample")

@@ -4,6 +4,8 @@ for the cross-process beat (scripts/case_memory_live.py demonstrates the
 two-process version end to end)."""
 from __future__ import annotations
 
+from tests.conftest import drop_graph
+
 import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample
@@ -24,7 +26,7 @@ pytestmark = [requires_engine, requires_sample]
 def live_port():
     port = make_live_port("sever_test_memory")
     yield port
-    port.graph.client.execute_command("GRAPH.DELETE", "sever_test_memory")
+    drop_graph(port, "sever_test_memory")
 
 
 def test_flow_pauses_at_gate_and_resumes_with_approval(live_port):

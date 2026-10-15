@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import requires_engine, requires_sample, SAMPLE_DIR, make_live_port
+from tests.conftest import requires_engine, requires_sample, SAMPLE_DIR, make_live_port, drop_graph
 from sever.eval.ablation import run_ablation
 
 pytestmark = [requires_engine, requires_sample]
@@ -15,12 +15,12 @@ def port():
 
     name = "sever_test_ablation"
     p = FalkorGraphPort(graph_name=name)
-    p.graph.client.execute_command("GRAPH.DELETE", name)
+    drop_graph(p, name)
     from sever.etl.ad_collectors import parse_ad_dir
 
     p.load(parse_ad_dir(SAMPLE_DIR))
     yield p
-    p.graph.client.execute_command("GRAPH.DELETE", name)
+    drop_graph(p, name)
 
 
 def test_ablation_on_engine(port):
