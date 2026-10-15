@@ -59,6 +59,23 @@ def test_build_llm_env_seam_is_resilient_and_uses_env_model(monkeypatch):
     assert llm.degraded is False
 
 
+def test_build_llm_env_seam_degrades_to_offline_when_openai_cannot_import(monkeypatch):
+    """The importorskip fix's NEGATIVE side (audit3/test-forensics): the env
+    seam test above SKIPS when the optional openai extra is absent — this test
+    pins what must happen in exactly that install instead: env-set build_llm
+    catches the ImportError from OpenAICompatLLM and degrades to the
+    OfflineNarrator, so the agent loop never hard-fails on a missing dep."""
+    import sys
+
+    monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
+    monkeypatch.setenv("SEVER_LLM_MODEL", "test-model")
+    monkeypatch.setitem(sys.modules, "openai", None)  # `import openai` now raises
+    llm = build_llm()
+    assert isinstance(llm, OfflineNarrator)
+    assert llm.complete("s", "u") == ""
+
+
 def test_offline_narrator_is_deterministic():
     assert OfflineNarrator().complete("s", "u") == OfflineNarrator().complete("s", "u") == ""
 

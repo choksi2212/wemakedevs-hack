@@ -20,8 +20,8 @@ def test_load_matches_etl_counts():
     name = "sever_test_live_parity"
     port = FalkorGraphPort(graph_name=name)
     try:
-        if port.node_count() == 0:
-            port.load(parse_ad_dir(SAMPLE_DIR))
+        drop_graph(port, name)  # hermetic: leftovers must not fake parity
+        port.load(parse_ad_dir(SAMPLE_DIR))
         normalized = parse_ad_dir(SAMPLE_DIR)
         assert port.node_count() == normalized.stats["node_count"]
         assert port.edge_count() == normalized.stats["edge_count"]
