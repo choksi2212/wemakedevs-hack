@@ -615,8 +615,11 @@ def do_caselog_live(args: argparse.Namespace) -> int:
 
 def do_cleanup(args: argparse.Namespace) -> int:
     client = _client(args.graph)
-    keys = [k.decode() if isinstance(k, bytes) else str(k)
-            for k in client.execute_command("KEYS", f"{args.graph}*")]
+    patterns = (f"{args.graph}*", f"telemetry{{{args.graph}*")  # + engine sidecar keys
+    keys: list[str] = []
+    for pattern in patterns:
+        keys += [k.decode() if isinstance(k, bytes) else str(k)
+                 for k in client.execute_command("KEYS", pattern)]
     print(f"[audit3] keys before cleanup: {keys}")
     for key in keys:
         try:
@@ -629,8 +632,10 @@ def do_cleanup(args: argparse.Namespace) -> int:
             except Exception as exc2:
                 print(f"[audit3] {key}: GRAPH.DELETE raised {type(exc).__name__}; "
                       f"DEL raised {type(exc2).__name__} — ignored")
-    remaining = [k.decode() if isinstance(k, bytes) else str(k)
-                 for k in client.execute_command("KEYS", f"{args.graph}*")]
+    remaining: list[str] = []
+    for pattern in patterns:
+        remaining += [k.decode() if isinstance(k, bytes) else str(k)
+                      for k in client.execute_command("KEYS", pattern)]
     print(f"[audit3] keys after cleanup: {remaining}")
     print("[audit3] cleanup verified" if not remaining else "[audit3] CLEANUP INCOMPLETE")
     return 0 if not remaining else 1
