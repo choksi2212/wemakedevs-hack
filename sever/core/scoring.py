@@ -65,10 +65,26 @@ def interdict(
     removed = port.cut(src, dst, rel)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     after = snapshot(port, hop_cap)
+    # Verdict is a measured claim about the AFTER state of a real cut:
+    #   removed == 0      -> "no_effect" (nothing was cut, nothing claimed)
+    #   after == 0        -> "collapsed"  (re-measured zero breach paths)
+    #   otherwise         -> "degraded"   (cut executed, >= 1 path survives)
+    # audit3 pinned the two ways this was previously mislabeled: a PARTIAL
+    # drop (e.g. 3 -> 1) must never claim "collapsed" — collapse is only ever
+    # claimed on measured zero, never "most of the way there"; and a cut on an
+    # already-collapsed surface (0 -> 0 with relationships removed) must never
+    # claim "degraded" — degraded means breach paths survive. Live regression:
+    # tests/test_live_interdiction_invariants.py (verdict matrix).
+    if removed == 0:
+        verdict = "no_effect"
+    elif after["reachability"] == 0:
+        verdict = "collapsed"
+    else:
+        verdict = "degraded"
     return {
         "cut": {"src": src, "dst": dst, "rel": rel, "relationships_removed": removed},
         "before": before,
         "after": after,
         "requery_ms": round(elapsed_ms, 2),
-        "verdict": "collapsed" if after["reachability"] < before["reachability"] else "degraded" if after["reachability"] == before["reachability"] and removed else "no_effect",
+        "verdict": verdict,
     }
