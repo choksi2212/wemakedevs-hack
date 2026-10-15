@@ -47,3 +47,11 @@ def make_live_port(graph_name: str, load_sample: bool = True) -> FalkorGraphPort
     if load_sample and port.node_count() == 0:
         port.load(parse_ad_dir(SAMPLE_DIR))
     return port
+
+
+def drop_graph(port, graph_name: str) -> None:
+    """Delete a graph idempotently — GRAPH.DELETE on a missing key raises."""
+    try:
+        port.graph.client.execute_command("GRAPH.DELETE", graph_name)
+    except Exception:
+        pass

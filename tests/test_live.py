@@ -8,7 +8,7 @@ import os
 
 import pytest
 
-from tests.conftest import make_live_port, requires_engine, requires_sample, SAMPLE_DIR
+from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph, SAMPLE_DIR
 from sever.agent.investigator import Investigator
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.stream import Finding
@@ -30,7 +30,7 @@ def test_load_matches_etl_counts():
         assert port.node_count() == normalized.stats["node_count"]
         assert port.edge_count() == normalized.stats["edge_count"]
     finally:
-        port.graph.client.execute_command("GRAPH.DELETE", name)
+        drop_graph(port, name)
 
 
 def test_estate_facts_and_cascade():
@@ -52,4 +52,4 @@ def test_estate_facts_and_cascade():
             rounds += 1
         assert port.reachability() == 0, f"cascade must collapse within {rounds} gated cuts"
     finally:
-        port.graph.client.execute_command("GRAPH.DELETE", "sever_test_live_cascade")
+        drop_graph(port, "sever_test_live_cascade")

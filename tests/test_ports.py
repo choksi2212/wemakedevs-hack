@@ -5,6 +5,8 @@ deterministic sequence the demo runs.
 """
 from __future__ import annotations
 
+from tests.conftest import drop_graph
+
 import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample
@@ -28,7 +30,7 @@ pytestmark = [requires_engine, requires_sample]
 def port():
     p = make_live_port("sever_test_ports")
     yield p
-    p.graph.client.execute_command("GRAPH.DELETE", "sever_test_ports")
+    drop_graph(p, "sever_test_ports")
 
 
 def test_load_counts(port):

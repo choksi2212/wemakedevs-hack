@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import drop_graph
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.etl.entra_collectors import merge_entra, parse_entra_file
 
@@ -62,7 +63,7 @@ def test_cross_world_reachability_on_engine():
     except Exception:
         pytest.skip("requires the live FalkorDB engine")
     try:
-        port.graph.client.execute_command("GRAPH.DELETE", name)
+        drop_graph(port, name)
         # tiny hybrid estate: on-prem ANDY -> synced AZ identity; cloud-compromise
         # pivots the bridge into on-prem Domain Admins
         port.graph.query(
@@ -89,4 +90,4 @@ def test_cross_world_reachability_on_engine():
         assert port.cut("az-andy", "S-1-5-21-t-2187", "SYNCED_TO") >= 1
         assert port.reachability() == 0  # bridge severed -> collapse
     finally:
-        port.graph.client.execute_command("GRAPH.DELETE", name)
+        drop_graph(port, name)

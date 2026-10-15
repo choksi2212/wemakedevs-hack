@@ -5,7 +5,7 @@ import importlib
 
 import pytest
 
-from tests.conftest import requires_engine, requires_sample
+from tests.conftest import requires_engine, requires_sample, drop_graph
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 GRAPH = "sever_test_console"
@@ -23,7 +23,7 @@ def client(monkeypatch):
 
     tc = TestClient(appmod.app)
     yield tc
-    appmod.port_obj.graph.client.execute_command("GRAPH.DELETE", GRAPH)
+    appmod.drop_graph(port_obj, GRAPH)
 
 
 def test_index_serves_the_console(client):
