@@ -54,7 +54,8 @@ bridge**: `SYNCED_TO`, added bidirectionally for every `AZUser` whose
 `onPremisesSecurityIdentifier` matches an on-prem `User` (the pivot cloud → on-prem;
 measured: 9 bridges on the merged 14,422-node sample estate,
 `tests/test_entra.py`). Entra crown jewels are `AZUser` role holders
-(name ends `-GlobalAdministrator`).
+(name ends `-GlobalAdministrator`, matched case-insensitively — a holder
+named `jdoe-GLOBALADMINISTRATOR` is still the jewel).
 
 ## The traversal set (the product's core judgment)
 
@@ -67,14 +68,23 @@ This mirrors BloodHound's abuse semantics for every right present in the sample.
 ## Metrics
 
 - **Reachability** (headline): count of `owned` principals with any traversal-chain
-  ≤ 12 hops to a crown jewel (`Group` with RID -512 Domain Admins / -519 Enterprise Admins).
-- **Path frequency** (scoring input): per (owned → jewel) shortest path enumeration;
-  each edge scored by the number of paths it lies on.
+  ≤ 12 hops to a crown jewel (`Group` with RID -512 Domain Admins / -519 Enterprise
+  Admins; an owned principal that is itself a crown jewel counts as reached — the
+  0-hop breach). The hop cap is live-verified inclusive: a 12-hop chain is
+  reachable, a 13-hop chain is not.
+- **Path frequency** (scoring input): per (owned → jewel) pair, one canonical
+  shortest path is enumerated (ties off); each edge is scored by the number of
+  these paths it lies on.
 - **Interdiction**: cut the top-frequency edge → re-query reachability → before/after
-  receipt with `GRAPH.PROFILE` timing. k=1 exact for the enumerated-candidate restriction;
-  k>1 greedy path-coverage with the (1−1/e) submodular guarantee — we say
-  "greedy-ranked", never "optimal" (optimal multi-edge interdiction is NP-hard:
-  Israeli & Wood 2002; AAAI'22 arXiv:2112.13175).
+  receipt with `GRAPH.PROFILE` timing. k=1 is the exact argmax of enumerated-path
+  coverage — which is not the same as collapsing reachability (tied/alternative
+  routes survive; the receipt says DEGRADED when they do). k>1 re-enumerates after
+  each cut and picks the exact single-edge coverage argmax again: we say
+  "greedy-ranked", never "optimal" and never "approximation bound" — the
+  re-enumerating sequence optimizes pairs-disconnected (supermodular, no greedy
+  guarantee; the classic (1−1/e) bound applies only to a frozen path set, which
+  live receipts deliberately do not use). Optimal multi-edge interdiction is
+  NP-hard: Israeli & Wood 2002; AAAI'22 arXiv:2112.13175.
 
 ## Multi-tenancy
 

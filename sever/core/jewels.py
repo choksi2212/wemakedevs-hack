@@ -65,14 +65,24 @@ DEFAULT_HOP_CAP = 12
 # well-known RIDs: 512 = Domain Admins, 519 = Enterprise Admins
 CROWN_JEWEL_RIDS: tuple[str, ...] = ("-512", "-519")
 
+# Entra sample convention: role holders are NAMED after their role (the
+# AzureHound sample models Global Admins as users like
+# ``097ef6c2-GlobalAdministrator``). The name is collector data, so the
+# suffix is matched case-insensitively — ``jdoe-GLOBALADMINISTRATOR`` is
+# still the jewel, not an evasion.
+GA_HOLDER_SUFFIX = "-GlobalAdministrator"
+
 
 def is_crown_jewel(objectid: str, label: str = "Group", name: str = "") -> bool:
-    """AD crown jewels: Domain Admins (-512) / Enterprise Admins (-519) groups.
-    Entra crown jewels: the sample's role-holder users (name ends -GlobalAdministrator)."""
+    """AD crown jewels: Domain Admins (-512) / Enterprise Admins (-519)
+    groups — detected by SID, so a RENAMED group is still a jewel (and a decoy
+    NAMED 'Domain Admins' with a different RID is not).
+    Entra crown jewels: the sample's role-holder users (name ends
+    -GlobalAdministrator, case-insensitive)."""
     if label == "Group":
         return objectid.endswith(CROWN_JEWEL_RIDS)
     if label == "AZUser":
-        return name.endswith("-GlobalAdministrator")
+        return name.lower().endswith(GA_HOLDER_SUFFIX.lower())
     return False
 
 

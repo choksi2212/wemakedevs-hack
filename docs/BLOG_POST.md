@@ -26,10 +26,12 @@ hybrid story. On a findings stream it:
 1. computes the **real exploitable paths** from compromised principals to
    crown jewels (Domain Admins, Enterprise Admins, and — in the hybrid estate
    — the Entra Global Administrator identity),
-2. ranks the single edge whose removal kills the most paths (edge-frequency
-   scoring over shortest paths; greedy k-cuts carry the honest (1−1/e)
-   submodular bound — I cite the NP-hardness because a FalkorDB engineer
-   will read this),
+2. ranks the single edge whose removal kills the most enumerated paths
+   (edge-frequency scoring over canonical shortest paths; each cut is the
+   exact single-edge argmax on the re-enumerated paths — I claim no
+   approximation bound, because the loop re-enumerates after every cut and
+   disconnection is supermodular; I cite the NP-hardness because a FalkorDB
+   engineer will read this),
 3. **waits for a human**. My human gate passes only on the exact value
    `True` in code, and a literal APPROVE button in the console. An LLM
    narrates findings in ATT&CK terms; it never mutates anything.

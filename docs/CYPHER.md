@@ -7,7 +7,8 @@ path query in `docs/receipts/profile.txt`, ~0.83 ms in-engine on the
 1,480-node / 12,450-edge demo tenant) — maintained as module constants in
 `sever/core/falkor_port.py` (`JEWELS_QUERY`, `AZ_JEWELS_QUERY`,
 `MARK_OWNED_QUERY`, `OWNED_QUERY`, `REACHABILITY_METHOD`,
-`PATH_QUERY_TEMPLATE`, `CANONICAL_PATH_QUERY_TEMPLATE`,
+`REACHABILITY_QUERY_TEMPLATE`, `PATH_QUERY_TEMPLATE`,
+`CANONICAL_PATH_QUERY_TEMPLATE`,
 `CUT_COUNT_QUERY_TEMPLATE`, `CUT_DELETE_QUERY_TEMPLATE`, `ADD_EDGE_QUERY`,
 `INDEXED_LABELS`) and `sever/core/jewels.py` (`TRAVERSAL_RELS`,
 `cypher_traversal_pattern`).
@@ -41,21 +42,26 @@ MATCH (n {owned: true}) RETURN n.objectid AS objectid
 
 ## Reachability (headline metric)
 
-Count of owned principals with ≥1 shortest path to any crown jewel.
+Count of owned principals with ≥1 bounded traversal path to any crown jewel —
+the same relationship filter and hop cap as the canonical enumeration.
 `REACHABILITY_METHOD` is per-pair existence: the port runs
-`PATH_QUERY_TEMPLATE` for every (owned, jewel) pair (60 s per-query timeout)
-and counts the principal as soon as any path comes back:
+`REACHABILITY_QUERY_TEMPLATE` for every (owned, jewel) pair (60 s per-query
+timeout) and counts the principal as soon as any `hit` comes back true.
+shortestPath yields NULL (a row with `hit` = false) when no bounded
+traversal path exists, and a principal that is itself a crown jewel counts
+as reached without a query — owning Domain Admins IS the breach:
 
 ```cypher
 MATCH (o {objectid: $oid}), (t {objectid: $target})
-CALL algo.SPpaths({sourceNode: o, targetNode: t, pathCount: 100}) YIELD path
-RETURN path
+WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|…|AZKVContributor*..12]->(t)) AS p
+RETURN p IS NOT NULL AS hit
 ```
 
-No `relTypes` is passed to the procedure, so it walks **every** relationship
-type — reachability means "connected by anything at all". The
-abusable-relationship restriction lives in the pattern of the canonical form
-below.
+The traversal set and the hop cap are enforced by the pattern itself
+(live-verified: a 12-hop chain is reached, a 13-hop chain is not, a
+CONTAINED_BY-only route is not) — reachability means "reachable by an
+attacker-chainable relationship within the hop cap", consistent with the
+paths the agent can enumerate and cut.
 
 ## Attack path enumeration
 
@@ -67,13 +73,17 @@ MATCH (o {objectid: $oid}), (t {objectid: $target}) WITH shortestPath((o)-[:MEMB
 ```
 
 Offline analysis mode (`paths_to_jewels(ties=True)`) enumerates tied shortest
-paths via the built-in procedure — the same `PATH_QUERY_TEMPLATE` as
-reachability (measured: cross-domain tie sets take 15–25s+ per pair — the
-live agent loop uses the canonical form):
+paths via the built-in procedure (measured: cross-domain tie sets take
+15–25s+ per pair — the live agent loop uses the canonical form). The
+traversal set is passed server-side as `relTypes` (the full 43-type list,
+inlined from `TRAVERSAL_RELS` — no user input), and the hop cap is enforced
+app-side because SPpaths has no working hop-bound config:
 
 ```cypher
 MATCH (o {objectid: $oid}), (t {objectid: $target})
-CALL algo.SPpaths({sourceNode: o, targetNode: t, pathCount: 100}) YIELD path
+CALL algo.SPpaths({sourceNode: o, targetNode: t,
+                   relTypes: ['MEMBER_OF','GENERIC_ALL',…,'AZKVContributor'],
+                   pathCount: 100}) YIELD path
 RETURN path
 ```
 
@@ -144,10 +154,17 @@ CREATE INDEX FOR (n:User) ON (n.objectid)
 - `shortestPath` hop ranges must be upper-bounded (`*..N`; a lower bound such
   as `*1..N` is rejected) — hence `cypher_traversal_pattern` emits `*..N`
 - `algo.SPpaths` is configured with node references, not patterns — the call
-  in `PATH_QUERY_TEMPLATE` passes only `sourceNode`/`targetNode`/`pathCount`
-  (no `relTypes`, so every relationship type is walked) and its returned
-  paths carry raw integer node ids on edges, so hops are rebuilt from the
-  ordered node list via index-zip (`_row_to_hops`)
+  in `PATH_QUERY_TEMPLATE` passes `sourceNode`/`targetNode`/`pathCount` plus
+  `relTypes` (the 43 traversal types; live-verified honored — a
+  CONTAINED_BY-only pair returns 0 rows under `relTypes: ['MEMBER_OF']`).
+  Unknown config keys are accepted and SILENTLY IGNORED (`maxHops: 2` still
+  returns a 12-hop path), so the hop cap is enforced app-side on the parsed
+  hops, and its returned paths carry raw integer node ids on edges, so hops
+  are rebuilt from the ordered node list via index-zip (`_row_to_hops`).
+  Observed on a shared engine under concurrent graph create/delete churn:
+  the procedure can intermittently fail server-side ("unhandled type in
+  inlined properties") — reachability and the live loop therefore use only
+  the canonical shortestPath form.
 - property values must be primitives or primitive arrays — FalkorDB rejects
   maps/lists, so ingest JSON-serializes list/dict property values
   (`_clean_props`), and the boolean-shaped collector flags (`IsACLProtected`,

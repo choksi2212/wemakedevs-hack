@@ -12,6 +12,7 @@ from typing import Any
 
 from sever.core.jewels import (
     DEFAULT_HOP_CAP,
+    TRAVERSAL_RELS,
     TRAVERSAL_RELS_SET,
     cypher_traversal_pattern,
 )
@@ -30,25 +31,51 @@ JEWELS_QUERY = (
 )
 
 AZ_JEWELS_QUERY = (
-    "MATCH (u:AZUser) WHERE u.name ENDS WITH '-GlobalAdministrator' "
+    "MATCH (u:AZUser) WHERE toLower(u.name) ENDS WITH '-globaladministrator' "
     "RETURN u.objectid AS objectid ORDER BY objectid"
 )
 
 OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 
 # FalkorDB supports shortestPath only when it terminates in WITH/RETURN, so
-# reachability = per (owned, jewel) pair via PATH_QUERY_TEMPLATE — the exact
-# same query paths_to_jewels uses; the agent counts owned principals with >=1
-# returned path. The scripted cascade regression lives in tests/test_live.py.
-REACHABILITY_METHOD = "per-pair shortestPath existence (PATH_QUERY_TEMPLATE)"
+# reachability = per (owned, jewel) pair via REACHABILITY_QUERY_TEMPLATE — the
+# same traversal pattern (relationship filter + hop cap) the canonical
+# enumeration in paths_to_jewels uses. The scripted cascade regression lives
+# in tests/test_live.py; the boundary/edge-case matrix in
+# tests/test_live_semantics.py.
+REACHABILITY_METHOD = (
+    "per-pair shortestPath existence (REACHABILITY_QUERY_TEMPLATE) with the "
+    "traversal relationship filter and hop cap of paths_to_jewels; an owned "
+    "principal that is itself a crown jewel counts as reached (0-hop breach)"
+)
 
-# Per-pair SHORTEST-path enumeration (ties included, capped at 100 — mirrors
-# the analysis cap). FalkorDB quirk: shortestPath works only as
-# a WITH-clause expression; algo.SPpaths enumerates ties but yields raw node
-# ids on edges — hence the index-zip hop parser below.
+# Existence probe: shortestPath yields NULL when no bounded traversal path
+# exists, so the row's `hit` is false rather than the result being empty
+# (live-verified on falkordb 6.0.0).
+REACHABILITY_QUERY_TEMPLATE = (
+    "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
+    "WITH shortestPath((o)-{pattern}->(t)) AS p "
+    "RETURN p IS NOT NULL AS hit"
+)
+
+# Per-pair SHORTEST-path tie enumeration (offline analysis mode, capped at
+# 100 paths). FalkorDB quirk: shortestPath works only as a WITH-clause
+# expression; algo.SPpaths enumerates ties but yields raw node ids on edges —
+# hence the index-zip hop parser below. The traversal set is passed server-side
+# via `relTypes` (live-verified honored: a CONTAINED_BY-only pair returns 0
+# rows under relTypes ['MEMBER_OF']) and re-enforced app-side, because SPpaths
+# has NO working hop-bound config on falkordb 6.0.0 — unknown config keys such
+# as `maxHops` are accepted and silently ignored (a 12-hop path is returned
+# even under maxHops: 2), so the hop cap is applied to the parsed hops.
+# Observed on a shared engine under concurrent graph create/delete churn: the
+# procedure can intermittently fail server-side ("unhandled type in inlined
+# properties") — one more reason the live loop and the reachability metric use
+# only the canonical shortestPath form.
 PATH_QUERY_TEMPLATE = (
     "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
-    "CALL algo.SPpaths({{sourceNode: o, targetNode: t, pathCount: 100}}) "
+    "CALL algo.SPpaths({{sourceNode: o, targetNode: t, relTypes: "
+    + "[" + ", ".join("'" + r + "'" for r in TRAVERSAL_RELS) + "]"
+    + ", pathCount: 100}}) "
     "YIELD path "
     "RETURN path"
 )
@@ -60,8 +87,9 @@ CANONICAL_PATH_QUERY_TEMPLATE = (
 )
 
 EDGE_FREQUENCY_STEP = (
-    "per (owned, jewel) pair: run PATH_QUERY, walk the returned path's edges, "
-    "count occurrences app-side (see sever/core/falkor_port.py)"
+    "per (owned, jewel) pair: run the CANONICAL shortest-path query, walk the "
+    "returned path's edges, count occurrences app-side (see "
+    "sever/core/falkor_port.py)"
 )
 
 CUT_COUNT_QUERY_TEMPLATE = (
@@ -149,13 +177,19 @@ class FalkorGraphPort(GraphPort):
         jewels = self.crown_jewels()
         if not jewels:
             return 0
-        query = PATH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(hop_cap))
+        jewel_set = set(jewels)
+        query = REACHABILITY_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(hop_cap))
         reached = 0
         for owned in self.owned_ids():
+            # a compromised principal that IS a crown jewel is the breach
+            # itself (0-hop) — shortestPath needs >=1 hop for a self-pair
+            if owned in jewel_set:
+                reached += 1
+                continue
             hit = False
             for jewel in jewels:
                 res = self.graph.query(query, {"oid": owned, "target": jewel}, timeout=60000)
-                if res.result_set:
+                if res.result_set and res.result_set[0][0]:
                     hit = True
                     break
             reached += 1 if hit else 0
@@ -170,7 +204,11 @@ class FalkorGraphPort(GraphPort):
         mode: cross-domain tie sets explode combinatorially (measured 15-25s+ per
         pair on the sample estate), so the live demo and the agent loop use the
         canonical form (milliseconds); the ties mode exists for offline
-        tie-set analysis on demand.
+        tie-set analysis on demand. SPpaths walks unbounded paths even with the
+        server-side ``relTypes`` filter (there is no working hop-bound config on
+        falkordb 6.0.0), so returned paths are re-enforced app-side against the
+        traversal set and the hop cap — offline analysis can never report a
+        structural (CONTAINED_BY/PUBLISHED_ON) or over-long hop as an attack hop.
         """
         pattern = cypher_traversal_pattern(hop_cap)
         paths: list[list[tuple[str, str, str]]] = []
@@ -183,8 +221,15 @@ class FalkorGraphPort(GraphPort):
             res = self.graph.query(query, {"oid": objectid, "target": jewel}, timeout=30000)
             for row in res.result_set:
                 hops = _row_to_hops(row)
-                if hops:
-                    paths.append(hops)
+                if not hops:
+                    continue
+                # hop-cap + traversal-set guard (no-op for the canonical form,
+                # which is engine-enforced; load-bearing for the ties form)
+                if len(hops) > hop_cap or any(
+                    rel not in TRAVERSAL_RELS_SET for _, rel, _ in hops
+                ):
+                    continue
+                paths.append(hops)
         return paths
 
     def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:
@@ -210,6 +255,11 @@ class FalkorGraphPort(GraphPort):
     )
 
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
+        if src == dst:
+            # a self-referencing grant is meaningless and the ETL contract
+            # rejects it (NormalizedGraph.add_edge returns False on src==dst) —
+            # live mutations must not smuggle in what ingest refuses
+            return False
         if not _valid_rel(rel):
             raise ValueError(f"invalid relationship type: {rel!r}")
         query = self.ADD_EDGE_QUERY.format(rel=rel)

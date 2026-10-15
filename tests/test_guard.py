@@ -11,6 +11,7 @@ from sever.core.falkor_port import (
     MARK_OWNED_QUERY,
     PATH_QUERY_TEMPLATE,
     REACHABILITY_METHOD,
+    REACHABILITY_QUERY_TEMPLATE,
     FalkorGraphPort,
 )
 from sever.core.jewels import cypher_traversal_pattern
@@ -20,14 +21,22 @@ def test_query_constants_shape():
     pattern = cypher_traversal_pattern(12)
     assert "MEMBER_OF" in pattern and "GENERIC_ALL" in pattern and "*..12" in pattern
     assert "shortestPath" in REACHABILITY_METHOD  # per-pair existence count
+    reach_q = REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern)
+    assert reach_q.startswith("MATCH (o {objectid: $oid})")
+    assert "WITH shortestPath((o)-" in reach_q and "->(t)) AS p" in reach_q
+    assert "RETURN p IS NOT NULL AS hit" in reach_q
+    assert "$oid" in reach_q and "$target" in reach_q
     path_q = PATH_QUERY_TEMPLATE.format(pattern=pattern)
     assert path_q.startswith("MATCH (o {objectid: $oid})")
     assert "algo.SPpaths" in path_q and "pathCount: 100" in path_q
+    assert "relTypes" in path_q  # ties mode: traversal set enforced server-side
     assert "$oid" in path_q and "$target" in path_q
     assert "$src" in CUT_COUNT_QUERY_TEMPLATE.format(rel="GENERIC_ALL")
     assert "DELETE r" in CUT_DELETE_QUERY_TEMPLATE.format(rel="GENERIC_ALL")
     assert "SET n.owned = true" in MARK_OWNED_QUERY
     assert "ENDS WITH" in JEWELS_QUERY and "ENDS WITH" in AZ_JEWELS_QUERY
+    # AZ holders are collector data: the suffix match must be case-insensitive
+    assert "toLower" in AZ_JEWELS_QUERY
 
 
 class _RecordingClient:
