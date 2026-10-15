@@ -23,13 +23,7 @@ def client(monkeypatch):
 
     tc = TestClient(appmod.app)
     yield tc
-<<<<<<< HEAD
     drop_graph(appmod.app.state.port, GRAPH)
-=======
-    # drop the engine graph so every test starts on a fresh estate —
-    # the port object is the one build_app exposed for tests/teardown
-    drop_graph(appmod.build_app.port_obj, GRAPH)
->>>>>>> audit/agent-flow
 
 
 def test_index_serves_the_console(client):

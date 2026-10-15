@@ -104,28 +104,29 @@ def test_cypher_injection_guard():
 def test_rel_schema_boundaries():
     # closed vocabulary: only rels the ETL emits / the engine chains are valid;
     # arbitrary identifier-shaped strings ("A", "X_9", "generic_all") reject
-    port = FalkorGraphPort(client=_RecordingClient(results=[[0], [1]] * 5))
+    port = FalkorGraphPort(client=_RecordingClient(results=[[0]] * 5))
     for good in ("GENERIC_ALL", "MEMBER_OF", "READ_GMSAPASSWORD", "AZOwns", "DCSYNC"):
         assert port.add_edge("S-src", "S-dst", good) is True
-    assert len(port.graph.calls) == 10  # exists-probe + MERGE per rel
+    assert len(port.graph.calls) == 5  # ONE atomic query per rel (pre-count + MERGE)
+    for q, _ in port.graph.calls:
+        assert "OPTIONAL MATCH" in q and "MERGE" in q and "RETURN pre" in q
     for bad in ("A", "X_9", "A" * 64, "generic_all", "GENERIC_ALL}) DETACH DELETE (n) //"):
         with pytest.raises(ValueError):
             port.add_edge("S-src", "S-dst", bad)
 
 
 def test_add_edge_wire_shape_and_idempotent_false():
-    # absent -> two queries (exists probe, then MERGE) -> True
-    rec = _RecordingClient(results=[[0], [1]])
+    # atomic idempotency: a single query returns the pre-MERGE edge count;
+    # pre == 0 -> created (True), pre == 1 -> already existed (False)
+    rec = _RecordingClient(results=[[0]])
     port = FalkorGraphPort(client=rec)
     assert port.add_edge("S-src", "S-dst", "GENERIC_ALL", {"source": "F-9"}) is True
-    q_exists, params_exists = rec.calls[0]
-    assert "RETURN count(r) AS n" in q_exists
-    assert params_exists == {"src": "S-src", "dst": "S-dst"}
-    q, params = rec.calls[1]
+    q, params = rec.calls[0]
+    assert "OPTIONAL MATCH (s)-[r0:GENERIC_ALL]->(t)" in q
     assert "MERGE (s)-[r:GENERIC_ALL]->(t)" in q
     assert "SET r += $props" in q
+    assert "RETURN pre" in q
     assert params == {"src": "S-src", "dst": "S-dst", "props": {"source": "F-9"}}
-    # exists -> one query, no MERGE -> False
     rec2 = _RecordingClient(results=[[1]])
     port2 = FalkorGraphPort(client=rec2)
     assert port2.add_edge("S-src", "S-dst", "GENERIC_ALL") is False

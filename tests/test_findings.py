@@ -3,12 +3,9 @@ rejection semantics are DB-free (wire-shape checks via an injected client);
 every graph-mutating assertion runs on the REAL engine (tiny estates)."""
 from __future__ import annotations
 
-<<<<<<< HEAD
-import dataclasses
-=======
 import os
+import dataclasses
 from dataclasses import FrozenInstanceError
->>>>>>> audit/agent-flow
 
 import pytest
 
@@ -162,21 +159,19 @@ def test_apply_finding_rejects_schema_violating_rel_before_the_engine():
 
 def test_apply_finding_wire_contract():
     f = Finding("F-77", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
-    # add_edge is idempotent: EXISTS check first, then MERGE — the stub answers
-    # the two queries in order (exists=0 -> created; merge count=1)
-    port = FalkorGraphPort(client=_RecordingClient(results=[[0], [1]]))
-    assert apply_finding(port, f) is True  # edge absent -> MERGE ran -> True
-    q_exists, params_exists = port.graph.calls[0]
-    assert "RETURN count(r) AS n" in q_exists
-    assert params_exists == {"src": "A", "dst": "B"}
-    q_merge, params_merge = port.graph.calls[1]
-    assert "MERGE (s)-[r:GENERIC_ALL]->(t)" in q_merge
-    assert "SET r += $props" in q_merge
-    assert params_merge == {"src": "A", "dst": "B", "props": {"source": "F-77"}}
-    # edge already exists: EXISTS returns 1 -> False, MERGE never runs
+    # atomic add_edge: one query returns the pre-MERGE edge count (pre=0 -> True)
+    port = FalkorGraphPort(client=_RecordingClient(results=[[0]]))
+    assert apply_finding(port, f) is True  # edge absent -> MERGE created it
+    q, params = port.graph.calls[0]
+    assert "OPTIONAL MATCH (s)-[r0:GENERIC_ALL]->(t)" in q
+    assert "MERGE (s)-[r:GENERIC_ALL]->(t)" in q
+    assert "SET r += $props" in q
+    assert "RETURN pre" in q
+    assert params == {"src": "A", "dst": "B", "props": {"source": "F-77"}}
+    # edge already exists: pre=1 -> False (idempotent re-grant is a no-op)
     port2 = FalkorGraphPort(client=_RecordingClient(results=[[1]]))
     assert apply_finding(port2, f) is False
-    assert len(port2.graph.calls) == 1  # only the existence probe hit the engine
+    assert len(port2.graph.calls) == 1
 
 
 # ---- on the REAL engine: finding application mutates the graph ----

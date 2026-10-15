@@ -99,16 +99,6 @@ def test_flow_state_gate_requires_exact_true(live_port):
 
 def test_falkordb_saver_checkpointer_roundtrip(live_port):
     """Case memory IN the graph database via FalkorDBSaver (the shipped mode)."""
-<<<<<<< HEAD
-    pytest.importorskip("langchain_falkordb")
-    # direct submodule import: v0.2.0's lazy `langchain_falkordb.checkpoint`
-    # attribute is broken, but `from langchain_falkordb.checkpoint import ...`
-    # works (verified on the live engine) — and matches scripts/case_memory_live
-    from langchain_falkordb.checkpoint import FalkorDBSaver
-    saver = FalkorDBSaver(
-        host="127.0.0.1",
-        port=6379,
-=======
     # import the SUBMODULE: the langchain_falkordb package only exposes
     # FalkorDBSaver lazily — `importorskip("langchain_falkordb").checkpoint`
     # raises AttributeError on this package version.
@@ -116,7 +106,6 @@ def test_falkordb_saver_checkpointer_roundtrip(live_port):
     saver = checkpoint.FalkorDBSaver(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
->>>>>>> audit/agent-flow
         database="sever_test_memory_checkpoints",
     )
     flow = build_flow(live_port, checkpointer=saver)

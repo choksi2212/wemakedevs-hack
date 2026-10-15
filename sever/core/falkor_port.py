@@ -12,10 +12,11 @@ from typing import Any
 
 from sever.core.jewels import (
     DEFAULT_HOP_CAP,
+    TRAVERSAL_RELS_SET,
     cypher_traversal_pattern,
 )
 from sever.core.port import GraphPort
-from sever.etl.ad_collectors import NormalizedGraph
+from sever.etl.ad_collectors import ABUSABLE_RELS, NormalizedGraph
 from sever.etl.cypher_batches import build_batches
 
 # ---------------------------------------------------------------------------
@@ -256,8 +257,15 @@ def _valid_rel(rel: str) -> bool:
 
     global _VALID_REL_RE
     if _VALID_REL_RE is None:
-        _VALID_REL_RE = _re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
-    return bool(rel) and bool(_VALID_REL_RE.match(rel))
+        # \Z (not $): Python's $ also matches before a trailing newline, which
+        # would let a trailing-newline rel through (audit/security regression test).
+        _VALID_REL_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}\Z")
+    if not rel or not _VALID_REL_RE.match(rel):
+        return False
+    # schema guard: identifier-shaped is not enough — mutations only accept
+    # rels in the closed vocabulary the ETL emits and the engine chains
+    # (so "generic_all" and other unknown-but-well-formed types reject).
+    return rel in TRAVERSAL_RELS_SET or rel in ABUSABLE_RELS
 
 
 def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:
