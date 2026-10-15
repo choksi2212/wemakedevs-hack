@@ -255,6 +255,13 @@ class FalkorGraphPort(GraphPort):
 
 # Relationship types are a closed vocabulary from the data model; anything else
 # is rejected BEFORE it can reach string interpolation (Cypher injection guard).
+#
+# Charset is the security property: [A-Za-z0-9_] contains no Cypher
+# metacharacter (no backtick, quote, brace, colon, whitespace), so a validated
+# rel can never break out of the `-[r:{rel}]->` slot. Mixed case is allowed
+# because the product's own traversal set (jewels.TRAVERSAL_RELS) legitimately
+# contains camelCase Entra rel types (AZOwns, AZMemberOf, AZVMAdminLogin, ...)
+# alongside the uppercase AD rel types.
 _VALID_REL_RE = None
 
 
@@ -263,7 +270,9 @@ def _valid_rel(rel: str) -> bool:
 
     global _VALID_REL_RE
     if _VALID_REL_RE is None:
-        _VALID_REL_RE = _re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+        # \Z (not $): Python's $ also matches before a trailing newline, which
+        # would let "MEMBER_OF\n" through — audit/security regression test.
+        _VALID_REL_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}\Z")
     return bool(rel) and bool(_VALID_REL_RE.match(rel))
 
 

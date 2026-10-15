@@ -5,11 +5,26 @@ staged-batch tests — one emission path, one engine.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from sever.etl.ad_collectors import NormalizedGraph
 
 DEFAULT_BATCH_ROWS = 1000
+
+# Cypher injection guard (audit/security): edge rels are interpolated into the
+# query text below. AD-derived rels come from collector-data ACE RightName
+# strings via _right_to_rel, i.e. data-file content — not a closed enum — so
+# they must pass the same charset gate as the live mutation path
+# (sever.core.falkor_port._valid_rel) before they touch a query template.
+# [A-Za-z0-9_] carries no Cypher metacharacter, so a validated rel cannot
+# escape the `-[r:{rel}]->` slot. Legit BloodHound/Entra rel types all match.
+# \Z (not $): Python's $ also matches before a trailing newline.
+_REL_TYPE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}\Z")
+
+
+def _is_safe_rel(rel: str) -> bool:
+    return bool(rel) and bool(_REL_TYPE_RE.match(rel))
 
 
 def node_batches(g: NormalizedGraph, batch_rows: int = DEFAULT_BATCH_ROWS) -> list[dict[str, Any]]:
@@ -40,6 +55,13 @@ def edge_batches(g: NormalizedGraph, batch_rows: int = DEFAULT_BATCH_ROWS) -> li
 
     batches: list[dict[str, Any]] = []
     for rel, rows in sorted(by_rel.items()):
+        if not _is_safe_rel(rel):
+            # fail loud: a collector data file that produces a rel outside the
+            # identifier charset is either corrupt or hostile — never load it.
+            raise ValueError(
+                f"unsafe relationship type in collector data (rejected before "
+                f"Cypher interpolation): {rel!r}"
+            )
         if rows and rows[0]["props"]:
             query = (
                 f"UNWIND $rows AS e "
