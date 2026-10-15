@@ -197,8 +197,9 @@ def test_no_untrusted_field_appears_raw_in_any_sink():
     receipts_stmt = next(s for s in sinks if "receipts" in s)
     assert "esc((e.ts" in receipts_stmt
     assert receipts_stmt.count("esc(line)") == 2  # title attribute AND text node
-    # trusted ledger-literal placement pinned: badge class + step text
-    pinned = '<span class="badge \' + badge + \'">\' + step + \'</span>\''
+    # trusted ledger-literal placement pinned: badgeFor(step) drives the class,
+    # step is the raw trusted ledger literal (audit3/console-logic markup)
+    pinned = '<span class="badge \' + badgeFor(step) + \'">\' + step + \'</span>'
     assert pinned in receipts_stmt
 
 

@@ -22,6 +22,7 @@ from sever.core.falkor_port import _valid_rel
 from sever.core.jewels import TRAVERSAL_RELS
 from sever.etl.cypher_batches import _is_safe_rel
 
+OTHER = "S-1-5-21-2697957641-2271029196-387917394-2110"  # distinct target (self-grants are 422)
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2102"
 
 # payloads that violate the [A-Za-z][A-Za-z0-9_]{0,63} charset at every layer
@@ -110,7 +111,7 @@ def test_vocab_only_variants_reject_at_the_port_not_the_schema():
         assert _is_safe_rel(payload), repr(payload)
         # and the request schema is a syntax gate, not a vocabulary gate
         assert CutRequest(src=HERO, dst=HERO, rel=payload, approved=True).rel == payload
-        assert FindingRequest(kind="ace_granted", subject=HERO, target=HERO, rel=payload).rel == payload
+        assert FindingRequest(kind="ace_granted", subject=HERO, target=OTHER, rel=payload).rel == payload
 
 
 def test_no_vocabulary_word_can_be_built_from_a_variant_string():

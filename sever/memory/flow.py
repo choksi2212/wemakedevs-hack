@@ -23,6 +23,7 @@ ever reach ``approve_and_cut`` through the flow.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -209,6 +210,22 @@ class CaseLog:
         event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
         line = json.dumps(event, default=str) + "\n"
         with self._locked():
+            # a previous writer may have died mid-line: terminate the torn
+            # fragment and stamp a repair record so it can never merge with
+            # this line and read() can skip it (audit3/console-logic contract)
+            if self.path.exists() and self.path.stat().st_size:
+                with self.path.open("rb") as probe:
+                    probe.seek(-1, os.SEEK_END)
+                    if probe.read(1) != b"\n":
+                        line = (
+                            "\n"
+                            + json.dumps({
+                                "step": "ledger_repair",
+                                "note": "terminated a torn trailing fragment left by a crashed writer",
+                            }, default=str)
+                            + "\n"
+                            + line
+                        )
             with self.path.open("a", encoding="utf-8") as f:
                 f.write(line)
 
@@ -216,8 +233,49 @@ class CaseLog:
         if not self.path.exists():
             return []
         with self._locked():
-            text = self.path.read_text(encoding="utf-8")
-        return [json.loads(line) for line in text.splitlines() if line.strip()]
+            raw = self.path.read_text(encoding="utf-8")
+        lines = raw.split("\n")
+        torn_tail: str | None = None
+        if lines and lines[-1] == "":
+            lines.pop()
+        elif lines:
+            torn_tail = lines.pop()
+        events: list[dict[str, Any]] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if not line.strip():
+                i += 1
+                continue
+            try:
+                events.append(json.loads(line))
+                i += 1
+            except json.JSONDecodeError:
+                # a broken line is tolerated ONLY when the very next line is
+                # a repair record (i.e. it was a torn tail that append()
+                # terminated) — anything else is genuine mid-file corruption
+                # and must surface loudly, never hide.
+                nxt = lines[i + 1] if i + 1 < len(lines) else ""
+                try:
+                    repaired = json.loads(nxt).get("step") == "ledger_repair"
+                except Exception:
+                    repaired = False
+                if not repaired:
+                    raise RuntimeError(
+                        f"{self.path}: corrupt ledger line {i + 1}: {line[:120]!r}"
+                    ) from None
+                events.append(json.loads(nxt))  # the repair record stays visible
+                i += 2  # skip the repaired fragment + consume the repair record
+        if torn_tail is not None and torn_tail.strip():
+            # the writer died mid-line before the trailing newline: tolerate
+            # and DROP the fragment (it can never merge with a later line —
+            # the next append terminates it with a visible repair record)
+            # instead of 500ing every future read.
+            try:
+                events.append(json.loads(torn_tail))
+            except json.JSONDecodeError:
+                pass
+        return events
 
     def last_step(self) -> str | None:
         events = self.read()
