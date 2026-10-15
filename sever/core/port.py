@@ -1,4 +1,4 @@
-"""GraphPort — the one interface both graph backends implement.
+"""GraphPort — the one interface the graph backend implements.
 
 - FalkorGraphPort: the live FalkorDB engine — THE substrate. There is no
   offline double: rule 3 of the hackathon (remove FalkorDB and the product

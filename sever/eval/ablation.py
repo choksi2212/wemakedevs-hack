@@ -9,7 +9,7 @@ same questions about the estate, answered two ways against the REAL engine:
   mentions, but connectivity facts ("can A reach B?", "which single fix
   kills the paths?") are unanswerable without traversal.
 
-    python scripts/ablation.py        # writes docs/receipts/ablation.json
+    python -m sever.eval.ablation    # writes docs/receipts/ablation.json
 """
 from __future__ import annotations
 

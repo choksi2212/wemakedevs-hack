@@ -40,10 +40,11 @@ def test_entra_ga_holder_present():
 
 def test_merged_graph_bridges():
     ad = parse_ad_dir(AD_DIR)
+    base_nodes = len(ad.nodes)  # merge_entra merges IN PLACE into `ad`
     az = parse_entra_file(ENTRA_FILE)
     merged = merge_entra(ad, az)
     assert merged.stats["entra_bridges"] == 9
-    assert len(merged.nodes) > len(ad.nodes) + 1000
+    assert len(merged.nodes) > base_nodes + 1000
     synced = [e for e in merged.edges.values() if e["rel"] == "SYNCED_TO"]
     assert len(synced) == 2 * 9  # bidirectional: one identity, two worlds
 
