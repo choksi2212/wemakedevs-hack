@@ -8,7 +8,7 @@ import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph
 from sever.agent.investigator import Investigator, TriageReport
-from sever.agent.llm import OfflineNarrator, OpenAICompatLLM, build_llm
+from sever.agent.llm import LLM, OfflineNarrator, OpenAICompatLLM, build_llm
 from sever.core.scoring import rank_cut_candidates
 from sever.findings.stream import Finding
 
@@ -16,6 +16,15 @@ HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 ALICE = "S-1-5-21-t-1101"
 TIER1 = "S-1-5-21-t-2202"
 DA = "S-1-5-21-t-t-512"  # ends -512 -> crown jewel by node id
+
+
+class ExplodingLLM(LLM):
+    """Worst-case LLM seam: the provider times out / dies mid-narration."""
+
+    name = "exploding"
+
+    def complete(self, system: str, user: str) -> str:
+        raise TimeoutError("llm timeout mid-narration")
 
 
 # ---- LLM seam (DB-free) ----
@@ -198,6 +207,19 @@ def test_triage_marks_breach_owned_and_proposes(tiny_port):
     assert report.proposal
     top = report.proposal[0]
     assert (top["src"], top["rel"]) in {(ALICE, "GENERIC_ALL"), (TIER1, "MEMBER_OF")}
+
+
+@requires_engine
+def test_llm_timeout_mid_narration_never_breaks_triage(tiny_port):
+    # The garnish call is best-effort: when the LLM dies mid-narration the
+    # finding flow must still complete with the deterministic ATT&CK template —
+    # the graph mutation (apply/mark_owned) has already happened by then.
+    inv = Investigator(tiny_port, llm=ExplodingLLM())
+    report = inv.triage(Finding("F-1", "credential_breach", ALICE))
+    assert report.after["owned"] == [ALICE]
+    assert report.narration_technique == "T1078.002 Valid Accounts: Domain Accounts"
+    assert report.narration  # template narration carries the finding
+    assert report.proposal  # and the interdiction proposal still lands
 
 
 @requires_engine

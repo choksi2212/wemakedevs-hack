@@ -69,12 +69,22 @@ class Investigator:
         after = snapshot(self.port, self.hop_cap)
         paths = self.port.paths_to_jewels(finding.subject, self.hop_cap) if after["owned"] else []
         story = narrate(finding)
-        garnish = self.llm.complete(
-            NARRATE_SYSTEM,
-            f"Finding: {finding.detail or finding.kind} on {finding.subject}. "
-            f"Graph context: {len(paths)} paths to crown jewels after this finding. "
-            f"One-line commentary for the on-call analyst:",
-        ).strip()
+        garnish = ""
+        try:
+            garnish = self.llm.complete(
+                NARRATE_SYSTEM,
+                f"Finding: {finding.detail or finding.kind} on {finding.subject}. "
+                f"Graph context: {len(paths)} paths to crown jewels after this finding. "
+                f"One-line commentary for the on-call analyst:",
+            ).strip()
+        except Exception:
+            # The garnish is best-effort commentary, never load-bearing: the
+            # deterministic ATT&CK template (story.narration) already carries
+            # the finding. An LLM timeout or connection failure mid-narration
+            # must degrade to the template — the finding flow cannot break
+            # here, because the graph mutation (apply/mark_owned) has already
+            # happened by this point.
+            garnish = ""
         proposal = rank_cut_candidates(self.port.edge_frequency(self.hop_cap), limit=3) if paths else []
         report = TriageReport(
             finding=finding,

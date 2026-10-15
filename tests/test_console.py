@@ -46,6 +46,7 @@ def test_breach_finding_raises_surface(client):
     assert r.status_code == 200
     body = r.json()
     assert "T1078.002" in body["technique"]
+    assert body["simulated"] is True  # replay findings are labeled, never passed off as live telemetry
     assert body["reachability"] == 1
     paths = client.get("/api/paths").json()
     assert paths["paths"]
