@@ -204,8 +204,12 @@ def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: 
         return
     props = _clean_props(rec.get("Properties"))
     for flag in ("IsACLProtected", "IsDeleted", "IsDC", "DumpSMSAPassword"):
-        if rec.get(flag) is not None:
-            props[flag.lower()] = rec[flag]
+        val = rec.get(flag)
+        if val is None:
+            continue
+        if isinstance(val, (list, dict)):
+            val = bool(val)  # e.g. DumpSMSAPassword is a list of dump entries -> boolean
+        props[flag.lower()] = val
     name = _name_of(props)
     if name:
         props.setdefault("name", name)
