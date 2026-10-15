@@ -17,7 +17,8 @@ from sever.etl.ad_collectors import ABUSABLE_RELS, parse_ad_dir
 from sever.etl.cypher_batches import build_batches, edge_batches, node_batches
 
 SAMPLE_DIR = os.environ.get(
-    "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"
+    "SEVER_SAMPLE_DIR",
+    str(Path(__file__).resolve().parents[1] / "data" / "ad_sample"),
 )
 
 pytestmark = pytest.mark.skipif(

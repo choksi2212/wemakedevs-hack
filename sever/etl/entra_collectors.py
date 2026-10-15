@@ -234,31 +234,43 @@ def merge_entra(ad: NormalizedGraph, entra: NormalizedGraph, bidirectional: bool
     """Merge an Entra graph into the AD graph, adding SYNCED_TO bridge edges
     for every AZUser carrying an on-prem SID that matches an AD User.
 
-    Bidirectional by default — password-synced identities are ONE identity:
-    control flows on-prem->cloud AND cloud->on-prem (the MGM/Storm-0558 lesson).
+    Non-mutating: ``ad`` and ``entra`` are left untouched and a new merged
+    graph is returned. Bidirectional by default — password-synced identities
+    are ONE identity: control flows on-prem->cloud AND cloud->on-prem (the
+    MGM/Storm-0558 lesson).
     """
-    for oid, node in entra.nodes.items():
-        if oid in ad.nodes:
-            ad.add_node(oid, node["label"], node["props"])  # merge props
-        else:
-            ad.nodes[oid] = {"objectid": oid, "label": node["label"], "props": dict(node["props"])}
-    for edge in entra.edges.values():
-        ad.add_edge(edge["src"], edge["dst"], edge["rel"], dict(edge["props"]))
+    merged = NormalizedGraph()
+    merged.nodes = {
+        oid: {"objectid": oid, "label": n["label"], "props": dict(n.get("props", {}))}
+        for oid, n in ad.nodes.items()
+    }
+    merged.edges = {
+        key: {**e, "props": dict(e.get("props", {}))}
+        for key, e in ad.edges.items()
+    }
+    merged.stats = dict(ad.stats)
 
-    ad_user_ids = {n for n, nd in ad.nodes.items() if nd.get("label") == "User"}
+    for oid, node in entra.nodes.items():
+        if oid in merged.nodes:
+            merged.add_node(oid, node["label"], node["props"])  # merge props
+        else:
+            merged.nodes[oid] = {"objectid": oid, "label": node["label"], "props": dict(node["props"])}
+    for edge in entra.edges.values():
+        merged.add_edge(edge["src"], edge["dst"], edge["rel"], dict(edge["props"]))
+
+    ad_user_ids = {n for n, nd in merged.nodes.items() if nd.get("label") == "User"}
     bridged = 0
     for oid, node in entra.nodes.items():
         if node.get("label") != "AZUser":
             continue
         sid = node.get("props", {}).get("onprem_sid")
         if sid and sid in ad_user_ids:
-            ad.add_edge(sid, oid, "SYNCED_TO", {"hybrid": True})
+            merged.add_edge(sid, oid, "SYNCED_TO", {"hybrid": True})
             if bidirectional:
-                ad.add_edge(oid, sid, "SYNCED_TO", {"hybrid": True, "direction": "reverse"})
+                merged.add_edge(oid, sid, "SYNCED_TO", {"hybrid": True, "direction": "reverse"})
             bridged += 1
 
-    ad.stats = dict(ad.stats)
-    ad.stats["entra_bridges"] = bridged
-    ad.stats["node_count"] = len(ad.nodes)
-    ad.stats["edge_count"] = len(ad.edges)
-    return ad
+    merged.stats["entra_bridges"] = bridged
+    merged.stats["node_count"] = len(merged.nodes)
+    merged.stats["edge_count"] = len(merged.edges)
+    return merged

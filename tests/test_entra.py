@@ -12,10 +12,12 @@ from tests.conftest import drop_graph
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.etl.entra_collectors import merge_entra, parse_entra_file
 
-AD_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+AD_DIR = os.environ.get(
+    "SEVER_SAMPLE_DIR", str(_REPO_ROOT / "data" / "ad_sample"))
 ENTRA_FILE = os.environ.get(
     "SEVER_ENTRA_FILE",
-    "N:/HERMESSSS/graphhacks/data/entra_sample/azurehound_example.json",
+    str(_REPO_ROOT / "data" / "entra_sample" / "azurehound_example.json"),
 )
 pytestmark = pytest.mark.skipif(
     not (Path(AD_DIR).is_dir() and Path(ENTRA_FILE).is_file()),

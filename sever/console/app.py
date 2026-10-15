@@ -50,7 +50,8 @@ def build_app() -> FastAPI:
     )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")))
+            "SEVER_SAMPLE_DIR",
+            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
 
     inv = Investigator(port)
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))

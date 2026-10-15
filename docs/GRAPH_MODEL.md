@@ -41,6 +41,21 @@ Full derivation code: `sever/etl/ad_collectors.py` (two-pass parse, unresolved-p
 creation, deterministic). Measured on the official sample: **31 collector files → 1,480 nodes /
 12,450 edges, zero dangling references** (`tests/test_etl.py`).
 
+## Hybrid Entra overlay (AzureHound side)
+
+Hybrid estates merge the AzureHound collector output (`sever/etl/entra_collectors.py`),
+adding the cloud identity surface — `AZUser`, `AZServicePrincipal`, `AZApp`, `AZGroup`,
+`AZRole`, `AZDevice`, `AZVM`, `AZResourceGroup`, `AZSubscription`, `AZManagementGroup`,
+`AZKeyVault`, `AZTenant`, … (keyed by Entra object `id` instead of SID). Edges:
+`AZOwns`, `AZMemberOf`, `AZAppRole`, `AZVMAdminLogin`, `AZVMContributor`,
+`AZVMUserAccessAdmin`, `AZVMAvereContributor`, `AZRGUserAccessAdmin`, `AZSubUserAccessAdmin`,
+`AZMGUserAccessAdmin`, `AZKVUserAccessAdmin`, `AZKVContributor`, … plus the **hybrid
+bridge**: `SYNCED_TO`, added bidirectionally for every `AZUser` whose
+`onPremisesSecurityIdentifier` matches an on-prem `User` (the pivot cloud → on-prem;
+measured: 9 bridges on the merged 14,402-node sample estate,
+`tests/test_entra.py`). Entra crown jewels are `AZUser` role holders
+(name ends `-GlobalAdministrator`).
+
 ## The traversal set (the product's core judgment)
 
 An attacker can chain only relationships in `sever/core/jewels.py::TRAVERSAL_RELS` —

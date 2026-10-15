@@ -34,7 +34,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tenants", type=int, default=300)
     parser.add_argument("--graph-prefix", default="sever_tenant")
-    parser.add_argument("--sample-dir", default=os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"))
+    parser.add_argument("--sample-dir", default=os.environ.get(
+        "SEVER_SAMPLE_DIR",
+        str(Path(__file__).resolve().parents[1] / "data" / "ad_sample")))
     parser.add_argument("--skip-load", action="store_true", help="graphs already loaded — measurement only")
     args = parser.parse_args()
 

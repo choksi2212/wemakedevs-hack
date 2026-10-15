@@ -50,7 +50,9 @@ def _port(graph: str) -> FalkorGraphPort:
 
 def _ensure_loaded(port: FalkorGraphPort) -> None:
     if port.node_count() == 0:
-        normalized = parse_ad_dir(os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"))
+        normalized = parse_ad_dir(os.environ.get(
+            "SEVER_SAMPLE_DIR",
+            str(Path(__file__).resolve().parents[1] / "data" / "ad_sample")))
         port.load(normalized)
 
 

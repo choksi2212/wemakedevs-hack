@@ -14,7 +14,10 @@ import pytest
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 
-SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_DIR = os.environ.get(
+    "SEVER_SAMPLE_DIR", str(_REPO_ROOT / "data" / "ad_sample")
+)
 ENGINE_REACHABLE = False
 try:
     if os.environ.get("SEVER_FALKOR_HOST") is None:
