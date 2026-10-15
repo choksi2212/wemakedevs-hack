@@ -39,7 +39,15 @@ def _right_to_rel(right: str) -> str:
     return _CAMEL.sub("_", right.strip()).upper().replace("-", "_")
 
 
-# relationship types whose semantics we surface explicitly in queries
+# relationship types whose semantics we surface explicitly in queries.
+# Verified against the BloodHound CE sample: every ACE RightName in the data
+# (22 distinct rights) maps mechanically through _right_to_rel onto a
+# relationship type; the abusable ones are all attacker-chainable in
+# sever.core.jewels.TRAVERSAL_RELS. ENROLL is emitted but deliberately
+# non-traversable (BloodHound CE marks the Enroll edge non-traversable too).
+# ESC1/ESC2/AUTO_ENROLL were removed: nothing derives or queries them — BH CE
+# synthesizes ADCSESC1/2 edges from template properties, which this ETL does
+# not implement.
 ABUSABLE_RELS: frozenset[str] = frozenset(
     {
         "MEMBER_OF",
@@ -53,6 +61,7 @@ ABUSABLE_RELS: frozenset[str] = frozenset(
         "WRITE_PROPERTY",
         "RESET_PASSWORD",
         "GET_CHANGES",
+        "GET_CHANGES_IN_FILTERED_SET",
         "GET_CHANGES_ALL",
         "DCSYNC",
         "HAS_SID_HISTORY",
@@ -61,9 +70,15 @@ ABUSABLE_RELS: frozenset[str] = frozenset(
         "ALLOWED_TO_ACT",
         "ADMIN_TO",
         "ENROLL",
-        "AUTO_ENROLL",
-        "ESC1",
-        "ESC2",
+        "ADD_MEMBER",
+        "ADD_SELF",
+        "ADD_KEY_CREDENTIAL_LINK",
+        "ADD_ALLOWED_TO_ACT",
+        "WRITE_ACCOUNT_RESTRICTIONS",
+        "READ_GMSAPASSWORD",
+        "READ_LAPSPASSWORD",
+        "MANAGE_CA",
+        "MANAGE_CERTIFICATES",
     }
 )
 
@@ -255,14 +270,24 @@ def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: 
             g.add_edge(oid, sid, "HAS_SID_HISTORY")
     for tgt in rec.get("SPNTargets", []) or []:
         if isinstance(tgt, dict) and tgt.get("EndpointAddress"):
-            g.add_edge(oid, str(tgt["EndpointAddress"]), "HAS_SPN_TARGET", {"service": tgt.get("Service")})
+            endpoint = str(tgt["EndpointAddress"])
+            _ensure_node(g, endpoint, "Computer")  # keep the zero-dangling invariant
+            g.add_edge(oid, endpoint, "HAS_SPN_TARGET", {"service": tgt.get("Service")})
 
     # ---- delegation / RBCD (users & computers) ----
+    # msDS-AllowedToDelegateTo lists the TARGETS the record's principal may
+    # delegate to, so the edge runs record -> target — BloodHound CE: the edge
+    # "points from the principal that holds the privilege to the target it can
+    # delegate to" (sample: KRB-DEL-01 -> DC01, never the reverse).
     for ref in rec.get("AllowedToDelegate", []) or []:
         if isinstance(ref, dict):
             sid = str(ref.get("ObjectIdentifier") or "")
             _ensure_node(g, sid, str(ref.get("ObjectType") or "Computer"))
-            g.add_edge(sid, oid, "ALLOWED_TO_DELEGATE")
+            g.add_edge(oid, sid, "ALLOWED_TO_DELEGATE")
+    # msDS-AllowedToActOnBehalfOfOtherIdentity lives ON the target computer:
+    # the refs are the principals allowed to act on rec, so the edge runs
+    # ref -> record (BloodHound CE: "from the principal that can act to the
+    # computer that trusts it"). Sample: EXTCA02 -> EXTCA01.
     for ref in rec.get("AllowedToAct", []) or []:
         if isinstance(ref, dict):
             sid = str(ref.get("ObjectIdentifier") or "")
@@ -270,15 +295,27 @@ def _parse_record(g: NormalizedGraph, rec: dict[str, Any], label: str, skipped: 
             g.add_edge(sid, oid, "ALLOWED_TO_ACT")
 
     # ---- computer local groups -> local admin ----
+    # SharpHound CE v6 carries local-group members under "Results" (verified
+    # against the CE sample: entries are {ObjectIdentifier, ObjectType} refs;
+    # the "Members" key does not exist in this format).
+    # BloodHound CE derives AdminTo ONLY from the local ADMINISTRATORS group
+    # (local-group RID -544); the sample also lists Users (-545)/Guests (-546)/
+    # RemoteDesktopUsers (-555)/Account Operators (-548)... whose members are
+    # NOT local admins — e.g. RID -513 (Domain Users) sits in local "Users".
+    # Non-admin groups produce no edge, faithful to BH.
     for lg in rec.get("LocalGroups", []) or []:
-        if isinstance(lg, dict):
-            for member in lg.get("Members", []) or []:
-                if not isinstance(member, dict):
-                    continue
-                sid = str(member.get("ObjectIdentifier") or "")
-                if sid:
-                    _ensure_node(g, sid, str(member.get("ObjectType") or "User"))
-                    g.add_edge(sid, oid, "ADMIN_TO", {"group": lg.get("Name")})
+        if not isinstance(lg, dict):
+            continue
+        lg_oid = str(lg.get("ObjectIdentifier") or "")
+        if lg_oid.rsplit("-", 1)[-1] != "544":
+            continue
+        for member in lg.get("Results") or lg.get("Members") or []:
+            if not isinstance(member, dict):
+                continue
+            sid = str(member.get("ObjectIdentifier") or "")
+            if sid:
+                _ensure_node(g, sid, str(member.get("ObjectType") or "User"))
+                g.add_edge(sid, oid, "ADMIN_TO", {"group": lg.get("Name"), "local_group_id": lg_oid})
 
     # ---- domain trusts ----
     for trust in rec.get("Trusts", []) or []:

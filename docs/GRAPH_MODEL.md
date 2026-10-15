@@ -17,7 +17,7 @@ hackathon's rule 3). Identity graphs are ingested from BloodHound CE collector J
 | `CertTemplate`, `EnterpriseCA`, `RootCA`, `AIACA`, `NTAuthStore` | certtemplates / CAs | ADCS surface (ESC derivation D2) |
 
 Every node: `objectid` (natural key, MERGE target), `owned` (compromised flag),
-`placeholder` (true when referenced-but-uncollected — BloodHound-faithful).
+`unresolved` (true when referenced-but-uncollected — BloodHound-faithful).
 
 ## Relationship types (edges)
 
@@ -33,11 +33,16 @@ ACE rights are derived from per-record `Aces[]` lists; memberships from `Members
 - Delegation/session: `ALLOWED_TO_DELEGATE`, `ALLOWED_TO_ACT`, `ADMIN_TO`, `HAS_SID_HISTORY`,
   `HAS_SPN_TARGET`
 - Forest structure: `TRUSTED_BY` (domain trusts, incl. external placeholders), `CONTAINED_BY`,
-  `PUBLISHED_ON` (CA → cert template)
+  `PUBLISHED_ON` (cert template → CA — BloodHound CE's `PublishedTo` direction)
+- Local admin: `ADMIN_TO` from local-group `Results` — only the local
+  ADMINISTRATORS group (RID -544), faithful to BloodHound CE's `AdminTo`
+- Delegation: `ALLOWED_TO_DELEGATE` runs delegator → target
+  (msDS-AllowedToDelegateTo); `ALLOWED_TO_ACT` runs actor → target computer
+  (msDS-AllowedToActOnBehalfOfOtherIdentity)
 
-Full derivation code: `sever/etl/ad_collectors.py` (two-pass parse, placeholder creation,
-deterministic). Measured on the official sample: **31 collector files → 1,480 nodes /
-12,437 edges, zero dangling references** (`tests/test_etl.py`).
+Full derivation code: `sever/etl/ad_collectors.py` (two-pass parse, unresolved
+creation, deterministic). Measured on the official sample: **31 collector files → 1,480 nodes /
+12,450 edges, zero dangling references** (`tests/test_etl.py`).
 
 ## The traversal set (the product's core judgment)
 

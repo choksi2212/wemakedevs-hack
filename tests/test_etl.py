@@ -107,6 +107,76 @@ def test_parse_is_deterministic():
     assert s1 == s2
 
 
+def test_parse_is_deterministic_edge_set_hash():
+    """Two parses of the same directory must yield an identical EDGE set —
+    hashed, not just node-compared: the edge dict is the attack-path substrate."""
+    import hashlib
+
+    def edge_hash(g):
+        payload = sorted(
+            (e["src"], e["dst"], e["rel"], json.dumps(e["props"], sort_keys=True, default=str))
+            for e in g.edges.values()
+        )
+        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
+
+    g1 = parse_ad_dir(SAMPLE_DIR)
+    g2 = parse_ad_dir(SAMPLE_DIR)
+    assert edge_hash(g1) == edge_hash(g2)
+    assert len(g1.edges) == len(g2.edges) > 0
+
+
+# ---- derivation fidelity (audit: verified against concrete sample records) ----
+
+
+def test_local_admin_edges_derived_from_localgroups_results(graph):
+    """SharpHound CE v6 puts local-group members under "Results"; only the
+    local ADMINISTRATORS group (RID -544) yields ADMIN_TO (BloodHound CE
+    semantics — sample also lists Users/Guests/RemoteDesktopUsers)."""
+    admin_to = [e for e in graph.edges.values() if e["rel"] == "ADMIN_TO"]
+    assert len(admin_to) >= 10
+    # concrete: BUILTIN Administrator (RID -500) is local admin of DC01
+    dc01 = "S-1-5-21-2697957641-2271029196-387917394-1000"
+    assert any(
+        e["src"].endswith("-500") and e["dst"] == dc01 for e in admin_to
+    )
+    # concrete: WRAITH Domain Admins (-512) admin their DC
+    assert any(
+        e["src"].endswith("-512") and e["dst"].endswith("-1000") for e in admin_to
+    )
+    # concrete: members of the local Users group (RID -545) are NOT admins
+    assert not any(e["props"].get("local_group_id", "").endswith("-545") for e in admin_to)
+
+
+def test_delegation_edge_points_privilege_holder_to_target(graph):
+    """msDS-AllowedToDelegateTo lives on the DELEGATOR; sample record KRB-DEL-01
+    delegates to DC01 — the edge must run KRB-DEL-01 -> DC01."""
+    edges = [e for e in graph.edges.values() if e["rel"] == "ALLOWED_TO_DELEGATE"]
+    assert edges, "no ALLOWED_TO_DELEGATE edges derived"
+    krb_del = "S-1-5-21-2697957641-2271029196-387917394-2171"
+    dc01 = "S-1-5-21-2697957641-2271029196-387917394-1000"
+    assert all((e["src"], e["dst"]) == (krb_del, dc01) for e in edges)
+
+
+def test_rbcd_edge_points_actor_to_target(graph):
+    """msDS-AllowedToActOnBehalfOfOtherIdentity lives on the TARGET computer:
+    the sample's EXTCA01 record lists EXTCA02 -> edge EXTCA02 -> EXTCA01."""
+    edges = [e for e in graph.edges.values() if e["rel"] == "ALLOWED_TO_ACT"]
+    assert edges, "no ALLOWED_TO_ACT edges derived"
+    extca02 = "S-1-5-21-3702535222-3822678775-2090119576-1169"
+    extca01 = "S-1-5-21-3702535222-3822678775-2090119576-1120"
+    assert all((e["src"], e["dst"]) == (extca02, extca01) for e in edges)
+
+
+def test_abusable_rels_cover_every_emitted_traversable_rel(graph):
+    """Every rel the ETL emits that the engine can chain must be in the
+    documented enum (audit finding: ADD_MEMBER, READ_GMSAPASSWORD etc. were
+    missing while phantom ESC1/ESC2/AUTO_ENROLL were listed)."""
+    from sever.core.jewels import TRAVERSAL_RELS_SET
+
+    emitted = set(graph.stats["rel_counts"])
+    assert emitted & TRAVERSAL_RELS_SET <= ABUSABLE_RELS
+
+
 # ---- Cypher batch emission ----
 
 

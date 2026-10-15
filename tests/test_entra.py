@@ -2,6 +2,7 @@
 on a tiny hybrid estate on the REAL engine."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -40,12 +41,89 @@ def test_entra_ga_holder_present():
 
 def test_merged_graph_bridges():
     ad = parse_ad_dir(AD_DIR)
+    base_nodes = len(ad.nodes)  # merge_entra merges IN PLACE into `ad`
     az = parse_entra_file(ENTRA_FILE)
     merged = merge_entra(ad, az)
     assert merged.stats["entra_bridges"] == 9
-    assert len(merged.nodes) > len(ad.nodes) + 1000
+    assert len(merged.nodes) > base_nodes + 1000
     synced = [e for e in merged.edges.values() if e["rel"] == "SYNCED_TO"]
     assert len(synced) == 2 * 9  # bidirectional: one identity, two worlds
+
+
+def test_entra_vm_role_edges_present():
+    """Audit fix: the extractor specs previously read principalId/vmId fields
+    that do not exist in the sample — zero VM/RG/MG/Sub/KV role edges were
+    derived. The real shape is <roleKey>s lists + virtualMachineId etc."""
+    az = parse_entra_file(ENTRA_FILE)
+    rels = {e["rel"] for e in az.edges.values()}
+    for rel in (
+        "AZVMAdminLogin",
+        "AZVMContributor",
+        "AZVMUserAccessAdmin",
+        "AZVMAvereContributor",
+        "AZRGUserAccessAdmin",
+        "AZSubUserAccessAdmin",
+        "AZMGUserAccessAdmin",
+        "AZKVUserAccessAdmin",
+        "AZKVContributor",
+    ):
+        assert rel in rels, f"{rel} edges missing"
+
+
+def test_entra_every_edge_endpoint_resolves():
+    """ARM roleAssignment entries nest the principal under
+    properties.principalId (the entry's own id is the roleAssignment path);
+    AZAppOwner references apps by client-id appId while AZApp nodes are keyed
+    by object id. Both previously produced dangling endpoints that silently
+    vanished at Cypher load (edge batches MATCH both endpoints)."""
+    az = parse_entra_file(ENTRA_FILE)
+    ids = set(az.nodes)
+    dangling = [e for e in az.edges.values() if e["src"] not in ids or e["dst"] not in ids]
+    assert dangling == [], f"{len(dangling)} dangling entra edges, e.g. {dangling[:3]}"
+
+
+def test_entra_app_owner_edges_target_app_object_ids():
+    az = parse_entra_file(ENTRA_FILE)
+    app_ids = {n for n, nd in az.nodes.items() if nd["label"] == "AZApp"}
+    owns = [e for e in az.edges.values() if e["props"].get("source_kind") == "AZAppOwner"]
+    assert owns, "no AZAppOwner edges"
+    assert all(e["dst"] in app_ids for e in owns)
+
+
+def test_entra_arm_role_principals_resolved_not_roleassignment_paths():
+    """Every ARM role edge src must be a principal object id, never a
+    "/providers/Microsoft.Authorization/roleAssignments/..." path."""
+    az = parse_entra_file(ENTRA_FILE)
+    bad = [
+        e for e in az.edges.values()
+        if "roleAssignments/" in e["src"] or "roleAssignments/" in e["dst"]
+    ]
+    assert bad == []
+
+
+def test_entra_unresolved_nodes_are_flagged():
+    """Referenced-but-uncollected principals (AzureHound inlines the object
+    in owners/members entries) are materialized honestly with the unresolved
+    flag — same contract as the AD parser."""
+    az = parse_entra_file(ENTRA_FILE)
+    unres = [n for n in az.nodes.values() if n["props"].get("unresolved")]
+    assert len(unres) > 100
+    assert all(n["label"].startswith("AZ") for n in unres)
+
+
+def test_entra_parse_is_deterministic_edge_set_hash():
+    import hashlib
+
+    def edge_hash(g):
+        payload = sorted(
+            (e["src"], e["dst"], e["rel"], json.dumps(e["props"], sort_keys=True, default=str))
+            for e in g.edges.values()
+        )
+        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
+
+    g1 = parse_entra_file(ENTRA_FILE)
+    g2 = parse_entra_file(ENTRA_FILE)
+    assert edge_hash(g1) == edge_hash(g2)
 
 
 def test_cross_world_reachability_on_engine():

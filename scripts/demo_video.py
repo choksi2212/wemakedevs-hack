@@ -3,7 +3,7 @@ hero arc and records it.
 
     python scripts/demo_video.py --console http://127.0.0.1:8000 --out out/demo
 
-Produces an MP4 of: breach -> attack paths light up -> live ACE grant ->
+Produces a webm screencast of: breach -> attack paths light up -> live ACE grant ->
 proposal -> HUMAN GATE (APPROVE) -> collapse -> receipts. Intended as the
 video storyboard / backup take; the primary demo video is recorded with
 hardware encoding on the build host.
