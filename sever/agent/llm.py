@@ -9,6 +9,8 @@ explains hops — provider-agnostic via env config:
     SEVER_LLM_MODEL      e.g. glm-5.3
 
 When env config is absent, the OfflineNarrator is used — the product runs fully offline.
+A live narrator that fails at request time (wrong key, provider down, timeout) degrades
+to the OfflineNarrator as well — see ResilientLLM: narration is garnish, the loop lives.
 """
 from __future__ import annotations
 
@@ -84,7 +86,12 @@ class OpenAICompatLLM(LLM):
                 {"role": "user", "content": user},
             ],
             temperature=0.2,
-            max_tokens=1024,  # reasoning models burn tokens before content (glm-5.3: ~150+)
+            # reasoning models burn tokens before content. Measured live on
+            # glm-5.3: at max_tokens=1024 the ENTIRE budget went to reasoning
+            # (finish_reason=length, content='') — a silent empty narration;
+            # 4096 leaves ~4x headroom over the measured ~1020 reasoning +
+            # ~120 content tokens a one-liner commentary needs.
+            max_tokens=4096,
         )
         return resp.choices[0].message.content or ""
 

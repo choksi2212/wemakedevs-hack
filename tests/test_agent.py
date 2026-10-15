@@ -477,6 +477,43 @@ def test_build_llm_dead_key_degrades_to_offline_narration(monkeypatch):
     assert seam.degraded is True, "the auth failure latched"
 
 
+def test_live_llm_budgets_reasoning_tokens(monkeypatch):
+    """glm-5.3 burns ~1020 reasoning tokens BEFORE any content — measured live:
+    at max_tokens=1024 the model hit finish_reason='length' with content=''
+    (silent empty garnish); at 4096 it finished with real commentary. The seam
+    must request a budget no reasoning model starves on."""
+    captured = {}
+
+    class _CapturingOpenAI:
+        def __init__(self, *a, **k) -> None: ...
+
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**k):
+                    captured.update(k)
+
+                    class _Msg:
+                        content = "ok"
+
+                    class _Choice:
+                        message = _Msg()
+                        finish_reason = "stop"
+
+                    class _Resp:
+                        choices = [_Choice()]
+
+                    return _Resp()
+
+    monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
+    monkeypatch.setenv("SEVER_LLM_MODEL", "glm-5.3")
+    monkeypatch.setattr(openai, "OpenAI", _CapturingOpenAI)
+    seam = build_llm()
+    assert seam.complete("s", "u") == "ok"
+    assert captured["max_tokens"] >= 4096, "reasoning-token budget must cover glm-5.3 chains"
+
+
 # ---- verdict honesty: 'collapsed' is only ever claimed with measured proof ----
 
 
