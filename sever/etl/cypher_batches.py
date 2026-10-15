@@ -1,7 +1,7 @@
 """Emit FalkorDB-compatible Cypher UNWIND batches from a NormalizedGraph.
 
-The same batch payloads are consumed by BOTH graph ports (in-memory mock and
-live FalkorDB) — parity is guaranteed by construction, not by hope.
+The same batch payloads feed the single production port (FalkorDB) and the
+staged-batch tests — one emission path, one engine.
 """
 from __future__ import annotations
 

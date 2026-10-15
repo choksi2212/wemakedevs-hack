@@ -1,7 +1,11 @@
-"""Findings stream + ATT&CK map tests (deterministic, graph-mutating)."""
+"""Findings stream + ATT&CK map — stream determinism is DB-free; every
+graph-mutating assertion runs on the REAL engine (tiny dedicated estates)."""
 from __future__ import annotations
 
-from sever.core.mock_port import MockGraphPort
+import pytest
+
+from tests.conftest import requires_engine
+from sever.agent.llm import OfflineNarrator  # noqa: F401  (import integrity check)
 from sever.etl.ad_collectors import NormalizedGraph
 from sever.findings.attack_map import ATTACK_MAP, narrate
 from sever.findings.stream import Finding, FindingStream, apply_finding, default_timeline
@@ -9,29 +13,12 @@ from sever.findings.stream import Finding, FindingStream, apply_finding, default
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 
 
-def _tiny_port() -> MockGraphPort:
-    g = NormalizedGraph()
-    g.add_node("A", "User", {"name": "alice"})
-    g.add_node("B", "Computer", {"name": "srv"})
-    g.add_node("C", "Group", {"name": "admins", "objectid": "C"})
-    port = MockGraphPort()
-    port.load(g)
-    return port
+# ---- DB-free: stream semantics ----
 
 
-def test_apply_finding_adds_edge_once():
-    port = _tiny_port()
+def test_apply_finding_schema():
     f = Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
-    assert apply_finding(port, f) is True
-    assert apply_finding(port, f) is False  # idempotent
-    assert port.edge_count() == 1
-
-
-def test_apply_finding_without_grant_is_noop():
-    port = _tiny_port()
-    f = Finding("F-2", "kerberoastable_spn", "A")
-    assert apply_finding(port, f) is False
-    assert port.edge_count() == 0
+    assert f.grants_edge and f.target == "B" and f.rel == "GENERIC_ALL"
 
 
 def test_stream_replay_is_sequential_and_exhausts():
@@ -61,3 +48,43 @@ def test_timeline_f003_targets_real_id_not_placeholder():
     f003 = timeline[2]
     assert f003.target == "B"
     assert "placeholder" not in (f003.target or "")
+
+
+# ---- on the REAL engine: finding application mutates the graph ----
+
+
+@pytest.fixture()
+def tiny_port():
+    from sever.core.falkor_port import FalkorGraphPort
+
+    name = "sever_test_findings"
+    port = FalkorGraphPort(graph_name=name)
+    port.graph.client.execute_command("GRAPH.DELETE", name)
+    port.graph.query(
+        "CREATE (a:User {objectid: 'A', name: 'alice', owned: false}), "
+        "(b:Computer {objectid: 'B', name: 'srv'}), "
+        "(c:Group {objectid: 'S-1-5-21-t-512', name: 'domain admins'})",
+    )
+    port.graph.query(
+        "MATCH (a:User {objectid: 'A'}), (c:Group {objectid: 'S-1-5-21-t-512'}) "
+        "CREATE (a)-[:MEMBER_OF]->(c)",
+    )
+    yield port
+    port.graph.client.execute_command("GRAPH.DELETE", name)
+
+
+@requires_engine
+def test_apply_finding_adds_edge_once_on_engine(tiny_port):
+    f = Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
+    assert apply_finding(tiny_port, f) is True
+    assert apply_finding(tiny_port, f) is False  # idempotent
+    n = tiny_port.graph.query(
+        "MATCH ()-[r:GENERIC_ALL]->() RETURN count(r) AS n").result_set[0][0]
+    assert n == 1
+
+
+@requires_engine
+def test_apply_finding_without_grant_is_noop(tiny_port):
+    f = Finding("F-2", "kerberoastable_spn", "A")
+    assert apply_finding(tiny_port, f) is False
+    assert tiny_port.edge_count() == 1  # only the seeded MEMBER_OF

@@ -8,7 +8,7 @@ explains hops — provider-agnostic via env config:
     SEVER_LLM_API_KEY    provider key
     SEVER_LLM_MODEL      e.g. glm-5.3
 
-When env config is absent, NullLLM is used — the product runs fully offline.
+When env config is absent, the OfflineNarrator is used — the product runs fully offline.
 """
 from __future__ import annotations
 
@@ -21,8 +21,9 @@ class LLM(ABC):
     def complete(self, system: str, user: str) -> str: ...
 
 
-class NullLLM(LLM):
-    """Offline fallback: no narration garnish, deterministic empty output."""
+class OfflineNarrator(LLM):
+    """Offline narrator: no LLM garnish — ATT&CK templates carry the narration;
+    deterministic by construction (the demo never depends on a model)."""
 
     name = "null"
 
@@ -54,13 +55,13 @@ class OpenAICompatLLM(LLM):
 
 
 def build_llm() -> LLM:
-    """From env; falls back to NullLLM so the agent never hard-fails offline."""
+    """From env; falls back to the OfflineNarrator so the agent never hard-fails offline."""
     base_url = os.environ.get("SEVER_LLM_BASE_URL")
     api_key = os.environ.get("SEVER_LLM_API_KEY")
     model = os.environ.get("SEVER_LLM_MODEL")
     if not (base_url and api_key and model):
-        return NullLLM()
+        return OfflineNarrator()
     try:
         return OpenAICompatLLM(base_url, api_key, model)
     except Exception:
-        return NullLLM()
+        return OfflineNarrator()

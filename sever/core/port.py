@@ -1,12 +1,10 @@
 """GraphPort — the one interface both graph backends implement.
 
-- MockGraphPort: in-memory networkx engine (offline development, tests)
-- FalkorGraphPort: live FalkorDB (production, demo, receipts)
-
-Both expose identical semantics; the parity test asserts identical reachability
-numbers for identical loads. FalkorDB is the load-bearing backend (rule 3 of
-the hackathon: remove it and the product breaks) — the mock exists so the
-agent logic can be built and tested before a live instance is wired.
+- FalkorGraphPort: the live FalkorDB engine — THE substrate. There is no
+  offline double: rule 3 of the hackathon (remove FalkorDB and the product
+  breaks) is enforced by having exactly one implementation. Tests run against
+  the real engine via docker compose; DB-free units (ETL, findings schema,
+  tenant generation, LLM seam) run anywhere.
 """
 from __future__ import annotations
 

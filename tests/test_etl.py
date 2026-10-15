@@ -43,7 +43,7 @@ def test_parses_all_files(stats):
 
 def test_label_counts(stats):
     # counts are UNIQUE objectids (config-partition GUIDs and SIDs repeat across
-    # the 3 domain snapshots: raw records 1718 -> 1471 unique + 9 placeholders)
+    # the 3 domain snapshots: raw records 1718 -> 1471 unique + 9 unresolved principals)
     lc = stats["label_counts"]
     assert lc.get("User") == 99        # 100 raw records, one SID listed twice
     assert lc.get("Group") == 219      # 285 raw, 66 cross-snapshot dupes
@@ -56,13 +56,13 @@ def test_label_counts(stats):
 
 
 def test_domains_include_three_sample_domains(stats):
-    # 3 collected domains + external trust-target placeholder domains
+    # 3 collected domains + external trust-target unresolved domains
     assert stats["label_counts"].get("Domain", 0) >= 3
 
 
-def test_placeholder_nodes_created_only_for_missing_refs(graph):
-    placeholders = [n for n in graph.nodes.values() if n["props"].get("placeholder")]
-    assert 5 <= len(placeholders) <= 20
+def test_unresolved_principal_nodes_created_only_for_missing_refs(graph):
+    unresolved = [n for n in graph.nodes.values() if n["props"].get("unresolved")]
+    assert 5 <= len(unresolved) <= 20
 
 
 def test_membership_edges_present(stats):

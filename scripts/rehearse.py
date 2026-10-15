@@ -1,11 +1,10 @@
-"""SEVER rehearsal — runs the entire demo beat end-to-end and prints receipts.
+"""SEVER rehearsal — runs the entire demo beat end-to-end on the live engine.
 
-    python scripts/rehearse.py            # offline mock engine (no FalkorDB needed)
-    python scripts/rehearse.py --falkor    # live FalkorDB at SEVER_FALKOR_HOST (default 127.0.0.1:6379)
+    python scripts/rehearse.py            # FalkorDB at SEVER_FALKOR_HOST (default 127.0.0.1:6379)
 
-The receipts this script prints are the same JSON the demo video and README
-show: before/after reachability, the cut proposal, the human-gated execution,
-and re-query timing.
+Requires the engine (docker compose up -d). The receipts this script prints
+are the same JSON the demo video and README show: before/after reachability,
+the cut proposal, the human-gated execution, and re-query timing.
 """
 from __future__ import annotations
 
@@ -20,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sever.agent.investigator import Investigator
 from sever.agent.llm import build_llm
-from sever.core.mock_port import MockGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.stream import Finding, FindingStream, default_timeline
 
@@ -29,14 +27,15 @@ SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad
 
 
 def _name(port, oid: str) -> str:
-    if hasattr(port, "g"):
-        return port.g.nodes[oid]["props"].get("name", oid)
+    res = port.graph.query(
+        "MATCH (n {objectid: $o}) RETURN n.name AS name LIMIT 1", {"o": oid})
+    if res.result_set and res.result_set[0][0]:
+        return str(res.result_set[0][0])
     return oid
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="SEVER demo rehearsal")
-    parser.add_argument("--falkor", action="store_true", help="use live FalkorDB instead of mock")
+    parser = argparse.ArgumentParser(description="SEVER demo rehearsal (live engine)")
     parser.add_argument("--graph", default="sever_demo", help="FalkorDB graph key (tenant)")
     parser.add_argument("--sample-dir", default=SAMPLE_DIR)
     args = parser.parse_args()
@@ -47,22 +46,18 @@ def main() -> int:
     print(f"[sever] {normalized.stats['node_count']} nodes, {normalized.stats['edge_count']} edges "
           f"({time.perf_counter()-t0:.2f}s)")
 
-    if args.falkor:
-        from sever.core.falkor_port import FalkorGraphPort
+    from sever.core.falkor_port import FalkorGraphPort
 
-        port = FalkorGraphPort(
-            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-            graph_name=args.graph,
-        )
+    port = FalkorGraphPort(
+        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        graph_name=args.graph,
+    )
+    if port.node_count() == 0:
         t0 = time.perf_counter()
         port.load(normalized)
         print(f"[sever] loaded into FalkorDB graph '{args.graph}' ({time.perf_counter()-t0:.2f}s)")
-        backend = f"falkordb:{args.graph}"
-    else:
-        port = MockGraphPort()
-        port.load(normalized)
-        backend = "mock"
+    backend = f"falkordb:{args.graph}"
 
     inv = Investigator(port, llm=build_llm())
     jewels = port.crown_jewels()
