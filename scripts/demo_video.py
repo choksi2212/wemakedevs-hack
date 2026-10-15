@@ -35,7 +35,7 @@ def main() -> int:
             record_video_size={"width": 1440, "height": 900},
         )
         page = ctx.new_page()
-        page.goto(args.console, wait_until="networkidle")
+        page.goto(args.console.rstrip("/") + "/?static=1", wait_until="networkidle")
         sleep(2)
 
         # 1) the estate, pre-breach
@@ -44,12 +44,14 @@ def main() -> int:
 
         # 2) breach finding -> reachability 1, paths appear
         page.click("text=simulate breach (mark owned)")
-        sleep(3)
+        page.wait_for_selector("#paths .hop", timeout=30000)
+        sleep(1)
         page.screenshot(path=str(out_dir / "02_breach.png"))
 
         # 3) the live ACE grant (graph mutation on camera)
         page.click("text=simulate new ACE grant (live mutation)")
-        sleep(3)
+        page.wait_for_selector("button.approve", timeout=30000)
+        sleep(1)
         page.screenshot(path=str(out_dir / "03_live_grant.png"))
 
         # 4) the proposal + HUMAN GATE
@@ -58,7 +60,10 @@ def main() -> int:
         rounds = 0
         while approve is not None and rounds < 4:
             approve.click()
-            sleep(3.5)
+            page.wait_for_function(
+                "document.querySelector('#banner') && document.querySelector('#banner').textContent.includes('verdict=')",
+                timeout=30000)
+            sleep(1.2)
             rounds += 1
             page.screenshot(path=str(out_dir / f"0{4 + rounds}_cut{rounds}.png"))
             approve = page.query_selector("button.approve")

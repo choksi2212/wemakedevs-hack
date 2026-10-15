@@ -116,7 +116,7 @@ async function approveCut(src, dst, rel) {
   refresh();
 }
 refresh();
-setInterval(refresh, 15000);
+if (!new URLSearchParams(location.search).get('static')) setInterval(refresh, 15000);
 </script>
 </body>
 </html>
