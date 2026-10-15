@@ -110,7 +110,14 @@ def build_app() -> FastAPI:
             kind=req.kind, subject=req.subject,
             target=req.target, rel=req.rel, grants_edge=bool(req.target and req.rel),
         )
-        report = inv.triage(f)
+        try:
+            report = inv.triage(f)
+        except ValueError as e:
+            # An invalid rel (e.g. lowercase, spaces, injection attempt) is a
+            # CLIENT error — the injection guard in FalkorGraphPort.add_edge
+            # rejects it before any Cypher runs. It must surface as a 400,
+            # not an unhandled 500 with a stack trace.
+            raise HTTPException(status_code=400, detail=str(e))
         log.append({"step": "finding", "finding": f.id, "kind": f.kind, "triage": report.as_dict()})
         story = narrate(f)
         return {
@@ -124,9 +131,17 @@ def build_app() -> FastAPI:
 
     @app.post("/api/cut")
     async def cut(req: CutRequest) -> dict[str, Any]:
+        # The gate check comes FIRST: an unapproved caller learns nothing
+        # about rel validity (no oracle without approval).
         if req.approved is not True:
             raise HTTPException(status_code=403, detail="interdiction requires explicit human approval")
-        receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
+        try:
+            receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
+        except ValueError as e:
+            # Only reachable with an invalid rel: the gate above already
+            # handled the not-approved case, and FalkorGraphPort.cut rejects
+            # bad rels before any Cypher runs. Client error -> 400, not 500.
+            raise HTTPException(status_code=400, detail=str(e))
         log.append({"step": "cut", "receipt": receipt})
         return receipt
 

@@ -195,19 +195,27 @@ class FalkorGraphPort(GraphPort):
         return freq
 
     # ---- live mutation ----
+    # `RETURN pre` (count of the edge BEFORE the MERGE) is what makes add_edge
+    # contract-true: `RETURN count(r)` after MERGE is 1 whether the edge was
+    # created or already existed, so it could never report idempotent re-grants
+    # (live-verified on falkordb 6.0.0).
     ADD_EDGE_QUERY = (
         "MATCH (s {{objectid: $src}}), (t {{objectid: $dst}}) "
+        "OPTIONAL MATCH (s)-[r0:{rel}]->(t) "
+        "WITH s, t, count(r0) AS pre "
         "MERGE (s)-[r:{rel}]->(t) "
         "SET r += $props "
-        "RETURN count(r)"
+        "RETURN pre"
     )
 
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
         if not _valid_rel(rel):
             raise ValueError(f"invalid relationship type: {rel!r}")
         query = self.ADD_EDGE_QUERY.format(rel=rel)
-        created = int(self._scalar(query, {"src": src, "dst": dst, "props": props or {}}) or 0)
-        return created > 0
+        pre = self._scalar(query, {"src": src, "dst": dst, "props": props or {}})
+        # pre is None when an endpoint is absent (no rows) — nothing created.
+        # pre == 0 means the edge did not exist before, i.e. MERGE created it.
+        return pre is not None and int(pre) == 0
 
     def cut(self, src: str, dst: str, rel: str) -> int:
         if not _valid_rel(rel):

@@ -2,6 +2,9 @@
 graph-mutating assertion runs on the REAL engine (tiny dedicated estates)."""
 from __future__ import annotations
 
+import os
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from tests.conftest import requires_engine, drop_graph
@@ -19,6 +22,30 @@ HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 def test_apply_finding_schema():
     f = Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
     assert f.grants_edge and f.target == "B" and f.rel == "GENERIC_ALL"
+
+
+def test_finding_is_frozen():
+    """Finding is a frozen dataclass: no code path — apply_finding included —
+    can mutate it. Python enforces this for every caller."""
+    f = Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
+    for attr in ("id", "kind", "subject", "target", "rel", "detail", "grants_edge"):
+        with pytest.raises(FrozenInstanceError):
+            setattr(f, attr, "mutated")
+    # frozen -> hashable and structurally comparable
+    assert hash(f) == hash(
+        Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
+    )
+    assert f != Finding("F-2", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
+
+
+def test_apply_finding_cannot_mutate_the_finding():
+    # A non-granting finding never touches the port — port=None is the proof.
+    f = Finding("F-2", "kerberoastable_spn", "A")
+    assert apply_finding(None, f) is False
+    assert (f.grants_edge, f.target, f.rel) == (False, None, None)
+    # a granting finding without a target/rel is also a no-op
+    half = Finding("F-3", "ace_granted", "A", grants_edge=True)
+    assert apply_finding(None, half) is False  # no target, no rel -> no port call
 
 
 def test_stream_replay_is_sequential_and_exhausts():
@@ -58,7 +85,11 @@ def tiny_port():
     from sever.core.falkor_port import FalkorGraphPort
 
     name = "sever_test_findings"
-    port = FalkorGraphPort(graph_name=name)
+    port = FalkorGraphPort(
+        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        graph_name=name,
+    )
     drop_graph(port, name)
     port.graph.query(
         "CREATE (a:User {objectid: 'A', name: 'alice', owned: false}), "
@@ -78,6 +109,9 @@ def test_apply_finding_adds_edge_once_on_engine(tiny_port):
     f = Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
     assert apply_finding(tiny_port, f) is True
     assert apply_finding(tiny_port, f) is False  # idempotent
+    # apply_finding only READS the frozen finding — even after two passes
+    # through the mutation path, nothing about it changed
+    assert f == Finding("F-1", "ace_granted", "A", target="B", rel="GENERIC_ALL", grants_edge=True)
     n = tiny_port.graph.query(
         "MATCH ()-[r:GENERIC_ALL]->() RETURN count(r) AS n").result_set[0][0]
     assert n == 1
