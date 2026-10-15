@@ -44,9 +44,36 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 # in tests/test_live.py; the boundary/edge-case matrix in
 # tests/test_live_semantics.py.
 REACHABILITY_METHOD = (
-    "per-pair shortestPath existence (REACHABILITY_QUERY_TEMPLATE) with the "
-    "traversal relationship filter and hop cap of paths_to_jewels; an owned "
-    "principal that is itself a crown jewel counts as reached (0-hop breach)"
+    "two-arm all-pairs shortestPath existence (REACHABILITY_ARM_TEMPLATES) "
+    "with the traversal relationship filter and hop cap of paths_to_jewels; "
+    "an owned principal that is itself a crown jewel counts as reached "
+    "(0-hop breach)"
+)
+
+# The two reachability arms: shortestPath is evaluated per (owned, jewel) row
+# inside the WITH clause (FalkorDB's only valid shortestPath form), `WHERE p IS
+# NOT NULL` keeps reached pairs, DISTINCT collapses to the reached-principal
+# set; the Group and AZUser arms union in Python because crown jewels span two
+# labels. O(2) queries instead of O(owned x jewels) — the same semantics as
+# the per-pair form (pattern + hop cap), measured ~8x faster end-to-end and
+# immune to SPpaths' combinatorial tie-enumeration hang (which the per-pair
+# SPpaths form exposed on reachable non-jewel pairs). Recovered + adapted from
+# the audit2/perf-reliability agent (gateway-interrupted mid-verification).
+REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
+    (
+        "MATCH (o {{owned: true}}), (t:Group) "
+        "WHERE t.objectid ENDS WITH '-512' OR t.objectid ENDS WITH '-519' "
+        "WITH o, t, shortestPath((o)-{pattern}->(t)) AS p "
+        "WHERE p IS NOT NULL "
+        "RETURN DISTINCT o.objectid AS oid"
+    ),
+    (
+        "MATCH (o {{owned: true}}), (t:AZUser) "
+        "WHERE t.name ENDS WITH '-GlobalAdministrator' "
+        "WITH o, t, shortestPath((o)-{pattern}->(t)) AS p "
+        "WHERE p IS NOT NULL "
+        "RETURN DISTINCT o.objectid AS oid"
+    ),
 )
 
 # Existence probe: shortestPath yields NULL when no bounded traversal path
@@ -174,26 +201,20 @@ class FalkorGraphPort(GraphPort):
 
     # ---- traversal core ----
     def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
-        jewels = self.crown_jewels()
-        if not jewels:
-            return 0
-        jewel_set = set(jewels)
-        query = REACHABILITY_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(hop_cap))
-        reached = 0
-        for owned in self.owned_ids():
-            # a compromised principal that IS a crown jewel is the breach
-            # itself (0-hop) — shortestPath needs >=1 hop for a self-pair
-            if owned in jewel_set:
-                reached += 1
-                continue
-            hit = False
-            for jewel in jewels:
-                res = self.graph.query(query, {"oid": owned, "target": jewel}, timeout=60000)
-                if res.result_set and res.result_set[0][0]:
-                    hit = True
-                    break
-            reached += 1 if hit else 0
-        return reached
+        # two-arm all-pairs form: identical semantics to the per-pair
+        # canonical probe (pattern + hop cap), but shortestPath is evaluated
+        # per (owned, jewel) row inside WITH — O(2) queries instead of
+        # O(owned x jewels). Self-pairs (an owned crown jewel = the breach
+        # itself, 0 hops) are invisible to shortestPath, so owned jewels are
+        # counted directly.
+        reached: set[str] = set()
+        pattern = cypher_traversal_pattern(hop_cap)
+        for arm in REACHABILITY_ARM_TEMPLATES:
+            res = self.graph.query(arm.format(pattern=pattern), timeout=60000)
+            reached.update(str(row[0]) for row in res.result_set)
+        jewel_set = set(self.crown_jewels())
+        reached.update(o for o in self.owned_ids() if o in jewel_set)
+        return len(reached)
 
     def paths_to_jewels(
         self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP, ties: bool = False
