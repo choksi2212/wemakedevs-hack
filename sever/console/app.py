@@ -6,18 +6,33 @@ and the operator clicks APPROVE — the cut executes only on that explicit call.
 Run:
     uvicorn sever.console.app:app --host 0.0.0.0 --port 8000
 Env: SEVER_FALKOR_HOST/PORT, SEVER_FALKOR_GRAPH, SEVER_SAMPLE_DIR
+
+API contract (audit2/api-contract), enforced by sever.console.schemas BEFORE
+any handler runs:
+- 422 schema: malformed JSON, wrong types, missing fields, empty required
+  strings, oversized fields (100KB subject dies here), rel syntax violations
+  (injection payloads, trailing newlines, >64 chars), truthy non-bool
+  ``approved`` (1, 1.0, "true", "yes", "on", "1"), lone surrogates.
+- 400 vocabulary: a syntactically valid but unknown rel (e.g. "generic_all")
+  reaches FalkorGraphPort's closed-vocabulary guard and is a client error,
+  never a 500.
+- 403 gate: the cut handler accepts only ``approved is True`` — the schema's
+  StrictBool guarantees nothing else can ever be True here.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from starlette.responses import Response
 
 from sever.agent.investigator import Investigator
+from sever.console.schemas import CutRequest, FindingRequest
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
@@ -25,23 +40,19 @@ from sever.findings.stream import Finding
 from sever.memory.flow import CaseLog
 
 
-class CutRequest(BaseModel):
-    src: str
-    dst: str
-    rel: str
-    approved: bool
-    approved_by: str = "console-operator"
-
-
-class FindingRequest(BaseModel):
-    kind: str = "credential_breach"
-    subject: str
-    target: str | None = None
-    rel: str | None = None
-
-
 def build_app() -> FastAPI:
     app = FastAPI(title="SEVER console", version="0.2.0")
+
+    @app.exception_handler(RequestValidationError)
+    async def _safe_validation_422(request, exc: RequestValidationError):
+        # FastAPI echoes the RAW input inside every 422 detail. A lone
+        # surrogate in that echo crashes JSONResponse.render (ensure_ascii=
+        # False + .encode("utf-8") raises) and turns the schema's own
+        # rejection into a 500. Strip the echo and render with
+        # ensure_ascii=True so the error path can never be crashed by input.
+        errors = [{k: v for k, v in err.items() if k != "input"} for err in exc.errors()]
+        body = json.dumps({"detail": errors}, ensure_ascii=True, default=str)
+        return Response(content=body, status_code=422, media_type="application/json")
 
     port = FalkorGraphPort(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
@@ -106,7 +117,9 @@ def build_app() -> FastAPI:
     @app.post("/api/finding")
     async def finding(req: FindingRequest) -> dict[str, Any]:
         f = Finding(
-            id=f"F-{os.urandom(2).hex()}",
+            # 4 random bytes (8 hex chars): the old 2-byte id space (65,536)
+            # collides visibly in the ledger after a few hundred findings.
+            id=f"F-{os.urandom(4).hex()}",
             kind=req.kind, subject=req.subject,
             target=req.target, rel=req.rel, grants_edge=bool(req.target and req.rel),
         )
