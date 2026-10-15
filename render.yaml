@@ -1,0 +1,27 @@
+# Render blueprint — SEVER console on FalkorDB Cloud
+# Deploy: connect this repo in Render (New -> Blueprint) or via the Render CLI.
+# The engine is the FalkorDB Cloud instance (managed by FalkorDB themselves);
+# the console connects over RESP with the credentials below.
+services:
+  - type: web
+    name: sever-console
+    runtime: docker
+    plan: free
+    region: singapore          # nearest Render region to ap-south-1 (Mumbai)
+    healthCheckPath: /api/state
+    autoDeploy: false           # demo stability > branch churn; deploy on demand
+    envVars:
+      - key: SEVER_FALKOR_HOST
+        sync: false             # your FalkorDB Cloud host (set in dashboard / via CLI)
+      - key: SEVER_FALKOR_PORT
+        sync: false
+      - key: SEVER_FALKOR_USER
+        value: falkordb
+      - key: SEVER_FALKOR_PASSWORD
+        sync: false             # secret — never in the repo
+      - key: SEVER_FALKOR_GRAPH
+        value: sever_demo
+      - key: SEVER_SAMPLE_DIR
+        value: /app/data/ad_sample
+      - key: SEVER_BACKEND
+        generateValue: false    # documented as dead config; kept unset on purpose
