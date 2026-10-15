@@ -17,7 +17,7 @@ from sever.core.falkor_port import (
     JEWELS_QUERY,
     MARK_OWNED_QUERY,
     PATH_QUERY_TEMPLATE,
-    REACH_QUERY_TEMPLATE,
+    REACHABILITY_METHOD,
     FalkorGraphPort,
 )
 from sever.core.jewels import TRAVERSAL_RELS, cypher_traversal_pattern
@@ -87,8 +87,7 @@ def test_hero_cut_collapses_everything(port):
 def test_query_constants_shape():
     pattern = cypher_traversal_pattern(12)
     assert "MEMBER_OF" in pattern and "GENERIC_ALL" in pattern and "*1..12" in pattern
-    reach = REACH_QUERY_TEMPLATE.format(pattern=pattern)
-    assert "count(DISTINCT o)" in reach and "$jewels" in reach
+    assert "shortestPath" in REACHABILITY_METHOD  # per-pair existence count
     path_q = PATH_QUERY_TEMPLATE.format(pattern=pattern)
     assert path_q.startswith("MATCH p = shortestPath((")
     assert "$oid" in path_q and "$target" in path_q

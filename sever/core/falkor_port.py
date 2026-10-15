@@ -35,12 +35,11 @@ AZ_JEWELS_QUERY = (
 
 OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 
-REACH_QUERY_TEMPLATE = (
-    "MATCH (o {{owned: true}}) "
-    "MATCH (t) WHERE t.objectid IN $jewels "
-    "MATCH p = shortestPath((o)-{pattern}->(t)) "
-    "RETURN count(DISTINCT o) AS reachable"
-)
+# FalkorDB supports shortestPath only when it terminates in WITH/RETURN, so
+# reachability = per (owned, jewel) pair via PATH_QUERY_TEMPLATE — the exact
+# same query paths_to_jewels uses; the agent counts owned principals with >=1
+# returned path. Parity with the mock engine is asserted in tests/test_ports.py.
+REACHABILITY_METHOD = "per-pair shortestPath existence (PATH_QUERY_TEMPLATE)"
 
 PATH_QUERY_TEMPLATE = (
     "MATCH p = shortestPath("
@@ -122,8 +121,20 @@ class FalkorGraphPort(GraphPort):
 
     # ---- traversal core ----
     def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
-        query = REACH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(hop_cap))
-        return int(self._scalar(query, {"jewels": self.crown_jewels()}))
+        jewels = self.crown_jewels()
+        if not jewels:
+            return 0
+        query = PATH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(hop_cap))
+        reached = 0
+        for owned in self.owned_ids():
+            hit = False
+            for jewel in jewels:
+                res = self.graph.query(query, {"oid": owned, "target": jewel}, timeout=60000)
+                if res.result_set:
+                    hit = True
+                    break
+            reached += 1 if hit else 0
+        return reached
 
     def paths_to_jewels(self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP) -> list[list[tuple[str, str, str]]]:
         pattern = cypher_traversal_pattern(hop_cap)
@@ -186,18 +197,23 @@ class FalkorGraphPort(GraphPort):
 
 
 def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:
-    """Convert a returned path object (nodes, edges collections) into hop triples.
+    """Convert a falkordb-py Path into hop triples.
 
-    falkordb-py returns paths as (nodes, edges, indices); be defensive — verified
-    against the live instance, adjusted if the wire format differs.
+    Path API (falkordb-py): row.nodes() / row.edges() are METHODS;
+    Edge.src_node/.dest_node are Node objects; objectid lives in node.properties.
     """
     hops: list[tuple[str, str, str]] = []
     try:
-        nodes, edges, _ = row if isinstance(row, tuple) else (row.nodes, row.edges, None)
+        nodes = row.nodes() if callable(getattr(row, "nodes", None)) else row[0]
+        edges = row.edges() if callable(getattr(row, "edges", None)) else row[1]
         for e in edges:
-            hops.append((str(e.src_node.objectid if hasattr(e, "src_node") else e[0]),
-                         str(getattr(e, "relation", e[1] if len(e) > 1 else "")),
-                         str(e.dest_node.objectid if hasattr(e, "dest_node") else e[2])))
+            src_n = getattr(e, "src_node", None)
+            dst_n = getattr(e, "dest_node", None)
+            src = str(src_n.properties.get("objectid", src_n.id)) if hasattr(src_n, "properties") else str(nodes[0].properties.get("objectid"))
+            dst = str(dst_n.properties.get("objectid", dst_n.id)) if hasattr(dst_n, "properties") else str(nodes[-1].properties.get("objectid"))
+            rel = str(getattr(e, "relation", "?"))
+            hops.append((src, rel, dst))
     except Exception:
         return hops
     return hops
+
