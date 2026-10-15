@@ -35,7 +35,9 @@ from starlette.responses import Response
 from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
+from sever.console.security import BodySizeLimitMiddleware
 from sever.console.schemas import CutRequest, FindingRequest
+from sever.console.security import BodySizeLimitMiddleware
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
@@ -45,6 +47,7 @@ from sever.memory.flow import CaseLog
 
 def build_app() -> FastAPI:
     load_dotenv()  # .env at the repo root, if present — real environment always wins
+
     # OpenAPI/Swagger is opt-in (SEVER_DOCS=1). The console is deployed on a
     # public URL, and the rendered schema (/openapi.json, /docs, /redoc) is
     # free attacker recon — full route + CutRequest shape disclosure — with no
@@ -83,6 +86,11 @@ def build_app() -> FastAPI:
         )
         response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
+    # body-size cap BEFORE any buffering (audit3/pentest-internal): hostile
+    # multi-MB bodies die as 413 without being fully buffered (~4000x the
+    # largest schema-capped field; no legitimate request affected).
+    app.add_middleware(BodySizeLimitMiddleware)
+
 
     @app.exception_handler(RequestValidationError)
     async def _safe_validation_422(request, exc: RequestValidationError):
