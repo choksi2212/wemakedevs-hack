@@ -4,7 +4,7 @@ Rule 10 requires publishing the exact queries. These are the **live-verified**
 forms — executed against falkordb 6.0.0 (case-log receipts in
 `docs/receipts_live_sever_demo.json`; GRAPH.PROFILE receipt of the canonical
 path query in `docs/receipts/profile.txt`, ~0.83 ms in-engine on the
-1,480-node / 12,437-edge demo tenant) — maintained as module constants in
+1,480-node / 12,450-edge demo tenant) — maintained as module constants in
 `sever/core/falkor_port.py` (`JEWELS_QUERY`, `AZ_JEWELS_QUERY`,
 `MARK_OWNED_QUERY`, `OWNED_QUERY`, `REACHABILITY_METHOD`,
 `PATH_QUERY_TEMPLATE`, `CANONICAL_PATH_QUERY_TEMPLATE`,

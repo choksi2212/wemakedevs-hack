@@ -52,7 +52,7 @@ adding the cloud identity surface — `AZUser`, `AZServicePrincipal`, `AZApp`, `
 `AZMGUserAccessAdmin`, `AZKVUserAccessAdmin`, `AZKVContributor`, … plus the **hybrid
 bridge**: `SYNCED_TO`, added bidirectionally for every `AZUser` whose
 `onPremisesSecurityIdentifier` matches an on-prem `User` (the pivot cloud → on-prem;
-measured: 9 bridges on the merged 14,402-node sample estate,
+measured: 9 bridges on the merged 14,422-node sample estate,
 `tests/test_entra.py`). Entra crown jewels are `AZUser` role holders
 (name ends `-GlobalAdministrator`).
 
