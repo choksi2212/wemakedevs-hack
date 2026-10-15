@@ -6,12 +6,13 @@ from __future__ import annotations
 
 from tests.conftest import drop_graph
 
+import os
+
 import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample
 from sever.findings.stream import Finding
 from sever.memory.flow import (
-    CaseLog,
     build_flow,
     resume_investigation,
     start_investigation,
@@ -76,8 +77,29 @@ def test_flow_gate_closed_without_approval(live_port):
     assert live_port.reachability() == 1  # no mutation without a human yes
 
 
+def test_flow_state_gate_requires_exact_true(live_port):
+    """The gate inside the graph is as strict as the one in the API: a
+    truthy stand-in recorded straight into the thread state ("yes") must
+    close the gate — only the bool True executes the cut."""
+    pytest.importorskip("langgraph")
+    from langgraph.checkpoint.memory import MemorySaver
+
+    flow = build_flow(live_port, checkpointer=MemorySaver())
+    config = {"configurable": {"thread_id": "case-D"}}
+    start_investigation(flow, Finding("F-1", "credential_breach", HERO), "case-D")
+    assert live_port.reachability() == 1  # paused at the gate, nothing cut
+
+    flow.update_state(config, {"approved": "yes"})  # truthy, but NOT True
+    flow.invoke(None, config=config)
+    result = flow.get_state(config).values
+    assert result["step"] == "gate_closed"
+    assert "receipt" not in result
+    assert live_port.reachability() == 1  # still nothing cut
+
+
 def test_falkordb_saver_checkpointer_roundtrip(live_port):
     """Case memory IN the graph database via FalkorDBSaver (the shipped mode)."""
+<<<<<<< HEAD
     pytest.importorskip("langchain_falkordb")
     # direct submodule import: v0.2.0's lazy `langchain_falkordb.checkpoint`
     # attribute is broken, but `from langchain_falkordb.checkpoint import ...`
@@ -86,6 +108,15 @@ def test_falkordb_saver_checkpointer_roundtrip(live_port):
     saver = FalkorDBSaver(
         host="127.0.0.1",
         port=6379,
+=======
+    # import the SUBMODULE: the langchain_falkordb package only exposes
+    # FalkorDBSaver lazily — `importorskip("langchain_falkordb").checkpoint`
+    # raises AttributeError on this package version.
+    checkpoint = pytest.importorskip("langchain_falkordb.checkpoint")
+    saver = checkpoint.FalkorDBSaver(
+        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+>>>>>>> audit/agent-flow
         database="sever_test_memory_checkpoints",
     )
     flow = build_flow(live_port, checkpointer=saver)
@@ -97,11 +128,6 @@ def test_falkordb_saver_checkpointer_roundtrip(live_port):
     assert live_port.reachability() == 0
 
 
-def test_case_log_append_and_read(tmp_path):
-    log = CaseLog("sever_demo", root=tmp_path)
-    log.append({"step": "triaged", "finding": "F-1"})
-    log.append({"step": "verified", "cut": "x"})
-    events = log.read()
-    assert [e["step"] for e in events] == ["triaged", "verified"]
-    assert events[0]["ts"]
-    assert log.last_step() == "verified"
+# CaseLog (the DB-free receipts-trail unit) is tested in tests/test_flow_gate.py —
+# it does not need the engine, so it must not sit behind this module's
+# requires_engine/ requires_sample marks (which would silently skip it in CI).

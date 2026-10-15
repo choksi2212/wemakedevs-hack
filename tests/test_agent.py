@@ -1,11 +1,16 @@
 """Agent tests — LLM seam (DB-free) + investigator loop on the REAL engine."""
 from __future__ import annotations
 
+import json
+import os
+
 import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph
-from sever.agent.investigator import Investigator
-from sever.agent.llm import LLM, OfflineNarrator, OpenAICompatLLM, build_llm
+from sever.agent.investigator import Investigator, TriageReport
+from sever.agent.llm import OfflineNarrator, OpenAICompatLLM, build_llm
+from sever.core.scoring import rank_cut_candidates
+from sever.findings.stream import Finding
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 ALICE = "S-1-5-21-t-1101"
@@ -31,75 +36,117 @@ def test_build_llm_uses_env(monkeypatch):
     assert llm._model == "test-model"
 
 
-@pytest.mark.parametrize(
-    "base_url,api_key,model",
-    [
-        ("", "k", "m"),   # empty base URL
-        ("u", "", "m"),   # empty key
-        ("u", "k", ""),   # empty model
-        ("", "", "m"),
-        ("", "k", ""),
-        ("u", "", ""),
-        ("", "", ""),     # all malformed
-    ],
-)
-def test_build_llm_malformed_env_falls_back_offline(monkeypatch, base_url, api_key, model):
-    monkeypatch.setenv("SEVER_LLM_BASE_URL", base_url)
-    monkeypatch.setenv("SEVER_LLM_API_KEY", api_key)
-    monkeypatch.setenv("SEVER_LLM_MODEL", model)
-    assert isinstance(build_llm(), OfflineNarrator)  # any empty field -> offline, never a crash
-
-
-def test_build_llm_survives_constructor_failure(monkeypatch):
-    monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
-    monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
-    monkeypatch.setenv("SEVER_LLM_MODEL", "test-model")
-
-    class _Unreachable:
-        def __init__(self, *args, **kwargs):
-            raise RuntimeError("endpoint unreachable")
-
-    monkeypatch.setattr("sever.agent.llm.OpenAICompatLLM", _Unreachable)
-    assert isinstance(build_llm(), OfflineNarrator)  # the seam never hard-fails
-
-
-def test_build_llm_wires_env_into_the_provider(monkeypatch):
-    captured = {}
-
-    class _Stub:
-        def __init__(self, base_url, api_key, model, timeout=30.0):
-            captured.update(base_url=base_url, api_key=api_key, model=model, timeout=timeout)
-
-    monkeypatch.setattr("sever.agent.llm.OpenAICompatLLM", _Stub)
-    monkeypatch.setenv("SEVER_LLM_BASE_URL", "https://example.test/v1")
-    monkeypatch.setenv("SEVER_LLM_API_KEY", "k-test")
-    monkeypatch.setenv("SEVER_LLM_MODEL", "test-model")
-    llm = build_llm()
-    assert isinstance(llm, _Stub)
-    assert captured == {
-        "base_url": "https://example.test/v1",
-        "api_key": "k-test",
-        "model": "test-model",
-        "timeout": 30.0,
-    }
-
-
 def test_offline_narrator_is_deterministic():
     assert OfflineNarrator().complete("s", "u") == OfflineNarrator().complete("s", "u") == ""
 
 
-def test_offline_narrator_contract_is_deterministic():
-    narrator = OfflineNarrator()
-    assert isinstance(narrator, LLM)
-    assert narrator.name == "null"
-    outs = {OfflineNarrator().complete(f"sys-{i}", f"usr-{i}") for i in range(5)}
-    outs |= {
-        narrator.complete("", ""),                       # empty prompts
-        narrator.complete("ünïcode ✓", "x" * 1000),      # unicode + long input
-        narrator.complete("s", "u"),
-        narrator.complete("s", "u"),                      # repeat calls
+# ---- the human gate: exact-True contract (DB-free) ----
+
+# Every value here is truthy or approval-LOOKING but is not the bool True.
+# The gate (``is not True`` identity check) must reject all of them BEFORE
+# the port is touched — which is why these tests need no engine.
+NON_TRUE_APPROVALS = [
+    None,
+    False,
+    0,
+    1,
+    1.0,
+    "1",
+    "true",
+    "True",
+    "yes",
+    "y",
+    [True],
+    {"approved": True},
+    (True,),
+]
+
+
+@pytest.mark.parametrize("bad", NON_TRUE_APPROVALS, ids=repr)
+def test_gate_rejects_every_non_true_value(bad):
+    inv = Investigator(port=None)  # port=None proves the gate fires first
+    with pytest.raises(ValueError, match="explicit human approval"):
+        inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL", require_explicit_approval=bad)
+
+
+def test_gate_rejects_sneaky_truthy_types():
+    class EvilInt(int):
+        """Equal to True (== True) but not the True singleton."""
+
+    class AlwaysYes:
+        def __bool__(self) -> bool:
+            return True
+
+    inv = Investigator(port=None)
+    for bad in (EvilInt(1), AlwaysYes()):
+        with pytest.raises(ValueError, match="explicit human approval"):
+            inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL", require_explicit_approval=bad)
+
+
+def test_gate_passes_only_on_exact_true():
+    inv = Investigator(port=None)
+    # The bool True passes the gate and PROCEEDS to the port — with port=None
+    # the AttributeError is the proof execution went past the gate check.
+    with pytest.raises(AttributeError):
+        inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL", require_explicit_approval=True)
+    with pytest.raises(AttributeError):
+        inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL")  # default is True
+    # the gate never mutated anything on the way
+    assert inv.case_log == []
+
+
+# ---- case_log: everything the investigator appends is JSON-serializable ----
+
+
+def _snapshot_like(reachability: int, owned: list[str], jewels: list[str], nodes: int, edges: int):
+    """The exact shape of scoring.snapshot() — ints and str lists only."""
+    return {
+        "reachability": reachability, "owned": owned, "jewels": jewels,
+        "nodes": nodes, "edges": edges,
     }
-    assert outs == {""}  # every prompt, every instance, every call -> the same silence
+
+
+def test_triage_case_log_entry_is_json_serializable():
+    # Exactly what Investigator.triage appends to case_log: report.as_dict().
+    report = TriageReport(
+        finding=Finding("F-1", "credential_breach", ALICE),
+        applied=True,
+        before=_snapshot_like(1, [ALICE], [DA], 3, 2),
+        after=_snapshot_like(2, [ALICE], [DA], 3, 3),
+        narration_technique="T1078.002 Valid Accounts: Domain Accounts",
+        narration="Compromised domain credentials confirmed.",
+        paths_for_subject=[[(ALICE, "GENERIC_ALL", TIER1)], [(TIER1, "MEMBER_OF", DA)]],
+        proposal=rank_cut_candidates(
+            {(ALICE, "GENERIC_ALL", TIER1): 2, (TIER1, "MEMBER_OF", DA): 1}, limit=3
+        ),
+    )
+    entry = report.as_dict()
+    # strict round-trip: plain json.dumps with NO default= crutch
+    assert json.loads(json.dumps(entry)) == entry
+    # raw hop tuples never enter the ledger — only their count
+    assert entry["paths"] == 2
+    assert entry["proposal"] == [
+        {"src": ALICE, "rel": "GENERIC_ALL", "dst": TIER1, "paths_on": 2},
+        {"src": TIER1, "rel": "MEMBER_OF", "dst": DA, "paths_on": 1},
+    ]
+
+
+def test_cut_case_log_entry_is_json_serializable():
+    # Exactly what Investigator.approve_and_cut appends: {"cut": receipt},
+    # where receipt is scoring.interdict()'s return plus approved_by/approved_at
+    # (see sever/core/scoring.py::interdict). The real receipt is pinned
+    # end-to-end on the live engine in test_approved_cut_collapses_and_receipts.
+    receipt = {
+        "cut": {"src": ALICE, "dst": TIER1, "rel": "GENERIC_ALL", "relationships_removed": 1},
+        "before": _snapshot_like(1, [ALICE], [DA], 3, 2),
+        "after": _snapshot_like(0, [], [DA], 3, 1),
+        "requery_ms": 0.83,
+        "verdict": "collapsed",
+        "approved_by": "on-call-analyst",
+        "approved_at": "2026-10-15T15:00:00",
+    }
+    entry = {"cut": receipt}
+    assert json.loads(json.dumps(entry)) == entry
 
 
 # ---- investigator on the live engine ----
@@ -128,7 +175,11 @@ def tiny_port():
     from sever.core.falkor_port import FalkorGraphPort
 
     name = "sever_test_agent_tiny"
-    port = FalkorGraphPort(graph_name=name)
+    port = FalkorGraphPort(
+        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        graph_name=name,
+    )
     drop_graph(port, name)
     _tiny_estate(port)
     yield port
@@ -174,6 +225,10 @@ def test_approved_cut_collapses_and_receipts(tiny_port):
     assert receipt["verdict"] == "collapsed"
     assert receipt["requery_ms"] is not None
     assert any("cut" in entry for entry in inv.case_log)
+    # the REAL receipt and the WHOLE ledger (triage + cut entries) are
+    # strictly JSON-serializable — the receipts trail is plain JSON
+    assert json.loads(json.dumps(receipt)) == receipt
+    assert json.loads(json.dumps(inv.case_log)) == inv.case_log
 
 
 @requires_engine

@@ -15,7 +15,10 @@ and an INTERRUPT before the verify step — the human gate is structural:
   (langchain-falkordb 0.2.0); offline/tests use LangGraph's MemorySaver.
 
 Resuming never bypasses the gate: the cut only executes when the operator
-explicitly records approval into the thread state.
+explicitly records the exact value ``True`` into the thread state —
+``resume_investigation`` rejects every other value, and ``verify_node``
+re-checks the state itself, so no truthy stand-in ("yes", 1, a dict) can
+ever reach ``approve_and_cut`` through the flow.
 """
 from __future__ import annotations
 
@@ -68,7 +71,10 @@ def build_flow(
         return {**state, "step": "awaiting_approval"}
 
     def verify_node(state: InvestigationState) -> InvestigationState:
-        if not state.get("approved") or not state.get("proposal"):
+        # The flow's gate is exactly as strict as the investigator's: only the
+        # bool True recorded in the thread state is an approval. A truthy
+        # stand-in ("yes", 1, {"approved": True}) closes the gate — fail closed.
+        if state.get("approved") is not True or not state.get("proposal"):
             return {**state, "step": "gate_closed"}
         top = state["proposal"][0]
         receipt = inv.approve_and_cut(
@@ -114,8 +120,20 @@ def resume_investigation(
     """Resume a paused investigation. ``approve=True`` records the human
     decision into the thread state and continues; ``approve=False`` closes
     the gate with no mutation. Works from a FRESH process if the
-    checkpointer is shared (MemorySaver in-process, FalkorDBSaver live)."""
+    checkpointer is shared (MemorySaver in-process, FalkorDBSaver live).
+
+    Gate integrity, same contract as ``Investigator.approve_and_cut``:
+    only the bool ``True`` is an approval — any other value raises, so a
+    truthy stand-in can never slip into the thread state. Resuming a
+    thread that is not paused at the gate raises too: without the guard
+    ``invoke(None)`` on a fresh thread would run the graph from the START
+    node (a resume can never mint a new investigation).
+    """
     config = {"configurable": {"thread_id": thread_id}}
+    if approve is not True and approve is not False:
+        raise ValueError("interdiction requires explicit human approval")
+    if "verify" not in flow.get_state(config).next:
+        raise ValueError(f"thread {thread_id!r} is not paused at the gate")
     if approve:
         flow.update_state(config, {"approved": True, "approved_by": approved_by})
     else:
@@ -139,7 +157,11 @@ class CaseLog:
     def read(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
-        return [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line]
+        return [
+            json.loads(line)
+            for line in self.path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
     def last_step(self) -> str | None:
         events = self.read()

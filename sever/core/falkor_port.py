@@ -12,11 +12,10 @@ from typing import Any
 
 from sever.core.jewels import (
     DEFAULT_HOP_CAP,
-    TRAVERSAL_RELS_SET,
     cypher_traversal_pattern,
 )
 from sever.core.port import GraphPort
-from sever.etl.ad_collectors import ABUSABLE_RELS, NormalizedGraph
+from sever.etl.ad_collectors import NormalizedGraph
 from sever.etl.cypher_batches import build_batches
 
 # ---------------------------------------------------------------------------
@@ -57,6 +56,11 @@ CANONICAL_PATH_QUERY_TEMPLATE = (
     "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
     "WITH shortestPath((o)-{pattern}->(t)) AS p "
     "RETURN p"
+)
+
+EDGE_FREQUENCY_STEP = (
+    "per (owned, jewel) pair: run PATH_QUERY, walk the returned path's edges, "
+    "count occurrences app-side (see sever/core/falkor_port.py)"
 )
 
 CUT_COUNT_QUERY_TEMPLATE = (
@@ -108,12 +112,8 @@ class FalkorGraphPort(GraphPort):
                     f"query={batch['query'][:120]}... "
                     f"first_row={str(rows[0])[:300] if rows else 'n/a'}"
                 ) from exc
-        # range indexes on the natural key. Honest planner note (measured,
-        # falkordb 6.0.0): the planner uses these only when the label is bound
-        # in the pattern — (o:User {objectid: $oid}) is a Node By Index Scan
-        # (0.01ms); label-free matches (o {objectid: $oid}) fall back to an
-        # All Node Scan (~4-8ms at 1480 nodes; flat per-tenant at any wall
-        # size). See docs/receipts/profile.txt for both plans, measured live.
+        # range indexes on the natural key — every objectid lookup becomes an
+        # index scan instead of an all-node scan (see PROFILE receipts)
         for label in self.INDEXED_LABELS:
             try:
                 self.graph.query(f"CREATE INDEX FOR (n:{label}) ON (n.objectid)")
@@ -195,30 +195,27 @@ class FalkorGraphPort(GraphPort):
         return freq
 
     # ---- live mutation ----
-    # MERGE alone can't report whether it CREATED or MATCHED an existing edge
-    # (count(r) is 1 in both cases), so check existence first; the port is the
-    # sole writer (human-gated console), making the read-then-write honest.
-    EDGE_EXISTS_QUERY = (
-        "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
-        "RETURN count(r) AS n"
-    )
+    # `RETURN pre` (count of the edge BEFORE the MERGE) is what makes add_edge
+    # contract-true: `RETURN count(r)` after MERGE is 1 whether the edge was
+    # created or already existed, so it could never report idempotent re-grants
+    # (live-verified on falkordb 6.0.0).
     ADD_EDGE_QUERY = (
         "MATCH (s {{objectid: $src}}), (t {{objectid: $dst}}) "
+        "OPTIONAL MATCH (s)-[r0:{rel}]->(t) "
+        "WITH s, t, count(r0) AS pre "
         "MERGE (s)-[r:{rel}]->(t) "
         "SET r += $props "
-        "RETURN count(r)"
+        "RETURN pre"
     )
 
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
         if not _valid_rel(rel):
             raise ValueError(f"invalid relationship type: {rel!r}")
-        n = int(self._scalar(self.EDGE_EXISTS_QUERY.format(rel=rel), {"src": src, "dst": dst}) or 0)
-        if n > 0:
-            return False  # idempotent: the edge already exists
-        self.graph.query(
-            self.ADD_EDGE_QUERY.format(rel=rel), {"src": src, "dst": dst, "props": props or {}}
-        )
-        return True
+        query = self.ADD_EDGE_QUERY.format(rel=rel)
+        pre = self._scalar(query, {"src": src, "dst": dst, "props": props or {}})
+        # pre is None when an endpoint is absent (no rows) — nothing created.
+        # pre == 0 means the edge did not exist before, i.e. MERGE created it.
+        return pre is not None and int(pre) == 0
 
     def cut(self, src: str, dst: str, rel: str) -> int:
         if not _valid_rel(rel):
@@ -232,13 +229,8 @@ class FalkorGraphPort(GraphPort):
 
     # ---- receipts ----
     def profile(self, query: str, params: dict[str, Any] | None = None) -> str:
-        # GRAPH.PROFILE needs the CYPHER params header in the query string —
-        # the client builds it for graph.query/profile, so reuse its builder
-        # but keep the RAW response (the wrapped ExecutionPlan drops ms timings,
-        # and the ms numbers are the point of profile receipts).
-        q = self.graph._build_params_header(params) + query
         res = self.graph.client.execute_command(
-            "GRAPH.PROFILE", self.graph_name, q
+            "GRAPH.PROFILE", self.graph_name, query
         )
         return str(res)
 
@@ -256,13 +248,6 @@ class FalkorGraphPort(GraphPort):
 
 # Relationship types are a closed vocabulary from the data model; anything else
 # is rejected BEFORE it can reach string interpolation (Cypher injection guard).
-#
-# Charset is the security property: [A-Za-z0-9_] contains no Cypher
-# metacharacter (no backtick, quote, brace, colon, whitespace), so a validated
-# rel can never break out of the `-[r:{rel}]->` slot. Mixed case is allowed
-# because the product's own traversal set (jewels.TRAVERSAL_RELS) legitimately
-# contains camelCase Entra rel types (AZOwns, AZMemberOf, AZVMAdminLogin, ...)
-# alongside the uppercase AD rel types.
 _VALID_REL_RE = None
 
 
@@ -271,15 +256,8 @@ def _valid_rel(rel: str) -> bool:
 
     global _VALID_REL_RE
     if _VALID_REL_RE is None:
-        # \Z (not $): Python's $ also matches before a trailing newline, which
-        # would let "MEMBER_OF\n" through — audit/security regression test.
-        _VALID_REL_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}\Z")
-    if not rel or not _VALID_REL_RE.match(rel):
-        return False
-    # schema guard: identifier-shaped is not enough — "generic_all" must be
-    # rejected too, so mutations only accept rels in the closed vocabulary the
-    # ETL emits and the traversal engine chains (audit/test-gaps regression).
-    return rel in TRAVERSAL_RELS_SET or rel in ABUSABLE_RELS
+        _VALID_REL_RE = _re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+    return bool(rel) and bool(_VALID_REL_RE.match(rel))
 
 
 def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:

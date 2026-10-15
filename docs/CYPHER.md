@@ -99,13 +99,21 @@ Same injection guard on `{rel}`:
 
 ```cypher
 MATCH (s {objectid: $src}), (t {objectid: $dst})
-MERGE (s)-[r:GENERIC_ALL]->(t) SET r += $props RETURN count(r)
+OPTIONAL MATCH (s)-[r0:GENERIC_ALL]->(t)
+WITH s, t, count(r0) AS pre
+MERGE (s)-[r:GENERIC_ALL]->(t) SET r += $props RETURN pre
 ```
+
+`RETURN pre` (the edge count BEFORE the merge) is the "newly created" signal:
+`RETURN count(r)` after a MERGE is 1 whether the edge was created or already
+existed, so it can never report an idempotent re-grant. `add_edge` returns
+True exactly when `pre == 0` (and False when an endpoint is absent).
 
 ## Bulk ingestion (UNWIND batches — nodes then edges, 1000 rows per batch)
 
 Emitted by `sever/etl/cypher_batches.py` — nodes grouped by label, then
 edges grouped by relationship type:
+
 
 ```cypher
 // nodes:

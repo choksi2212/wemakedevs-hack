@@ -15,14 +15,29 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 from sever.agent.investigator import Investigator
-from sever.console.schemas import CutRequest, FindingRequest
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
 from sever.findings.stream import Finding
 from sever.memory.flow import CaseLog
+
+
+class CutRequest(BaseModel):
+    src: str
+    dst: str
+    rel: str
+    approved: bool
+    approved_by: str = "console-operator"
+
+
+class FindingRequest(BaseModel):
+    kind: str = "credential_breach"
+    subject: str
+    target: str | None = None
+    rel: str | None = None
 
 
 def build_app() -> FastAPI:
@@ -35,11 +50,21 @@ def build_app() -> FastAPI:
     )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR",
-            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+            "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")))
 
     inv = Investigator(port)
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
+    app.state.port = port
+
+    def _names(hops: list[tuple[str, str, str]]) -> list[dict[str, str]]:
+        out = []
+        for s, r, d in hops:
+            out.append({
+                "src": _name(s), "src_id": s,
+                "rel": r,
+                "dst": _name(d), "dst_id": d,
+            })
+        return out
 
     def _name(oid: str) -> str:
         res = port.graph.query(
@@ -87,9 +112,12 @@ def build_app() -> FastAPI:
         )
         try:
             report = inv.triage(f)
-        except ValueError as exc:
-            # invalid rel on an ace_granted finding -> closed-vocabulary 400
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError as e:
+            # An invalid rel (e.g. lowercase, spaces, injection attempt) is a
+            # CLIENT error — the injection guard in FalkorGraphPort.add_edge
+            # rejects it before any Cypher runs. It must surface as a 400,
+            # not an unhandled 500 with a stack trace.
+            raise HTTPException(status_code=400, detail=str(e))
         log.append({"step": "finding", "finding": f.id, "kind": f.kind, "triage": report.as_dict()})
         story = narrate(f)
         return {
@@ -103,14 +131,17 @@ def build_app() -> FastAPI:
 
     @app.post("/api/cut")
     async def cut(req: CutRequest) -> dict[str, Any]:
+        # The gate check comes FIRST: an unapproved caller learns nothing
+        # about rel validity (no oracle without approval).
         if req.approved is not True:
             raise HTTPException(status_code=403, detail="interdiction requires explicit human approval")
         try:
             receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
-        except ValueError as exc:
-            # the closed rel vocabulary / human-gate contract violations are
-            # client errors, not server faults (audit/agent-flow finding)
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError as e:
+            # Only reachable with an invalid rel: the gate above already
+            # handled the not-approved case, and FalkorGraphPort.cut rejects
+            # bad rels before any Cypher runs. Client error -> 400, not 500.
+            raise HTTPException(status_code=400, detail=str(e))
         log.append({"step": "cut", "receipt": receipt})
         return receipt
 
@@ -120,7 +151,6 @@ def build_app() -> FastAPI:
 
     # expose for tests/teardown
     build_app.port_obj = port
-    app.state.port = port  # canonical accessor (tests use this for drop_graph)
     return app
 
 
