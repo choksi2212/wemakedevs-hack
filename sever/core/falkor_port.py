@@ -58,11 +58,6 @@ CANONICAL_PATH_QUERY_TEMPLATE = (
     "RETURN p"
 )
 
-EDGE_FREQUENCY_STEP = (
-    "per (owned, jewel) pair: run PATH_QUERY, walk the returned path's edges, "
-    "count occurrences app-side (see sever/core/falkor_port.py)"
-)
-
 CUT_COUNT_QUERY_TEMPLATE = (
     "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
     "RETURN count(r) AS n"

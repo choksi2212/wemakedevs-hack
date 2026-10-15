@@ -61,7 +61,7 @@ canonical shortest-path query across sampled tenants:
 ## The console (agent cockpit)
 
 ```bash
-uvicorn sever.console.app:app --host 0.0.0.0 --port 8000   # SEVER_BACKEND=falkordb
+uvicorn sever.console.app:app --host 0.0.0.0 --port 8000
 ```
 
 Live attack-surface panel, breach/ACE-grant simulation buttons, hop-by-hop path
@@ -77,18 +77,18 @@ mkdir -p data/ad_sample && cd data && curl -sLO \
   https://raw.githubusercontent.com/SpecterOps/BloodHound-Docs/main/docs/assets/sample-data/ad_sampledata.zip \
   && unzip ad_sampledata.zip -d ad_sample && cd ..
 pip install -e ".[dev]"
-python -m pytest                            # full offline suite
-SEVER_LIVE_FALKOR=1 python -m pytest tests/test_live.py   # + live-engine parity tests
-python scripts/rehearse.py --falkor          # beat 1  (hero interdiction)
+python -m pytest                            # full suite (live-engine tests need docker + sample)
+python -m pytest tests/test_live.py         # live-engine regression (docker compose up -d)
+python scripts/rehearse.py                  # beat 1  (hero interdiction)
 python scripts/case_memory_live.py start  --thread case-T2-live --graph sever_t2
 python scripts/case_memory_live.py resume  --thread case-T2-live --graph sever_t2   # beat 2 (fresh process!)
 python scripts/hybrid_live.py                                   # beat 3  (cross-world)
 python scripts/scale_wall.py --tenants 300                      # beat 4  (scale wall)
 ```
 
-Every beat works fully offline against the in-memory mock engine too —
-`python scripts/rehearse.py` with no docker — because both engines implement
-the same `GraphPort`, and the live tests assert the parity.
+Every beat runs on the live engine — `docker compose up -d` first. There is
+no offline double: one `GraphPort`, one implementation (rule 3 enforced by
+construction).
 
 ## How it works
 
@@ -113,7 +113,7 @@ BloodHound CE + AzureHound collectors ──▶ ETL (two-pass, BloodHound-faithf
   without it. The LLM narrates; Cypher works; a human decides. (SpecterOps
   keeps its own agentic tooling read-only for the same reason.)
 - **LLM seam**: any OpenAI-compatible endpoint via env config, offline
-  `NullLLM` fallback — the product never depends on a model to function.
+  `OfflineNarrator` fallback — the product never depends on a model to function.
 - **Case memory**: investigations are resumable LangGraph flows checkpointed
   by `FalkorDBSaver` — state lives in the graph DB, shared across processes
   and agents (Track 2's "agents that remember across sessions and share state";
@@ -124,10 +124,11 @@ BloodHound CE + AzureHound collectors ──▶ ETL (two-pass, BloodHound-faithf
 
 ## Tests
 
-Full offline suite (ETL data fidelity vs the real sample, both engines,
-interdiction scoring, the human gate, findings stream, tenant generation,
-console API) **plus opt-in live-engine tests** asserting mock == live parity
-for load counts, reachability and the collapse cascade.
+DB-free units (ETL fidelity vs the real sample, Entra overlay, findings
+schema, tenant generation, Cypher-injection guards, LLM seam) run anywhere;
+every port-dependent test (ports, agent, console, memory, ablation, live
+cascade) runs against the REAL FalkorDB engine — `docker compose up -d`
+first — for load counts, reachability and the collapse cascade.
 
 ## Disclosures
 
@@ -146,7 +147,7 @@ for load counts, reachability and the collapse cascade.
 
 ```
 sever/etl/         collector parsing → normalized graph → Cypher batches
-sever/core/        GraphPort (mock + FalkorDB), traversal semantics, scoring
+sever/core/        GraphPort, traversal semantics, scoring
 sever/findings/    deterministic stream + ATT&CK narration map
 sever/agent/       LLM seam + investigator loop with hard human gate
 sever/memory/      resumable LangGraph flow + FalkorDBSaver case memory

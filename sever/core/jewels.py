@@ -7,8 +7,6 @@ and is documented explicitly in the README (rule 10).
 """
 from __future__ import annotations
 
-from typing import Any
-
 # Relationships an attacker can actually chain (abuse semantics).
 # Structural-only edges (CONTAINED_BY, PUBLISHED_ON) are deliberately excluded.
 TRAVERSAL_RELS: tuple[str, ...] = (
@@ -58,8 +56,6 @@ TRAVERSAL_RELS: tuple[str, ...] = (
     "AZKVContributor",
 )
 
-TRAVERSAL_RELS_SET: frozenset[str] = frozenset(TRAVERSAL_RELS)
-
 DEFAULT_HOP_CAP = 12
 
 # well-known RIDs: 512 = Domain Admins, 519 = Enterprise Admins
@@ -84,11 +80,3 @@ def cypher_traversal_pattern(hop_cap: int = DEFAULT_HOP_CAP) -> str:
     """
     rels = "|".join(TRAVERSAL_RELS)
     return f"[:{rels}*..{hop_cap}]"
-
-
-def crown_jewel_ids(nodes: dict[str, dict[str, Any]], label: str = "Group") -> list[str]:
-    """Collect crown-jewel objectids from a node dict ({oid: node})."""
-    return sorted(
-        n["objectid"] for n in nodes.values()
-        if n.get("label") == label and is_crown_jewel(n["objectid"])
-    )

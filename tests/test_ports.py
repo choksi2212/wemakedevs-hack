@@ -10,15 +10,7 @@ from tests.conftest import drop_graph
 import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample
-from sever.core.falkor_port import (
-    AZ_JEWELS_QUERY,
-    CUT_COUNT_QUERY_TEMPLATE,
-    CUT_DELETE_QUERY_TEMPLATE,
-    JEWELS_QUERY,
-    MARK_OWNED_QUERY,
-    PATH_QUERY_TEMPLATE,
-    REACHABILITY_METHOD,
-)
+from sever.core.falkor_port import PATH_QUERY_TEMPLATE
 from sever.core.jewels import TRAVERSAL_RELS, cypher_traversal_pattern
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"  # T1_TONYMONTANA@PHANTOM.CORP

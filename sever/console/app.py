@@ -54,17 +54,6 @@ def build_app() -> FastAPI:
 
     inv = Investigator(port)
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
-    app.state.port = port
-
-    def _names(hops: list[tuple[str, str, str]]) -> list[dict[str, str]]:
-        out = []
-        for s, r, d in hops:
-            out.append({
-                "src": _name(s), "src_id": s,
-                "rel": r,
-                "dst": _name(d), "dst_id": d,
-            })
-        return out
 
     def _name(oid: str) -> str:
         res = port.graph.query(

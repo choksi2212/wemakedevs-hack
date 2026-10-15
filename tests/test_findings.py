@@ -6,7 +6,6 @@ import pytest
 
 from tests.conftest import requires_engine, drop_graph
 from sever.agent.llm import OfflineNarrator  # noqa: F401  (import integrity check)
-from sever.etl.ad_collectors import NormalizedGraph
 from sever.findings.attack_map import ATTACK_MAP, narrate
 from sever.findings.stream import Finding, FindingStream, apply_finding, default_timeline
 

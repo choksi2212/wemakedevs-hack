@@ -48,10 +48,8 @@ def main() -> int:
     )
     raw = falkor.graph.client
 
-    # per-tenant hero/jewel remap (same transform as make_tenant)
+    # per-tenant hero/jewel remap for the latency sample (same transform as make_tenant)
     from sever.synth.tenants import _remap_sid
-    hero_t = _remap_sid(HERO, 1)
-    da_t = _remap_sid(DA, 1)
 
     load_times: list[float] = []
     t_all = time.time()
@@ -103,7 +101,7 @@ def main() -> int:
     for i in range(1, args.tenants + 1, step):
         gg = fdb.select_graph(f"{args.graph_prefix}{i:03d}")
         t0 = time.time()
-        res = gg.query(q, {"oid": _remap_sid(HERO, i), "target": _remap_sid(DA, i)})
+        gg.query(q, {"oid": _remap_sid(HERO, i), "target": _remap_sid(DA, i)})
         latencies.append((time.time() - t0) * 1000)
 
     receipts = {

@@ -12,7 +12,6 @@ hardware encoding on the build host.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from time import sleep
 

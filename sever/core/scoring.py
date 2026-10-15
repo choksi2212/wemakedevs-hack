@@ -60,29 +60,3 @@ def interdict(
         "requery_ms": round(elapsed_ms, 2),
         "verdict": "collapsed" if after["reachability"] < before["reachability"] else "degraded" if after["reachability"] == before["reachability"] and removed else "no_effect",
     }
-
-
-def greedy_interdict(
-    port: GraphPort,
-    k: int = 1,
-    hop_cap: int = DEFAULT_HOP_CAP,
-) -> dict[str, Any]:
-    """Propose-and-execute k cuts greedily. Human gate callers invoke
-    ``interdict`` per approval instead; this is the batch/eval path."""
-    before = snapshot(port, hop_cap)
-    cuts: list[dict[str, Any]] = []
-    for _ in range(k):
-        freq = port.edge_frequency(hop_cap)
-        if not freq:
-            break
-        (s, r, d), count = max(freq.items(), key=lambda kv: kv[1])
-        receipt = interdict(port, s, d, r, hop_cap)
-        receipt["paths_on"] = count
-        cuts.append(receipt)
-    return {
-        "before": before,
-        "after": snapshot(port, hop_cap),
-        "cuts": cuts,
-        "k": k,
-        "method": "greedy path-coverage (1-1/e guarantee for k>1)",
-    }

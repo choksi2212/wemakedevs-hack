@@ -4,10 +4,6 @@ The engine is the product's only substrate — there is no offline double.
 """
 from __future__ import annotations
 
-import os
-
-import pytest
-
 from tests.conftest import make_live_port, requires_engine, requires_sample, drop_graph, SAMPLE_DIR
 from sever.agent.investigator import Investigator
 from sever.etl.ad_collectors import parse_ad_dir
