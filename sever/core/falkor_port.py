@@ -183,7 +183,7 @@ class FalkorGraphPort(GraphPort):
 
     # ---- live mutation ----
     ADD_EDGE_QUERY = (
-        "MATCH (s {objectid: $src}), (t {objectid: $dst}) "
+        "MATCH (s {{objectid: $src}}), (t {{objectid: $dst}}) "
         "MERGE (s)-[r:{rel}]->(t) "
         "SET r += $props "
         "RETURN count(r)"
