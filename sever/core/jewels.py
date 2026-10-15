@@ -77,9 +77,13 @@ def is_crown_jewel(objectid: str, label: str = "Group", name: str = "") -> bool:
 
 
 def cypher_traversal_pattern(hop_cap: int = DEFAULT_HOP_CAP) -> str:
-    """Cypher relationship-type pattern for traversals (constants only — no user input)."""
+    """Cypher relationship-type pattern for traversals (constants only — no user input).
+
+    FalkorDB's shortestPath supports upper-bounded ranges only (*..N, no lower
+    bound) — semantically identical for shortest-path reachability.
+    """
     rels = "|".join(TRAVERSAL_RELS)
-    return f"[:{rels}*1..{hop_cap}]"
+    return f"[:{rels}*..{hop_cap}]"
 
 
 def crown_jewel_ids(nodes: dict[str, dict[str, Any]], label: str = "Group") -> list[str]:

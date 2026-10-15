@@ -86,7 +86,7 @@ def test_hero_cut_collapses_everything(port):
 
 def test_query_constants_shape():
     pattern = cypher_traversal_pattern(12)
-    assert "MEMBER_OF" in pattern and "GENERIC_ALL" in pattern and "*1..12" in pattern
+    assert "MEMBER_OF" in pattern and "GENERIC_ALL" in pattern and "*..12" in pattern
     assert "shortestPath" in REACHABILITY_METHOD  # per-pair existence count
     path_q = PATH_QUERY_TEMPLATE.format(pattern=pattern)
     assert path_q.startswith("MATCH p = shortestPath((")
