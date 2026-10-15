@@ -147,12 +147,26 @@ class FalkorGraphPort(GraphPort):
             reached += 1 if hit else 0
         return reached
 
-    def paths_to_jewels(self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP) -> list[list[tuple[str, str, str]]]:
+    def paths_to_jewels(
+        self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP, ties: bool = False
+    ) -> list[list[tuple[str, str, str]]]:
+        """Canonical shortest path per (principal, jewel) pair.
+
+        ``ties=True`` switches to algo.SPpaths enumeration — the OFFLINE ANALYSIS
+        mode: cross-domain tie sets explode combinatorially (measured 15-25s+ per
+        pair on the sample estate), so the live demo and the agent loop use the
+        canonical form (milliseconds). The mock engine enumerates ties freely
+        because it is in-memory.
+        """
         pattern = cypher_traversal_pattern(hop_cap)
         paths: list[list[tuple[str, str, str]]] = []
         for jewel in self.crown_jewels():
-            query = PATH_QUERY_TEMPLATE.format(pattern=pattern)
-            res = self.graph.query(query, {"oid": objectid, "target": jewel}, timeout=60000)
+            query = (
+                PATH_QUERY_TEMPLATE
+                if ties
+                else CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern)
+            )
+            res = self.graph.query(query, {"oid": objectid, "target": jewel}, timeout=30000)
             for row in res.result_set:
                 hops = _row_to_hops(row)
                 if hops:
