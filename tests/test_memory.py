@@ -79,7 +79,12 @@ def test_flow_gate_closed_without_approval(live_port):
 
 def test_falkordb_saver_checkpointer_roundtrip(live_port):
     """Case memory IN the graph database via FalkorDBSaver (the shipped mode)."""
-    saver = pytest.importorskip("langchain_falkordb").checkpoint.FalkorDBSaver(
+    pytest.importorskip("langchain_falkordb")
+    # direct submodule import: v0.2.0's lazy `langchain_falkordb.checkpoint`
+    # attribute is broken, but `from langchain_falkordb.checkpoint import ...`
+    # works (verified on the live engine) — and matches scripts/case_memory_live
+    from langchain_falkordb.checkpoint import FalkorDBSaver
+    saver = FalkorDBSaver(
         host="127.0.0.1",
         port=6379,
         database="sever_test_memory_checkpoints",

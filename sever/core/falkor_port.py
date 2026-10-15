@@ -195,6 +195,13 @@ class FalkorGraphPort(GraphPort):
         return freq
 
     # ---- live mutation ----
+    # MERGE alone can't report whether it CREATED or MATCHED an existing edge
+    # (count(r) is 1 in both cases), so check existence first; the port is the
+    # sole writer (human-gated console), making the read-then-write honest.
+    EDGE_EXISTS_QUERY = (
+        "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
+        "RETURN count(r) AS n"
+    )
     ADD_EDGE_QUERY = (
         "MATCH (s {{objectid: $src}}), (t {{objectid: $dst}}) "
         "MERGE (s)-[r:{rel}]->(t) "
@@ -205,9 +212,13 @@ class FalkorGraphPort(GraphPort):
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
         if not _valid_rel(rel):
             raise ValueError(f"invalid relationship type: {rel!r}")
-        query = self.ADD_EDGE_QUERY.format(rel=rel)
-        created = int(self._scalar(query, {"src": src, "dst": dst, "props": props or {}}) or 0)
-        return created > 0
+        n = int(self._scalar(self.EDGE_EXISTS_QUERY.format(rel=rel), {"src": src, "dst": dst}) or 0)
+        if n > 0:
+            return False  # idempotent: the edge already exists
+        self.graph.query(
+            self.ADD_EDGE_QUERY.format(rel=rel), {"src": src, "dst": dst, "props": props or {}}
+        )
+        return True
 
     def cut(self, src: str, dst: str, rel: str) -> int:
         if not _valid_rel(rel):
