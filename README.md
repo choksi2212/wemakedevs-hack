@@ -10,7 +10,7 @@ collateral-ranked cut **plans** → **human gate** → live re-query → before/
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
   <img src="https://img.shields.io/badge/engine-FalkorDB%206.0.0-8B5CF6?style=flat-square" alt="falkordb"/>
   <img src="https://img.shields.io/badge/console-FastAPI-10B981?style=flat-square" alt="fastapi"/>
-  <img src="https://img.shields.io/badge/tests-~380%20green-059669?style=flat-square" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-~400%20green-059669?style=flat-square" alt="tests"/>
   <img src="https://img.shields.io/badge/license-MIT-64748B?style=flat-square" alt="mit"/>
 </p>
 
