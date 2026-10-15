@@ -39,7 +39,7 @@ ACE rights are derived from per-record `Aces[]` lists; memberships from `Members
 
 Full derivation code: `sever/etl/ad_collectors.py` (two-pass parse, unresolved-principal
 creation, deterministic). Measured on the official sample: **31 collector files → 1,480 nodes /
-12,437 edges, zero dangling references** (`tests/test_etl.py`).
+12,450 edges, zero dangling references** (`tests/test_etl.py`).
 
 ## The traversal set (the product's core judgment)
 

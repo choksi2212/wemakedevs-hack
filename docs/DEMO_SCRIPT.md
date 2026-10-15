@@ -10,7 +10,7 @@ findings are a labeled breach-timeline replay. All data public/synthetic.
 ## Timeline
 
 **0:00–0:20 — The estate.** FalkorDB browser (:3000) shows the `sever_demo`
-tenant graph: 1,480 nodes / 12,437 edges ingested in seconds. Headline metric
+tenant graph: 1,480 nodes / 12,450 edges ingested in seconds. Headline metric
 panel: **5 crown jewels** across 3 domains; reachability 0 (nothing owned yet).
 
 **0:20–0:50 — The breach.** Finding F-001 lands (infostealer dump —
@@ -31,7 +31,7 @@ parallel GMSA password-read still carries the paths. Agent re-ranks →
 proposes the remaining `READ_GMSAPASSWORD` out of `GMSA_SHS_PWD`
 (`S-…-2102 -[READ_GMSAPASSWORD]-> S-…-2186`; every recorded proposal edge
 lies on 5 of 5 paths). **APPROVED** → cut #2 → reachability **1→0 COLLAPSED,
-re-query 2.98ms**, receipts printed: before/after, re-query timing,
+re-query 2.28ms**, receipts printed: before/after, re-query timing,
 approvals, timestamps. (As logged in
 [`docs/receipts_live_sever_demo.json`](receipts_live_sever_demo.json) —
 cut #1 verdict `degraded`, cut #2 verdict `collapsed`.)
@@ -57,15 +57,15 @@ every rung runs the real engine.
 ## LIVE-VERIFIED NUMBERS (Oct 15, measured on the build host — use these)
 
 - Hero beat: breach → 5 canonical paths to 5 crown jewels → gated cut rounds →
-  reachability 1 → 1 DEGRADED → 1 → 0 **COLLAPSED, re-query 2.98ms**
+  reachability 1 → 1 DEGRADED → 1 → 0 **COLLAPSED, re-query 2.28ms**
 - Console arc (HTTP E2E): breach → proposal → ONE gated cut → **1 → 0** —
   asserted over HTTP by
   `tests/test_console.py::test_approved_cut_collapses_via_console`
   (the cut receipt carries the re-query time)
 - T2 cross-process: fresh process resumes from FalkorDBSaver case memory →
-  "triage remembered" → gated cut → **1 → 0 in 2.01ms**
+  "triage remembered" → gated cut → **1 → 0 in 2.47ms**
 - Hybrid: cloud identity → bridge pivot → Domain Admins; bridge severed →
-  **1 → 0 in 2.76ms**
+  **1 → 0 in 3.0ms**
 - Scale wall: 300 tenants / 444,000 nodes / 3.7M edges in **1.29 GiB**, queries
   flat (median 3.66ms, p95 4.11ms)
 - PROFILE receipt: docs/receipts/profile.txt (0.83ms in-engine on the tenant)

@@ -53,14 +53,14 @@ flows checkpointed with **FalkorDBSaver** — case state lives *in the graph
 database*. Process one starts an investigation and pauses at the gate. I kill
 it. A **completely fresh process** resumes the same thread: the triage results
 and the ranked proposal are all still there, zero re-explanation, and the
-approved cut collapses reachability in 2.01ms. That's the night-shift handoff
+approved cut collapses reachability in 2.47ms. That's the night-shift handoff
 problem, solved by the same database that holds the estate.
 
 **The hybrid beat**: the merged AD+Entra estate has 9 bidirectional identity
 bridges (password-synced users exist in both worlds — the MGM lesson).
 Compromise the *cloud* identity of a synced user and you pivot across the
 bridge into on-prem Domain Admin chains. Sever the cross-world bridge:
-**1 → 0 in 2.76ms.**
+**1 → 0 in 3.0ms.**
 
 **And the scale wall**, because FalkorDB's signature claim deserves to be
 taken seriously: I generated **300 tenant graphs** (injective identity remaps,
