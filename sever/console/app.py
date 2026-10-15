@@ -5,7 +5,9 @@ and the operator clicks APPROVE — the cut executes only on that explicit call.
 
 Run:
     uvicorn sever.console.app:app --host 0.0.0.0 --port 8000
-Env: SEVER_FALKOR_HOST/PORT, SEVER_FALKOR_GRAPH, SEVER_SAMPLE_DIR
+Env: SEVER_FALKOR_HOST/PORT/USER/PASSWORD, SEVER_FALKOR_GRAPH,
+     SEVER_SAMPLE_DIR — a .env at the repo root is loaded automatically
+     (real environment always wins).
 """
 from __future__ import annotations
 
@@ -50,7 +52,8 @@ def build_app() -> FastAPI:
     )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")))
+            "SEVER_SAMPLE_DIR",
+            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
 
     inv = Investigator(port)
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
