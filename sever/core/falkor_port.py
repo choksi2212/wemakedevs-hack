@@ -36,10 +36,13 @@ AZ_JEWELS_QUERY = (
 OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 
 # FalkorDB supports shortestPath only when it terminates in WITH/RETURN, so
-# reachability = per (owned, jewel) pair via PATH_QUERY_TEMPLATE — the exact
-# same query paths_to_jewels uses; the agent counts owned principals with >=1
-# returned path. The scripted cascade regression lives in tests/test_live.py.
-REACHABILITY_METHOD = "per-pair shortestPath existence (PATH_QUERY_TEMPLATE)"
+# reachability = per (owned, jewel) pair via PATH_QUERY_TEMPLATE (algo.SPpaths,
+# ties capped at 100 — the same query paths_to_jewels(ties=True) uses for
+# offline tie-set analysis). The procedure yields zero rows when no path
+# exists, so ">=1 returned row" is a safe existence check, and the agent
+# counts owned principals with a hit. The scripted cascade regression lives
+# in tests/test_live.py.
+REACHABILITY_METHOD = "per-pair shortestPath existence via algo.SPpaths (PATH_QUERY_TEMPLATE)"
 
 # Per-pair SHORTEST-path enumeration (ties included, capped at 100 — mirrors
 # the analysis cap). FalkorDB quirk: shortestPath works only as
@@ -59,7 +62,8 @@ CANONICAL_PATH_QUERY_TEMPLATE = (
 )
 
 EDGE_FREQUENCY_STEP = (
-    "per (owned, jewel) pair: run PATH_QUERY, walk the returned path's edges, "
+    "per (owned, jewel) pair: run the canonical shortest-path query "
+    "(CANONICAL_PATH_QUERY_TEMPLATE), walk the returned path's edges, "
     "count occurrences app-side (see sever/core/falkor_port.py)"
 )
 

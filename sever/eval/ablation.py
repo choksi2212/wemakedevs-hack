@@ -9,7 +9,7 @@ same questions about the estate, answered two ways against the REAL engine:
   mentions, but connectivity facts ("can A reach B?", "which single fix
   kills the paths?") are unanswerable without traversal.
 
-    python scripts/ablation.py        # writes docs/receipts/ablation.json
+    python -m sever.eval.ablation    # writes docs/receipts/ablation.json
 """
 from __future__ import annotations
 
@@ -118,7 +118,8 @@ def main(out_path: str = "docs/receipts/ablation.json") -> int:
     )
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")))
+            "SEVER_SAMPLE_DIR",
+            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
 
     result = run_ablation(port)
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)

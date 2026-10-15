@@ -9,7 +9,10 @@ import pytest
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.synth.tenants import make_tenant, tenant_graph_name
 
-SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")
+SAMPLE_DIR = os.environ.get(
+    "SEVER_SAMPLE_DIR",
+    str(Path(__file__).resolve().parents[1] / "data" / "ad_sample"),
+)
 pytestmark = pytest.mark.skipif(
     not Path(SAMPLE_DIR).is_dir(), reason=f"sample data not present at {SAMPLE_DIR}"
 )

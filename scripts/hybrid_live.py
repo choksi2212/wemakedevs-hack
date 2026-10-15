@@ -33,9 +33,12 @@ AD_ANDY = "S-1-5-21-2697957641-2271029196-387917394-2187"  # ANDY@PHANTOM.CORP
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", default="sever_hybrid")
-    parser.add_argument("--ad-dir", default=os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"))
+    repo = Path(__file__).resolve().parents[1]
+    parser.add_argument("--ad-dir", default=os.environ.get(
+        "SEVER_SAMPLE_DIR", str(repo / "data" / "ad_sample")))
     parser.add_argument("--entra-file", default=os.environ.get(
-        "SEVER_ENTRA_FILE", "N:/HERMESSSS/graphhacks/data/entra_sample/azurehound_example.json"))
+        "SEVER_ENTRA_FILE",
+        str(repo / "data" / "entra_sample" / "azurehound_example.json")))
     args = parser.parse_args()
 
     print("[hybrid] parsing AD + Entra collectors ...")

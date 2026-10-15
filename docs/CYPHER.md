@@ -19,14 +19,17 @@ RETURN u.objectid AS objectid ORDER BY objectid
 
 ## Reachability (headline metric)
 
-Count of owned principals with ≥1 shortest path to any crown jewel. FalkorDB
-supports `shortestPath` **only as a WITH-clause expression**, so reachability is
-per-pair existence:
+Count of owned principals with ≥1 path to any crown jewel. Computed as a
+**per-pair existence check**: for every (owned, jewel) pair the agent runs the
+tie-set procedure (`PATH_QUERY_TEMPLATE` in `sever/core/falkor_port.py`) and
+counts the pair as reached when ≥1 row comes back — the procedure yields an
+empty result when no path exists, which is what makes it safe to re-query on a
+collapsed estate (the collapse receipts depend on exactly this):
 
 ```cypher
 MATCH (o {objectid: $oid}), (t {objectid: $target})
-WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|…*..12]->(t)) AS p
-RETURN p
+CALL algo.SPpaths({sourceNode: o, targetNode: t, pathCount: 100}) YIELD path
+RETURN path
 ```
 
 ## Attack path enumeration
@@ -38,6 +41,10 @@ MATCH (o {objectid: $oid}), (t {objectid: $target})
 WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|…*..12]->(t)) AS p
 RETURN p
 ```
+
+This canonical form is also the scoring input: edge frequency walks the
+canonical path of every (owned → jewel) pair and counts per-edge occurrences
+(`EDGE_FREQUENCY_STEP`).
 
 Offline analysis mode enumerates tied shortest paths via the built-in procedure
 (measured: cross-domain tie sets take 15–25s+ per pair — the live agent loop
@@ -83,6 +90,8 @@ MERGE (s)-[r:MEMBER_OF {props_key: e.props_key}]->(t) SET r += e.props
   carry raw integer node ids on edges (parsed via ordered index-zip)
 - property values must be primitives or primitive arrays (list-typed collector
   fields are coerced to booleans at ingest)
-- the shipped container default query timeout is low — `GRAPH.CONFIG SET
-  TIMEOUT_DEFAULT 0` is applied by the deployment; the client also passes
-  explicit per-query timeouts
+- the shipped container default query timeout is low — `TIMEOUT_DEFAULT 0`
+  can be enabled via the commented `FALKORDB_ARGS` environment block in
+  `docker-compose.yml` (only needed for long cross-domain tie-set analysis);
+  the client already passes explicit per-query timeouts (up to 60s for
+  path/reachability queries), so the product needs no tuning out of the box

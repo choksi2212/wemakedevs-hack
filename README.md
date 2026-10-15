@@ -61,12 +61,22 @@ canonical shortest-path query across sampled tenants:
 ## The console (agent cockpit)
 
 ```bash
-uvicorn sever.console.app:app --host 0.0.0.0 --port 8000   # SEVER_BACKEND=falkordb
+uvicorn sever.console.app:app --host 0.0.0.0 --port 8000   # env: .env.example
 ```
 
 Live attack-surface panel, breach/ACE-grant simulation buttons, hop-by-hop path
 chains, and the human gate as a literal **APPROVE CUT** button — every action
 lands in the receipts ledger.
+
+## Demo video
+
+3-minute walkthrough of the hero arc — breach → paths light up → live mutation
+→ gated cut rounds (DEGRADED, honestly, then COLLAPSED) → scale wall — storyboarded
+in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) (timeline, console click-path,
+live-measured numbers, fallback ladder) and recorded from the live console at
+submission. A Playwright backup take is produced by
+`python scripts/demo_video.py --console http://127.0.0.1:8000`
+(writes `out/demo/sever_demo.webm`).
 
 ## Reproduce everything
 
@@ -75,20 +85,41 @@ git clone https://github.com/choksi2212/wemakedevs-hack && cd wemakedevs-hack
 docker compose up -d                       # FalkorDB 6.0.0 + browser UI at :3000
 mkdir -p data/ad_sample && cd data && curl -sLO \
   https://raw.githubusercontent.com/SpecterOps/BloodHound-Docs/main/docs/assets/sample-data/ad_sampledata.zip \
-  && unzip ad_sampledata.zip -d ad_sample && cd ..
-pip install -e ".[dev]"
-python -m pytest                            # full offline suite
-SEVER_LIVE_FALKOR=1 python -m pytest tests/test_live.py   # + live-engine parity tests
-python scripts/rehearse.py --falkor          # beat 1  (hero interdiction)
+  && mkdir -p entra_sample && curl -sLO \
+  https://raw.githubusercontent.com/SpecterOps/BloodHound-Docs/main/docs/assets/sample-data/entra_sampledata.zip \
+  && unzip -o ad_sampledata.zip -d ad_sample && unzip -o entra_sampledata.zip -d entra_sample && cd ..
+pip install -e ".[dev,console,memory]"     # add .[agent] only for LLM narration
+python -m pytest                           # DB-free units run anywhere; engine tests need docker, skip cleanly
+python -m pytest tests/test_live.py        # live-engine regression (docker compose up -d)
+python scripts/rehearse.py                  # beat 1  (hero interdiction)
 python scripts/case_memory_live.py start  --thread case-T2-live --graph sever_t2
 python scripts/case_memory_live.py resume  --thread case-T2-live --graph sever_t2   # beat 2 (fresh process!)
 python scripts/hybrid_live.py                                   # beat 3  (cross-world)
 python scripts/scale_wall.py --tenants 300                      # beat 4  (scale wall)
+python -m sever.eval.ablation                                  # ablation receipt (5/5 vs 0/5)
 ```
 
-Every beat works fully offline against the in-memory mock engine too —
-`python scripts/rehearse.py` with no docker — because both engines implement
-the same `GraphPort`, and the live tests assert the parity.
+Sample data lands in `data/ad_sample` + `data/entra_sample` (both Apache-2.0
+SpecterOps sample zips; see Disclosures) — the same defaults every script and
+test uses, overridable via `SEVER_SAMPLE_DIR` / `SEVER_ENTRA_FILE`.
+
+There is exactly one engine. Every beat above is the real FalkorDB Cypher from
+`sever/core/falkor_port.py` — no in-memory double exists anywhere (rule 3 by
+construction: remove FalkorDB and SEVER does not run). Only the DB-free units —
+ETL parsing against the real sample, tenant generation, findings schema,
+human-gate and LLM-seam semantics — execute without the engine.
+
+## Deployment
+
+- **Self-hosted (shipped)**: `docker compose up -d` — FalkorDB 6.0.0 on :6379
+  (browser UI on :3000), persisted in `./out/falkordb-data`. Any self-hosted or
+  remote FalkorDB works by pointing `SEVER_FALKOR_HOST/PORT` at it
+  (`.env.example`); FalkorDB Cloud equally (nothing in the client is
+  docker-specific).
+- **Console**: `uvicorn sever.console.app:app --host 0.0.0.0 --port 8000`.
+- Optional tuning (only for long cross-domain tie-set analysis): uncomment the
+  `FALKORDB_ARGS` block in `docker-compose.yml` (`TIMEOUT_DEFAULT 0`) — the
+  client already passes explicit per-query timeouts.
 
 ## How it works
 
@@ -124,10 +155,14 @@ BloodHound CE + AzureHound collectors ──▶ ETL (two-pass, BloodHound-faithf
 
 ## Tests
 
-Full offline suite (ETL data fidelity vs the real sample, both engines,
-interdiction scoring, the human gate, findings stream, tenant generation,
-console API) **plus opt-in live-engine tests** asserting mock == live parity
-for load counts, reachability and the collapse cascade.
+**DB-free units (run anywhere)**: ETL parsing fidelity vs the real sample —
+1,480 nodes / 12,437 edges, zero dangling — Entra overlay parsing and bridge
+derivation, synthetic tenant generation, findings-stream schema + ATT&CK
+narration, Cypher-injection guards, human-gate and LLM-seam semantics.
+**Engine tests (live FalkorDB via `docker compose up -d`; skip cleanly when
+it's down)**: graph-port semantics and load counts vs the ETL, the agent
+interdiction loop, console API, case memory, the ablation, and the live
+cascade regression — gated cut rounds until reachability collapses.
 
 ## Disclosures
 
@@ -146,12 +181,12 @@ for load counts, reachability and the collapse cascade.
 
 ```
 sever/etl/         collector parsing → normalized graph → Cypher batches
-sever/core/        GraphPort (mock + FalkorDB), traversal semantics, scoring
+sever/core/        GraphPort (the one FalkorDB port), traversal semantics, scoring
 sever/findings/    deterministic stream + ATT&CK narration map
 sever/agent/       LLM seam + investigator loop with hard human gate
 sever/memory/      resumable LangGraph flow + FalkorDBSaver case memory
 sever/synth/       injective multi-tenant identity generator
-sever/console/     FastAPI cockpit (human gate as an APPROVE button)
+sever/console/     FastAPI cockpit (human gate as an APPROVE CUT button)
 scripts/           rehearse · case_memory_live · hybrid_live · scale_wall
 docs/              graph model, exact Cypher, demo script, live receipts
 ```
