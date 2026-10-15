@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <title>SEVER — interdiction console</title>
 <style>
   :root {
@@ -14,7 +15,7 @@
     --border-strong: #2A3140;
     --text: #E6EAF0;
     --text-2: #9BA3AF;
-    --text-3: #6C7686;
+    --text-3: #7E8898;
     --danger: #E5484D;
     --danger-dim: #B3363B;
     --success: #46A758;
@@ -34,11 +35,12 @@
   .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
   .chip.paused .dot { background: var(--warn); }
   .chip.down .dot { background: var(--danger); }
+  .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .spacer { flex: 1; }
   .tagline { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
   .tagline b { color: var(--text-2); font-weight: 600; }
   main { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; padding: 16px 20px; max-width: 1440px; margin: 0 auto; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .card + .card { margin-top: 16px; }
   .card-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -96,9 +98,9 @@
 <header>
   <span class="wordmark">SE<b>VER</b></span>
   <span class="chip" id="sim-chip" title="Simulated identity estate &mdash; findings are a labeled breach-timeline replay. All data public/synthetic.">SIMULATED ESTATE &middot; REPLAY</span>
-  <span class="chip" id="engine-chip"><span class="dot"></span><span id="engine-label">engine</span></span>
-  <span class="chip" id="estate-chip">loading…</span>
-  <span class="chip" id="refresh-chip" title="Toggle auto-refresh"><span class="dot"></span><button id="refresh-toggle" style="all:unset;font:inherit;cursor:pointer">live · auto</button></span>
+  <span class="chip" id="engine-chip" role="status" aria-live="polite"><span class="dot"></span><span id="engine-label">engine</span></span>
+  <span class="chip" id="estate-chip" role="status" aria-live="polite">loading…</span>
+  <span class="chip" id="refresh-chip"><span class="dot"></span><button id="refresh-toggle" class="chip-btn" type="button" aria-pressed="true" title="Toggle auto-refresh (15s)">live · auto</button></span>
   <span class="spacer"></span>
   <span class="tagline">ranked cut → <b>human gate</b> → re-query → receipts</span>
 </header>
@@ -115,9 +117,9 @@
           </div>
         </div>
         <div class="actions">
-          <button class="btn" id="btn-breach" aria-label="Simulate a credential breach finding"><svg viewBox="0 0 16 16"><path d="M8 1 3 8l5 7 5-7z"/></svg> Simulate breach finding</button>
-          <button class="btn" id="btn-grant" aria-label="Simulate a new ACE grant, mutating the graph live"><svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12"/></svg> Grant new ACE (live mutation)</button>
-          <button class="btn" id="btn-refresh" aria-label="Refresh state"><svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-2-4M13 2v3h-3"/></svg> Refresh</button>
+          <button class="btn" id="btn-breach" type="button" aria-label="Simulate a credential breach finding"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1 3 8l5 7 5-7z"/></svg> Simulate breach finding</button>
+          <button class="btn" id="btn-grant" type="button" aria-label="Simulate a new ACE grant, mutating the graph live"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2v12M2 8h12"/></svg> Grant new ACE (live mutation)</button>
+          <button class="btn" id="btn-refresh" type="button" aria-label="Refresh state"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-2-4M13 2v3h-3"/></svg> Refresh</button>
         </div>
         <div class="banner" id="banner" role="status" aria-live="polite"></div>
       </div>
@@ -153,23 +155,29 @@
   }
   function banner(html) { const b = $('banner'); b.innerHTML = html; b.classList.add('show'); }
 
+  const setText = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
+  const engineDown = () => {
+    $('engine-chip').className = 'chip down';
+    setText('engine-label', 'engine unreachable');
+  };
+
   async function refresh() {
     let s;
     try { s = await api('/api/state'); }
     catch (e) {
-      $('engine-chip').className = 'chip down';
-      $('engine-label').textContent = 'engine unreachable';
+      engineDown();
       return;
     }
     $('engine-chip').className = 'chip';
-    $('engine-label').textContent = 'falkordb · ' + (s.graph || '');
-    $('estate-chip').textContent = s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges · ' + s.jewels.length + ' jewels';
-    $('updated-at').textContent = 'updated ' + new Date().toLocaleTimeString();
+    setText('engine-label', 'falkordb · ' + (s.graph || ''));
+    setText('estate-chip', s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges · ' + s.jewels.length + ' jewels');
+    setText('updated-at', 'updated ' + new Date().toLocaleTimeString());
     const r = $('reach');
     r.textContent = s.reachability;
     r.className = 'value ' + (s.reachability > 0 ? 'danger' : 'ok');
     $('estate-detail').textContent = 'owned: ' + (s.owned.length ? s.owned.map(short).join(', ') : 'none');
 
+    try {
     const paths = await api('/api/paths');
     $('paths').innerHTML = paths.paths.length
       ? paths.paths.map((p) =>
@@ -194,6 +202,9 @@
       : '<div class="empty" style="padding:12px 16px">Nothing to propose.</div>';
     document.querySelectorAll('#proposal button.approve').forEach((b) =>
       b.addEventListener('click', () => armGate(b.dataset.src, b.dataset.dst, b.dataset.rel)));
+    // keep an armed gate armed across re-renders (auto-refresh must not wipe
+    // a pending CONFIRM); if the edge is no longer proposed, disarm quietly.
+    if (state.pending && !renderGate(state.pending, false)) { state.pending = null; removeEscape(); }
 
     const rec = await api('/api/receipts');
     $('receipts').innerHTML = rec.slice(-40).reverse().map((e) => {
@@ -216,27 +227,53 @@
              '<span class="line" title="' + esc(line) + '">' + esc(line) + '</span>' +
              '<span class="ts">' + esc((e.ts || '').slice(11, 19)) + '</span></div>';
     }).join('') || '<div class="entry"><span class="line">—</span></div>';
+    } catch (e) { engineDown(); }
   }
 
-  function armGate(src, dst, rel) {
-    if (state.pending) { state.pending = null; refresh(); return; }
-    const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(src) + '"][data-dst="' + CSS.escape(dst) + '"]');
-    if (!btn) return;
+  let escapeListener = null;
+  function removeEscape() {
+    if (escapeListener) { document.removeEventListener('keydown', escapeListener); escapeListener = null; }
+  }
+  function cancelGate() {
+    // purely client-side: no server mutation, so no refresh needed — the row's
+    // APPROVE button is restored synchronously and keeps keyboard focus.
+    disarmGate();
+  }
+  function disarmGate() {
+    const p = state.pending;
+    state.pending = null;
+    removeEscape();
+    if (!p) return;
+    const cf = document.querySelector('#proposal .prop-cta .confirm');
+    if (cf) {
+      const cta = cf.closest('.prop-cta');
+      const hadFocus = cf === document.activeElement || cta.contains(document.activeElement);
+      cta.innerHTML =
+        '<button class="btn approve" type="button" data-src="' + esc(p.src) + '" data-dst="' + esc(p.dst) + '" data-rel="' + esc(p.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button>';
+      const nb = cta.querySelector('.approve');
+      nb.addEventListener('click', () => armGate(p.src, p.dst, p.rel));
+      if (hadFocus) nb.focus();
+    }
+  }
+  function renderGate(p, focusConfirm) {
+    const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(p.src) + '"][data-dst="' + CSS.escape(p.dst) + '"][data-rel="' + CSS.escape(p.rel) + '"]');
+    if (!btn) return false;
     const cta = btn.closest('.prop-cta');
     cta.innerHTML =
-      '<button class="btn confirm" aria-label="Confirm the cut">CONFIRM CUT</button>' +
-      '<button class="btn cancel" aria-label="Cancel the cut">cancel</button>';
+      '<button class="btn confirm" type="button" aria-label="Confirm the cut">CONFIRM CUT</button>' +
+      '<button class="btn cancel" type="button" aria-label="Cancel the cut">cancel</button>';
     const cf = cta.querySelector('.confirm');
     const cn = cta.querySelector('.cancel');
-    cn.addEventListener('click', () => { state.pending = null; refresh(); });
-    state.pending = { src, dst, rel };
+    cn.addEventListener('click', cancelGate);
     cf.addEventListener('click', async () => {
+      state.pending = null;
+      removeEscape();
       cf.disabled = cn.disabled = true;
       banner('<span class="res">human gate: executing approved cut…</span>');
       try {
         const r = await api('/api/cut', {
           method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({src, dst, rel, approved: true, approved_by: 'console-operator'}),
+          body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: 'console-operator'}),
         });
         banner('<span class="technique">INTERDICTION RECEIPT</span>' +
                'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
@@ -245,9 +282,19 @@
       } catch (e) {
         banner('<span class="res">cut failed: ' + esc(e.message) + '</span>');
       }
-      state.pending = null;
       refresh();
     });
+    const active = document.activeElement;
+    if (focusConfirm || active === document.body || (active && active.closest && !active.closest('.prop-cta'))) cf.focus();
+    return true;
+  }
+  function armGate(src, dst, rel) {
+    disarmGate();
+    state.pending = { src, dst, rel };
+    if (!renderGate(state.pending, true)) { state.pending = null; return; }
+    removeEscape();
+    escapeListener = (e) => { if (e.key === 'Escape') { e.preventDefault(); cancelGate(); } };
+    document.addEventListener('keydown', escapeListener);
   }
 
   const HERO = 'S-1-5-21-2697957641-2271029196-387917394-2110';
@@ -278,7 +325,9 @@
   function setAuto(on) {
     state.auto = on;
     $('refresh-chip').className = 'chip' + (on ? '' : ' paused');
-    $('refresh-toggle').textContent = on ? 'live · auto' : 'paused';
+    const t = $('refresh-toggle');
+    t.textContent = on ? 'live · auto' : 'paused';
+    t.setAttribute('aria-pressed', String(on));
     if (timer) { clearInterval(timer); timer = null; }
     if (on) timer = setInterval(refresh, 15000);
   }
