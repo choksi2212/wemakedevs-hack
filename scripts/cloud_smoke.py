@@ -5,8 +5,8 @@ import time
 
 sys.path.insert(0, ".")
 
-HOST = "r-6jissuruar.instance-mgs1tqgkg.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud"
-PORT = 59719
+HOST = os.environ["SEVER_FALKOR_HOST"]  # cloud instance endpoint: env-only, never hardcoded (audit3/pentest-internal)
+PORT = int(os.environ.get("SEVER_FALKOR_PORT", "6379"))
 USER = "falkordb"
 
 from falkordb import FalkorDB

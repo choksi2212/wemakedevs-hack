@@ -36,6 +36,7 @@ from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
 from sever.console.schemas import CutRequest, FindingRequest
+from sever.console.security import BodySizeLimitMiddleware
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
@@ -46,6 +47,12 @@ from sever.memory.flow import CaseLog
 def build_app() -> FastAPI:
     load_dotenv()  # .env at the repo root, if present — real environment always wins
     app = FastAPI(title="SEVER console", version="0.2.0")
+    # body-size cap BEFORE any buffering (audit3/pentest-internal): starlette
+    # imposes no limit, so hostile multi-MB bodies were fully buffered for
+    # JSON parsing (unknown-field variants even returned 200). 1MB is ~4000x
+    # the largest schema-capped field, so no legitimate console request is
+    # affected; oversize bodies now die as 413 without touching memory.
+    app.add_middleware(BodySizeLimitMiddleware)
 
     @app.exception_handler(RequestValidationError)
     async def _safe_validation_422(request, exc: RequestValidationError):
