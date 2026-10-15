@@ -4,7 +4,7 @@
 
 **Attack-path tools stop at advice. SEVER closes the loop.**
 
-ranked cut → **human gate** → live re-query → before/after receipts — per-tenant, in milliseconds
+collateral-ranked cut **plans** → **human gate** → live re-query → before/after receipts — per-tenant, in milliseconds
 
 <p>
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
@@ -62,6 +62,20 @@ cut #1 (human-gated):  reachability 1 -> 1   DEGRADED — honest verdict, not th
 cut #2 (human-gated):  reachability 1 -> 0   COLLAPSED — re-query 2.28ms
 ```
 
+### ▍ Beat 1½ — the remediation PLAN: approve a sequence, not one edge
+*every projection measured on an isolated GRAPH.COPY — the live estate untouched by a proposal*
+
+```
+GET /api/plan → greedy k=3 cut sequence, re-enumerated on a copy after every cut
+  proposal tie (4 edges, 5 attack paths each) broken by collateral:
+    attacker-only edges (benign 0) rank above the shared DA-membership edge (benign 1)
+  step #1: cut 2101 -[MEMBER_OF]-> 2102 · kills 5 paths · projected reachability 0 (collapsed)
+POST /api/plan/execute (human-gated) → step re-measured live == projection → COLLAPSED
+  estate mutates after planning? live re-measure diverges → drift_stopped_at_step —
+  later steps NOT executed, re-plan demanded. Stale projections never run.
+receipt: docs/receipts/plan_receipt.json (plan ~0.96s, collateral-aware proposal ~0.90s)
+```
+
 ### ▍ Beat 2 — cross-process case memory *(Track 2)*
 *case state lives IN the graph database — FalkorDBSaver*
 
@@ -115,6 +129,22 @@ The loop's honesty rules, each one pinned by live tests:
 
 - **findings** mutate the graph (`mark_owned`, live ACE grants) — the estate is never static
 - **proposals** are always real: an edge that lies on zero enumerated paths cannot be proposed
+- **collateral is ranked**: coverage ties break toward *attacker-only* edges — each candidate
+  receipts `benign_usage`, the number of sampled non-owned principals whose own jewel paths
+  cross it (25 sampled of the estate's pool, deterministic stride; the sampled estimate is
+  labeled, never passed off as an exact count). An edge that carries someone else's access
+  story loses the tie; receipts say by how much. *(NoiseHound re-ranks attack paths by
+  detection cost — SEVER is the remediation-side flip: rank the CUT by the disruption it
+  would cause.)*
+- **plans are sequences, not one edge**: `GET /api/plan` proposes a greedy k=3 cut sequence,
+  every step projected on an isolated `GRAPH.COPY` of the live estate — re-enumerated and
+  re-measured after each cut, never simulated from a frozen path set. The live graph is never
+  touched by a proposal, and the plan stops early the moment its copy measures zero
+  (no invented third step).
+- **execution re-measures every step and stops at the first drift**: a plan step whose live
+  re-query diverges from its projection halts the rest — later steps were computed on a
+  surface that no longer exists, and stale projections never execute. `drift_stopped_at_step`
+  is a status, not a failure to hide.
 - **the gate** passes only on the exact value `True` — schema, handler and tests all pin it independently
 - **verdicts are measured claims**: `collapsed` only when a re-query returns 0, `degraded` only when
   paths survive, `no_effect` for honest no-ops — a cut can never *increase* reachability
@@ -285,7 +315,11 @@ semantics, ledger atomicity, DOM-escape coverage.
 and load counts vs the ETL, the interdiction loop with pinned invariants
 (cut-never-increases, receipt==re-query, no phantom proposals, verdict coupling),
 the agent loop, console API matrix, case memory, the ablation, and the live cascade
-regression — gated cut rounds until reachability collapses.
+regression — gated cut rounds until reachability collapses. Plus the plan/collateral
+suite (`tests/test_planning.py`): GRAPH.COPY scratch isolation, benign-usage receipts
+on the sample estate (pool/sampled sizes + the attacker-only #1), an exact two-cut
+plan on a synthetic engine estate — both steps attacker-only by the collateral
+tie-break — execution to measured collapse, and the drift-stop honesty rule.
 
 ## 13. Disclosures
 
