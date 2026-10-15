@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEVER — attack-path interdiction console</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+         background: #0b0f14; color: #d7e0e8; }
+  header { padding: 18px 28px; border-bottom: 1px solid #1d2731; display: flex;
+           align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: 2px; color: #ff5f56; }
+  .meta { color: #6f8394; font-size: 12px; }
+  main { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; padding: 18px 28px;
+         max-width: 1280px; margin: 0 auto; }
+  .card { background: #101720; border: 1px solid #1d2731; border-radius: 10px; padding: 16px 18px; }
+  .card h2 { font-size: 13px; color: #7ba0bf; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 1.4px; }
+  .big { font-size: 44px; line-height: 1; margin: 4px 0; }
+  .big.bad { color: #ff5f56; }
+  .big.ok { color: #3fd18b; }
+  button { background: #1a2733; color: #d7e0e8; border: 1px solid #2b3c4c; padding: 8px 12px;
+           border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+  button:hover { background: #23394c; }
+  button.approve { border-color: #3fd18b; color: #7ef0b6; font-weight: bold; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+         padding: 7px 8px; border-bottom: 1px dashed #1b2530; font-size: 12.5px; }
+  .hop { font-size: 12.5px; padding: 5px 0 5px 10px; border-left: 2px solid #2b3c4c; margin: 4px 0; }
+  .rel { color: #ffb35c; }
+  .quiet { color: #6f8394; font-size: 12px; }
+  pre { background: #0a0e13; border: 1px solid #1d2731; padding: 10px; border-radius: 6px;
+        font-size: 11px; max-height: 320px; overflow: auto; }
+  #banner { margin: 12px 0 0; font-size: 13px; min-height: 20px; color: #ffb35c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SEVER</h1>
+  <span class="meta">attack-path interdiction agent · <span id="backend">…</span></span>
+  <span class="meta" id="estate">…</span>
+  <span class="meta" style="margin-left:auto">the graph is the engine — remove FalkorDB and this breaks</span>
+</header>
+<main>
+  <section class="card">
+    <h2>Live attack surface</h2>
+    <div>owned principals that can reach a crown jewel:</div>
+    <div class="big bad" id="reach">–</div>
+    <div class="quiet" id="jewels"></div>
+    <div id="banner"></div>
+    <h2 style="margin-top:18px">Actions</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+      <button onclick="fireFinding('credential_breach')">▶ simulate breach (mark owned)</button>
+      <button onclick="fireFinding('ace_granted')">▶ simulate new ACE grant (live mutation)</button>
+      <button onclick="refresh()">refresh</button>
+    </div>
+    <h2 style="margin-top:18px">Attack paths</h2>
+    <div id="paths" class="quiet">no owned principals</div>
+  </section>
+  <section class="card">
+    <h2>Interdiction proposal <span class="quiet">(edge on most paths)</span></h2>
+    <div id="proposal" class="quiet">nothing to propose</div>
+    <h2 style="margin-top:18px">Receipts</h2>
+    <pre id="receipts">—</pre>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const banner = (msg) => { $('banner').textContent = msg || ''; };
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error((await res.json()).detail || res.status);
+  return res.json();
+}
+async function refresh() {
+  const s = await api('/api/state');
+  $('backend').textContent = s.backend + ' · ' + s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges';
+  $('estate').textContent = 'owned: ' + s.owned.length + ' · jewels: ' + s.jewels.length;
+  const r = $('reach');
+  r.textContent = s.reachability;
+  r.className = 'big ' + (s.reachability > 0 ? 'bad' : 'ok');
+  const paths = await api('/api/paths');
+  $('paths').innerHTML = paths.paths.length
+    ? paths.paths.map(p => '<div style="margin:10px 0">' +
+        '<div style="color:#7ba0bf">' + p.principal + ' → crown jewel</div>' +
+        p.hops.map(h => '<div class="hop">' + h.src + ' <span class="rel">-[' + h.rel + ']-></span> ' + h.dst + '</div>').join('') +
+        '</div>').join('')
+    : '<span class="quiet">no owned principals — simulate a breach to begin</span>';
+  const prop = await api('/api/proposal');
+  $('proposal').innerHTML = prop.length
+    ? prop.map(c => '<div class="row"><span>' +
+        c.src.slice(-6) + ' <span class="rel">-[' + c.rel + ']-></span> ' + c.dst.slice(-6) +
+        ' <span class="quiet">(on ' + c.paths_on + ' paths)</span></span>' +
+        '<button class="approve" onclick="approveCut(\'' + c.src + '\',\'' + c.dst + '\',\'' + c.rel + '\')">APPROVE CUT</button></div>').join('')
+    : '<span class="quiet">nothing to propose</span>';
+  const rec = await api('/api/receipts');
+  $('receipts').textContent = rec.slice(-8).map(e => JSON.stringify(e)).join('\n') || '—';
+}
+async function fireFinding(kind) {
+  banner('finding ' + kind + ' — re-scoring all attack paths…');
+  const r = await api('/api/finding', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(kind === 'ace_granted'
+      ? {kind: kind, subject: 'S-1-5-21-2697957641-2271029196-387917394-2110',
+         target: 'S-1-5-21-2697957641-2271029196-387917394-2102', rel: 'GENERIC_ALL'}
+      : {kind: kind, subject: 'S-1-5-21-2697957641-2271029196-387917394-2110'})});
+  banner('[' + r.technique + '] ' + r.narration);
+  refresh();
+}
+async function approveCut(src, dst, rel) {
+  banner('HUMAN GATE: executing approved cut…');
+  const r = await api('/api/cut', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({src, dst, rel, approved: true, approved_by: 'console-operator'})});
+  banner('cut executed · removed=' + r.cut.relationships_removed +
+         ' · reachability ' + r.before.reachability + ' → ' + r.after.reachability +
+         ' · ' + r.requery_ms + 'ms · verdict=' + r.verdict);
+  refresh();
+}
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

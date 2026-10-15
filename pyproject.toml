@@ -12,7 +12,8 @@ dependencies = [
 
 [project.optional-dependencies]
 agent = ["openai>=1.50"]
-dev = ["pytest>=8.0"]
+console = ["fastapi>=0.115", "uvicorn>=0.32"]
+dev = ["pytest>=8.0", "httpx>=0.28"]
 
 [build-system]
 requires = ["setuptools>=68"]
