@@ -77,7 +77,7 @@
   <rect x="660" y="420" width="580" height="170" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.25"/>
   <text x="950" y="448" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">what a judge can verify in 5 minutes</text>
   <text x="688" y="476" font-size="9" fill="#475569">▪ open the live URL → breach → paths → APPROVE → CONFIRM → collapsed (receipted)</text>
-  <text x="688" y="494" font-size="9" fill="#475569">▪ clone -b develop → pip install → docker compose up → pytest → ~460 tests green</text>
+  <text x="688" y="494" font-size="9" fill="#475569">▪ git clone → pip install → docker compose up → pytest → ~380 tests green</text>
   <text x="688" y="512" font-size="9" fill="#475569">▪ read docs/receipts/*.json — every number regenerable by the documented scripts</text>
   <text x="688" y="530" font-size="9" fill="#475569">▪ GRAPH.PROFILE the documented queries yourself — they are the module constants</text>
   <text x="688" y="548" font-size="9" fill="#475569">▪ watch docs/DEMO_SCRIPT.md — the full judged walkthrough with fallback ladders</text>

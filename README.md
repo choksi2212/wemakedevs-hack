@@ -10,7 +10,7 @@ ranked cut → **human gate** → live re-query → before/after receipts — pe
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
   <img src="https://img.shields.io/badge/engine-FalkorDB%206.0.0-8B5CF6?style=flat-square" alt="falkordb"/>
   <img src="https://img.shields.io/badge/console-FastAPI-10B981?style=flat-square" alt="fastapi"/>
-  <img src="https://img.shields.io/badge/tests-~460%20green-059669?style=flat-square" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-~380%20green-059669?style=flat-square" alt="tests"/>
   <img src="https://img.shields.io/badge/license-MIT-64748B?style=flat-square" alt="mit"/>
 </p>
 
@@ -28,8 +28,9 @@ stream, walks the real exploitable paths to Domain Admin, ranks the one edge who
 removal kills the most paths, and — **only after an explicit human approval** —
 severs it and proves the attack surface actually collapsed.
 
-> **Measured, not promised** — every number in this README ran on live falkordb 6.0.0
-> and is regenerable from [`docs/receipts/`](docs/receipts) by the scripts below.
+> **Measured, not promised** — every number in this README ran on a live FalkorDB
+> engine (self-hosted 6.0.0; the Cloud beat on managed 4.22.0, per its receipt) and
+> is regenerable from [`docs/receipts/`](docs/receipts) by the scripts below.
 > Nothing here is illustrative.
 
 ## Table of contents
@@ -151,7 +152,9 @@ both warm. Every layer is swappable via `SEVER_FALKOR_HOST/PORT/USER/PASSWORD`:
 self-hosted compose, the shipped Dockerfile, or the one-click
 [`render.yaml`](render.yaml) blueprint (secrets `sync: false` — never in the repo).
 Boot is fail-fast with self-healing: an empty graph auto-loads the estate
-(4.3s self-hosted / 16.8s Cloud), an existing one boots in ~0.9s.
+on first boot (16.8s measured over the wire on FalkorDB Cloud —
+[`receipts_cloud_live.json`](docs/receipts/receipts_cloud_live.json)),
+an existing one boots without reloading.
 
 ## 7. Real incidents this shape catches
 
@@ -255,13 +258,18 @@ Three adversarial audit fleets (~30 agents) hammered this product — logic inva
 property fuzzing, mutation-tested coverage, and two dedicated pentest agents (one
 external against the live deployment, one internal against code + supply chain).
 
-- **Human gate**: 32 encoding tricks (truthy stand-ins, multipart, duplicate keys,
-  unicode lookalikes, content-type confusion) — **all fail closed**; only literal
-  JSON `true` opens the gate, enforced at schema *and* handler, both test-pinned.
-- **Injection**: 27/27 hostile relationship types (homoglyphs, NFKC normalization,
-  zero-width, case games) rejected before any Cypher is built; collector data rides
-  `$rows` parameters — zero hostile bytes ever reach query text.
-- **DoS surface**: 1MB request-body cap (413 before buffering, 50MB refused in 24ms);
+- **Human gate**: 23 distinct truthy stand-ins (numbers, strings, containers,
+  `None`) plus `== True` and always-truthy decoys — **all fail closed** at
+  every layer (schema 422, handler identity, agent gate, flow gate); only
+  literal JSON `true` opens the gate, enforced at schema *and* handler,
+  both test-pinned.
+- **Injection**: 39/39 hostile relationship-type payloads (homoglyphs, NFKC
+  normalization tricks, zero-width, case games, metacharacters, length
+  boundaries) rejected before any Cypher is built — at the port, the ETL gate
+  and the HTTP schema (`tests/test_unicode_rel_guards.py`); collector data
+  rides `$rows` parameters — zero hostile bytes ever reach query text.
+- **DoS surface**: 1MB request-body cap (413 before buffering, on both the
+  Content-Length and chunked-stream paths — `tests/test_body_size_limit.py`);
   field length caps at the schema; deep nesting rejected fast.
 - **Exposure**: security headers on every response (HSTS, CSP, nosniff, DENY,
   no-referrer); OpenAPI/docs opt-in; CORS fail-closed; no cookies, no CSRF vector;
@@ -269,7 +277,8 @@ external against the live deployment, one internal against code + supply chain).
 - **Prompt injection**: contained and delimited — garnish renders only to the same
   operator and is never load-bearing; the HTTP console wires no LLM at all.
 - **Supply chain**: pip-audit clean across the transitive closure; git history
-  scanned across all refs — zero secrets ever committed.
+  scanned across all refs — zero secrets ever committed (12 pattern families,
+  all refs — [`docs/security_audit.md`](docs/security_audit.md)).
 - **Honesty**: unknown finding kinds → 422 (never fabricated ATT&CK labels); ghost
   principals → 400; engine outages → 503 JSON with failed-attempt receipts; every
   mutation receipted; the UI labels the simulated estate on-screen.
