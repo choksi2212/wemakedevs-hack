@@ -1,30 +1,29 @@
-"""Console tests — the cockpit against the mock engine (TestClient, no server)."""
+"""Console tests — the cockpit against the REAL engine (TestClient)."""
 from __future__ import annotations
 
 import importlib
-import os
-from pathlib import Path
 
 import pytest
 
-pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient  # noqa: E402
+from tests.conftest import requires_engine, requires_sample
 
-SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")
-pytestmark = pytest.mark.skipif(
-    not Path(SAMPLE_DIR).is_dir(), reason="sample data not present"
-)
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
+GRAPH = "sever_test_console"
+
+pytestmark = [requires_engine, requires_sample]
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("SEVER_BACKEND", "mock")
-    monkeypatch.setenv("SEVER_SAMPLE_DIR", SAMPLE_DIR)
+    monkeypatch.setenv("SEVER_FALKOR_GRAPH", GRAPH)
     import sever.console.app as appmod
 
     importlib.reload(appmod)
-    return TestClient(appmod.app)
+    from fastapi.testclient import TestClient
+
+    tc = TestClient(appmod.app)
+    yield tc
+    appmod.port_obj.graph.client.execute_command("GRAPH.DELETE", GRAPH)
 
 
 def test_index_serves_the_console(client):
@@ -37,7 +36,7 @@ def test_state_starts_clean(client):
     r = client.get("/api/state")
     assert r.status_code == 200
     body = r.json()
-    assert body["backend"] == "mock"
+    assert body["backend"] == "falkordb"
     assert body["reachability"] == 0
     assert len(body["jewels"]) == 5
 

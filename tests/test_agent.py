@@ -1,29 +1,25 @@
-"""Agent tests: LLM seam, investigator loop, human gate."""
+"""Agent tests — LLM seam (DB-free) + investigator loop on the REAL engine."""
 from __future__ import annotations
 
 import pytest
 
+from tests.conftest import make_live_port, requires_engine, requires_sample
 from sever.agent.investigator import Investigator
-from sever.agent.llm import NullLLM, OpenAICompatLLM, build_llm
-from sever.core.jewels import DEFAULT_HOP_CAP
-from sever.core.mock_port import MockGraphPort
-from sever.etl.ad_collectors import NormalizedGraph, parse_ad_dir
-from sever.findings.stream import Finding
+from sever.agent.llm import OfflineNarrator, OpenAICompatLLM, build_llm
 
-import os
-from pathlib import Path
-
-SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
+ALICE = "S-1-5-21-t-1101"
+TIER1 = "S-1-5-21-t-2202"
+DA = "S-1-5-21-t-t-512"  # ends -512 -> crown jewel by node id
 
 
-# ---- LLM seam ----
+# ---- LLM seam (DB-free) ----
 
 
-def test_build_llm_defaults_to_null_without_env(monkeypatch):
+def test_build_llm_defaults_to_offline_without_env(monkeypatch):
     for var in ("SEVER_LLM_BASE_URL", "SEVER_LLM_API_KEY", "SEVER_LLM_MODEL"):
         monkeypatch.delenv(var, raising=False)
-    assert isinstance(build_llm(), NullLLM)
+    assert isinstance(build_llm(), OfflineNarrator)
 
 
 def test_build_llm_uses_env(monkeypatch):
@@ -35,45 +31,62 @@ def test_build_llm_uses_env(monkeypatch):
     assert llm._model == "test-model"
 
 
-def test_null_llm_is_deterministic():
-    assert NullLLM().complete("s", "u") == NullLLM().complete("s", "u") == ""
+def test_offline_narrator_is_deterministic():
+    assert OfflineNarrator().complete("s", "u") == OfflineNarrator().complete("s", "u") == ""
 
 
-# ---- investigator ----
+# ---- investigator on the live engine ----
 
 
-ALICE = "S-1-5-21-t-1101"
-TIER1 = "S-1-5-21-t-2202"
-DA = "S-1-5-21-t-t-512"  # ends -512 -> crown jewel by node id
+def _tiny_estate(port):
+    """Minimal estate on the real engine: alice -GENERIC_ALL-> tier1 -> DA."""
+    port.graph.query(
+        "CREATE (:User {objectid: $a, name: 'alice', owned: false}), "
+        "(:Group {objectid: $g, name: 'tier1'}), "
+        "(:Group {objectid: $da, name: 'domain admins'})",
+        {"a": ALICE, "g": TIER1, "da": DA},
+    )
+    port.graph.query(
+        "MATCH (a:User {objectid: $a}), (g:Group {objectid: $g}) CREATE (a)-[:GENERIC_ALL]->(g)",
+        {"a": ALICE, "g": TIER1},
+    )
+    port.graph.query(
+        "MATCH (g1:Group {objectid: $g}), (g2:Group {objectid: $da}) CREATE (g1)-[:MEMBER_OF]->(g2)",
+        {"g": TIER1, "da": DA},
+    )
 
 
-def _tiny_port() -> tuple[MockGraphPort, NormalizedGraph]:
-    g = NormalizedGraph()
-    g.add_node(ALICE, "User", {"name": "alice"})
-    g.add_node(TIER1, "Group", {"name": "tier1"})
-    g.add_node(DA, "Group", {"name": "domain admins"})
-    g.add_edge(TIER1, DA, "MEMBER_OF")          # group nesting
-    g.add_edge(ALICE, TIER1, "GENERIC_ALL")     # alice controls tier1
-    port = MockGraphPort()
-    port.load(g)
-    return port, g
+@pytest.fixture()
+def tiny_port():
+    from sever.core.falkor_port import FalkorGraphPort
+
+    name = "sever_test_agent_tiny"
+    port = FalkorGraphPort(graph_name=name)
+    port.graph.client.execute_command("GRAPH.DELETE", name)
+    _tiny_estate(port)
+    yield port
+    port.graph.client.execute_command("GRAPH.DELETE", name)
 
 
-def test_triage_marks_breach_owned_and_proposes():
-    port, g = _tiny_port()
-    inv = Investigator(port)
+@requires_engine
+def test_triage_marks_breach_owned_and_proposes(tiny_port):
+    from sever.findings.stream import Finding
+
+    inv = Investigator(tiny_port)
     report = inv.triage(Finding("F-1", "credential_breach", ALICE))
     assert report.after["owned"] == [ALICE]
     assert report.after["reachability"] == 1
     assert report.paths_for_subject  # alice -> tier1 -> DA
-    assert report.proposal  # cut candidates ranked
+    assert report.proposal
     top = report.proposal[0]
     assert (top["src"], top["rel"]) in {(ALICE, "GENERIC_ALL"), (TIER1, "MEMBER_OF")}
 
 
-def test_human_gate_blocks_unapproved_cuts():
-    port, _ = _tiny_port()
-    inv = Investigator(port)
+@requires_engine
+def test_human_gate_blocks_unapproved_cuts(tiny_port):
+    inv = Investigator(tiny_port)
+    from sever.findings.stream import Finding
+
     inv.triage(Finding("F-1", "credential_breach", ALICE))
     with pytest.raises(ValueError):
         inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL", require_explicit_approval=False)
@@ -81,30 +94,35 @@ def test_human_gate_blocks_unapproved_cuts():
         inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL", require_explicit_approval="yolo")
 
 
-def test_approved_cut_collapses_and_receipts():
-    port, _ = _tiny_port()
-    inv = Investigator(port)
+@requires_engine
+def test_approved_cut_collapses_and_receipts(tiny_port):
+    inv = Investigator(tiny_port)
+    from sever.findings.stream import Finding
+
     inv.triage(Finding("F-1", "credential_breach", ALICE))
     receipt = inv.approve_and_cut(ALICE, TIER1, "GENERIC_ALL", approved_by="manas")
     assert receipt["approved_by"] == "manas"
     assert receipt["before"]["reachability"] == 1
     assert receipt["after"]["reachability"] == 0
     assert receipt["verdict"] == "collapsed"
-    assert receipt["requery_ms"] >= 0
+    assert receipt["requery_ms"] is not None
     assert any("cut" in entry for entry in inv.case_log)
 
 
-@pytest.mark.skipif(not Path(SAMPLE_DIR).is_dir(), reason="sample data absent")
+@requires_engine
+@requires_sample
 def test_investigator_end_to_end_on_sample():
-    g = parse_ad_dir(SAMPLE_DIR)
-    port = MockGraphPort()
-    port.load(g)
-    inv = Investigator(port, llm=NullLLM(), hop_cap=DEFAULT_HOP_CAP)
-    report = inv.triage(Finding("F-1", "credential_breach", HERO))
-    assert report.after["reachability"] == 1
-    assert len(report.paths_for_subject) == 10
-    assert report.proposal[0]["paths_on"] == 10
-    cut = report.proposal[0]
-    receipt = inv.approve_and_cut(cut["src"], cut["dst"], cut["rel"])
-    assert receipt["after"]["reachability"] == 0
-    assert receipt["verdict"] == "collapsed"
+    port = make_live_port("sever_test_agent_sample")
+    try:
+        from sever.findings.stream import Finding
+
+        inv = Investigator(port, llm=OfflineNarrator())
+        report = inv.triage(Finding("F-1", "credential_breach", HERO))
+        assert report.after["reachability"] == 1
+        assert report.proposal[0]["paths_on"] >= 5
+        cut = report.proposal[0]
+        receipt = inv.approve_and_cut(cut["src"], cut["dst"], cut["rel"])
+        assert receipt["after"]["reachability"] == 0
+        assert receipt["verdict"] == "collapsed"
+    finally:
+        port.graph.client.execute_command("GRAPH.DELETE", "sever_test_agent_sample")

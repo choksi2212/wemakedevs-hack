@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from sever.agent.llm import LLM, NullLLM
+from sever.agent.llm import LLM, OfflineNarrator
 from sever.core.jewels import DEFAULT_HOP_CAP
 from sever.core.port import GraphPort
 from sever.core.scoring import interdict, rank_cut_candidates, snapshot
@@ -56,7 +56,7 @@ class TriageReport:
 class Investigator:
     def __init__(self, port: GraphPort, llm: LLM | None = None, hop_cap: int = DEFAULT_HOP_CAP) -> None:
         self.port = port
-        self.llm = llm or NullLLM()
+        self.llm = llm or OfflineNarrator()
         self.hop_cap = hop_cap
         self.case_log: list[dict[str, Any]] = []
 

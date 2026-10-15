@@ -1,16 +1,13 @@
-"""Case-memory tests — interrupt-based human gate, checkpoint resume, ledger."""
+"""Case-memory tests — resumable flow on the REAL engine; the checkpointer is
+LangGraph's MemorySaver for the in-process interrupt test and FalkorDBSaver
+for the cross-process beat (scripts/case_memory_live.py demonstrates the
+two-process version end to end)."""
 from __future__ import annotations
-
-import os
-from pathlib import Path
 
 import pytest
 
-pytest.importorskip("langgraph")
-from langgraph.checkpoint.memory import MemorySaver
-
-from sever.core.mock_port import MockGraphPort
-from sever.etl.ad_collectors import parse_ad_dir
+from tests.conftest import make_live_port, requires_engine, requires_sample
+from sever.core.falkor_port import FalkorGraphPort
 from sever.findings.stream import Finding
 from sever.memory.flow import (
     CaseLog,
@@ -19,63 +16,79 @@ from sever.memory.flow import (
     start_investigation,
 )
 
-SAMPLE_DIR = os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")
-pytestmark = pytest.mark.skipif(
-    not Path(SAMPLE_DIR).is_dir(), reason="sample data not present"
-)
-
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
+pytestmark = [requires_engine, requires_sample]
 
 
 @pytest.fixture()
-def port():
-    g = parse_ad_dir(SAMPLE_DIR)
-    p = MockGraphPort()
-    p.load(g)
-    return p
+def live_port():
+    port = make_live_port("sever_test_memory")
+    yield port
+    port.graph.client.execute_command("GRAPH.DELETE", "sever_test_memory")
 
 
-def test_flow_pauses_at_gate_and_resumes_with_approval(port):
-    checkpointer = MemorySaver()
-    flow = build_flow(port, checkpointer=checkpointer)
+def test_flow_pauses_at_gate_and_resumes_with_approval(live_port):
+    pytest.importorskip("langgraph")
+    from langgraph.checkpoint.memory import MemorySaver
+
+    flow = build_flow(live_port, checkpointer=MemorySaver())
 
     pending = start_investigation(flow, Finding("F-1", "credential_breach", HERO), "case-A")
-    # paused BEFORE the cut: proposal visible, nothing mutated yet
     assert pending["proposal"], "ranked proposal must be visible at the gate"
     assert pending["step"] == "awaiting_approval"
-    assert port.reachability() == 1  # cut not executed
+    assert live_port.reachability() == 1  # cut not executed
 
     result = resume_investigation(flow, "case-A", approve=True, approved_by="manas")
     assert result["receipt"]["verdict"] == "collapsed"
     assert result["receipt"]["approved_by"] == "manas"
-    assert port.reachability() == 0
+    assert live_port.reachability() == 0
 
 
-def test_kill9_resume_from_fresh_flow_object(port):
-    """The ONCALL beat: a NEW process (fresh flow, shared checkpointer) resumes
-    the interrupted investigation with zero re-explanation."""
+def test_kill9_resume_from_fresh_flow_object(live_port):
+    """The ONCALL beat: a NEW flow object (same engine, same checkpointer)
+    resumes the interrupted investigation with zero re-explanation."""
+    pytest.importorskip("langgraph")
+    from langgraph.checkpoint.memory import MemorySaver
+
     checkpointer = MemorySaver()
-    flow1 = build_flow(port, checkpointer=checkpointer)
+    flow1 = build_flow(live_port, checkpointer=checkpointer)
     pending = start_investigation(flow1, Finding("F-1", "credential_breach", HERO), "case-B")
     assert pending["proposal"]
 
-    # "kill -9": abandon flow1 entirely; a fresh flow object on the same thread
-    flow2 = build_flow(port, checkpointer=checkpointer)
+    flow2 = build_flow(live_port, checkpointer=checkpointer)  # "fresh process"
     result = resume_investigation(flow2, "case-B", approve=True)
     assert result["receipt"]["verdict"] == "collapsed"
     assert result["receipt"]["before"]["reachability"] == 1
     assert result["receipt"]["after"]["reachability"] == 0
-    # and the triage from the FIRST process is still in the thread state
     assert result["triage"]["finding"] == "F-1"
 
 
-def test_flow_gate_closed_without_approval(port):
-    flow = build_flow(port, checkpointer=MemorySaver())
+def test_flow_gate_closed_without_approval(live_port):
+    pytest.importorskip("langgraph")
+    from langgraph.checkpoint.memory import MemorySaver
+
+    flow = build_flow(live_port, checkpointer=MemorySaver())
     start_investigation(flow, Finding("F-1", "credential_breach", HERO), "case-C")
     result = resume_investigation(flow, "case-C", approve=False)
     assert result["step"] == "gate_closed"
     assert "receipt" not in result
-    assert port.reachability() == 1  # no mutation without a human yes
+    assert live_port.reachability() == 1  # no mutation without a human yes
+
+
+def test_falkordb_saver_checkpointer_roundtrip(live_port):
+    """Case memory IN the graph database via FalkorDBSaver (the shipped mode)."""
+    saver = pytest.importorskip("langchain_falkordb").checkpoint.FalkorDBSaver(
+        host="127.0.0.1",
+        port=6379,
+        database="sever_test_memory_checkpoints",
+    )
+    flow = build_flow(live_port, checkpointer=saver)
+    pending = start_investigation(flow, Finding("F-9", "credential_breach", HERO), "case-DB")
+    assert pending["proposal"]
+    flow2 = build_flow(live_port, checkpointer=saver)
+    result = resume_investigation(flow2, "case-DB", approve=True, approved_by="saver-test")
+    assert result["receipt"]["verdict"] == "collapsed"
+    assert live_port.reachability() == 0
 
 
 def test_case_log_append_and_read(tmp_path):

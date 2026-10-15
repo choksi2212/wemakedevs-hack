@@ -5,7 +5,7 @@ each `{"data": [...], "meta": {"type": "...", "version": N}}`.
 
 Output: ``NormalizedGraph`` — nodes and edges ready for Cypher batch emission
 or direct in-memory graph construction. Every edge endpoint is guaranteed to
-resolve (external trust targets get placeholder Domain nodes).
+resolve (external trust targets get unresolved Domain nodes).
 """
 from __future__ import annotations
 
@@ -140,14 +140,17 @@ _KNOWN_LABELS: frozenset[str] = frozenset(
 
 
 def _ensure_node(g: NormalizedGraph, objectid: str, label_hint: str, name: str = "") -> None:
-    """Create a placeholder node if a referenced principal/object was not collected.
+    """Create an UNRESOLVED-PRINCIPAL node when a reference points at a
+    principal the collectors never emitted a record for.
 
-    BloodHound itself does this — every referenced-but-uncollected principal gets a
-    node, so ACL paths through them remain traversable.
+    BloodHound itself resolves every referenced principal into a node — ACL
+    paths through uncollected principals remain traversable. We surface them
+    honestly with the `unresolved` property (never silently dropped, never
+    silently invented).
     """
     if objectid and objectid not in g.nodes:
         label = label_hint if label_hint in _KNOWN_LABELS else "Container"
-        g.add_node(objectid, label, {"placeholder": True, **({"name": name} if name else {})})
+        g.add_node(objectid, label, {"unresolved": True, **({"name": name} if name else {})})
 
 
 
@@ -157,7 +160,7 @@ def parse_ad_dir(path: str | Path) -> NormalizedGraph:
     """Parse every collector JSON in ``path`` (all snapshots/domains) into one org graph.
 
     Two passes: (1) create all nodes from their own records (authoritative labels),
-    (2) derive edges, creating placeholder nodes only for genuinely-uncollected refs.
+    (2) derive edges, creating unresolved-principal nodes only for genuinely-uncollected refs.
     """
     g = NormalizedGraph()
     skipped: dict[str, int] = {}

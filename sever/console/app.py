@@ -1,15 +1,14 @@
-"""SEVER console — the agent's cockpit. FastAPI over a GraphPort.
+"""SEVER console — the agent's cockpit. FastAPI over the live FalkorDB engine.
 
 The human gate is a real HTTP round-trip: the UI renders the ranked proposal
 and the operator clicks APPROVE — the cut executes only on that explicit call.
 
-Run against the live engine:
+Run:
     uvicorn sever.console.app:app --host 0.0.0.0 --port 8000
 Env: SEVER_FALKOR_HOST/PORT, SEVER_FALKOR_GRAPH, SEVER_SAMPLE_DIR
 """
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import Any
@@ -20,13 +19,10 @@ from pydantic import BaseModel
 
 from sever.agent.investigator import Investigator
 from sever.core.falkor_port import FalkorGraphPort
-from sever.core.mock_port import MockGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
-from sever.findings.stream import Finding, apply_finding
+from sever.findings.stream import Finding
 from sever.memory.flow import CaseLog
-
-HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"  # T1_TONYMONTANA@PHANTOM.CORP
 
 
 class CutRequest(BaseModel):
@@ -39,33 +35,28 @@ class CutRequest(BaseModel):
 
 class FindingRequest(BaseModel):
     kind: str = "credential_breach"
-    subject: str = HERO
+    subject: str
     target: str | None = None
     rel: str | None = None
 
 
 def build_app() -> FastAPI:
-    app = FastAPI(title="SEVER console", version="0.1.0")
-    backend = os.environ.get("SEVER_BACKEND", "falkordb")
+    app = FastAPI(title="SEVER console", version="0.2.0")
 
-    if backend == "falkordb":
-        port = FalkorGraphPort(
-            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-            graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
-        )
-        if port.node_count() == 0:
-            normalized = parse_ad_dir(os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"))
-            port.load(normalized)
-    else:
-        normalized = parse_ad_dir(os.environ.get("SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample"))
-        port = MockGraphPort()
-        port.load(normalized)
+    port = FalkorGraphPort(
+        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+        graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
+    )
+    if port.node_count() == 0:
+        port.load(parse_ad_dir(os.environ.get(
+            "SEVER_SAMPLE_DIR", "N:/HERMESSSS/graphhacks/data/ad_sample")))
 
     inv = Investigator(port)
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
+    app.state.port = port
 
-    def names(hops: list[tuple[str, str, str]]) -> list[dict[str, str]]:
+    def _names(hops: list[tuple[str, str, str]]) -> list[dict[str, str]]:
         out = []
         for s, r, d in hops:
             out.append({
@@ -76,9 +67,11 @@ def build_app() -> FastAPI:
         return out
 
     def _name(oid: str) -> str:
-        if hasattr(port, "g"):  # mock
-            return port.g.nodes[oid]["props"].get("name", oid)
-        return oid  # live: keep ids (names fetched via query when needed)
+        res = port.graph.query(
+            "MATCH (n {objectid: $o}) RETURN n.name AS name LIMIT 1", {"o": oid})
+        if res.result_set and res.result_set[0][0]:
+            return str(res.result_set[0][0])
+        return oid
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
@@ -86,21 +79,21 @@ def build_app() -> FastAPI:
 
     @app.get("/api/state")
     async def state() -> dict[str, Any]:
-        reach = port.reachability()
         data = {
-            "backend": backend,
+            "backend": "falkordb",
+            "graph": port.graph_name,
             "nodes": port.node_count(),
             "edges": port.edge_count(),
             "jewels": port.crown_jewels(),
             "owned": port.owned_ids(),
-            "reachability": reach,
+            "reachability": port.reachability(),
         }
         log.append({"step": "state", **{k: data[k] for k in ("reachability", "nodes", "edges")}})
         return data
 
     @app.get("/api/paths")
     async def paths() -> dict[str, Any]:
-        out: dict[str, Any] = {"owned": [], "paths": []}
+        out: dict[str, Any] = {"paths": []}
         for owned in port.owned_ids():
             for path in port.paths_to_jewels(owned):
                 out["paths"].append({"principal": _name(owned), "hops": names(path)})
@@ -141,7 +134,13 @@ def build_app() -> FastAPI:
     async def receipts() -> list[dict[str, Any]]:
         return log.read()
 
+    # expose for tests/teardown
+    build_app.port_obj = port
     return app
+
+
+def names(hops):
+    return [{"src": s, "rel": r, "dst": d} for s, r, d in hops]
 
 
 app = build_app()

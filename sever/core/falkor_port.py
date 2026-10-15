@@ -38,11 +38,11 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 # FalkorDB supports shortestPath only when it terminates in WITH/RETURN, so
 # reachability = per (owned, jewel) pair via PATH_QUERY_TEMPLATE — the exact
 # same query paths_to_jewels uses; the agent counts owned principals with >=1
-# returned path. Parity with the mock engine is asserted in tests/test_ports.py.
+# returned path. The scripted cascade regression lives in tests/test_live.py.
 REACHABILITY_METHOD = "per-pair shortestPath existence (PATH_QUERY_TEMPLATE)"
 
 # Per-pair SHORTEST-path enumeration (ties included, capped at 100 — mirrors
-# MockGraphPort.MAX_PATHS_PER_PAIR). FalkorDB quirk: shortestPath works only as
+# the analysis cap). FalkorDB quirk: shortestPath works only as
 # a WITH-clause expression; algo.SPpaths enumerates ties but yields raw node
 # ids on edges — hence the index-zip hop parser below.
 PATH_QUERY_TEMPLATE = (
@@ -168,8 +168,8 @@ class FalkorGraphPort(GraphPort):
         ``ties=True`` switches to algo.SPpaths enumeration — the OFFLINE ANALYSIS
         mode: cross-domain tie sets explode combinatorially (measured 15-25s+ per
         pair on the sample estate), so the live demo and the agent loop use the
-        canonical form (milliseconds). The mock engine enumerates ties freely
-        because it is in-memory.
+        canonical form (milliseconds); the ties mode exists for offline
+        tie-set analysis on demand.
         """
         pattern = cypher_traversal_pattern(hop_cap)
         paths: list[list[tuple[str, str, str]]] = []
@@ -203,11 +203,15 @@ class FalkorGraphPort(GraphPort):
     )
 
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
+        if not _valid_rel(rel):
+            raise ValueError(f"invalid relationship type: {rel!r}")
         query = self.ADD_EDGE_QUERY.format(rel=rel)
         created = int(self._scalar(query, {"src": src, "dst": dst, "props": props or {}}) or 0)
         return created > 0
 
     def cut(self, src: str, dst: str, rel: str) -> int:
+        if not _valid_rel(rel):
+            raise ValueError(f"invalid relationship type: {rel!r}")
         count_q = CUT_COUNT_QUERY_TEMPLATE.format(rel=rel)
         n = int(self._scalar(count_q, {"src": src, "dst": dst}))
         if n > 0:
@@ -232,6 +236,20 @@ class FalkorGraphPort(GraphPort):
             "crown_jewels": self.crown_jewels(),
             "reachability": self.reachability(),
         }
+
+
+# Relationship types are a closed vocabulary from the data model; anything else
+# is rejected BEFORE it can reach string interpolation (Cypher injection guard).
+_VALID_REL_RE = None
+
+
+def _valid_rel(rel: str) -> bool:
+    import re as _re
+
+    global _VALID_REL_RE
+    if _VALID_REL_RE is None:
+        _VALID_REL_RE = _re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+    return bool(rel) and bool(_VALID_REL_RE.match(rel))
 
 
 def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:
