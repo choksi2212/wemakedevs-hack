@@ -23,7 +23,7 @@ def client(monkeypatch):
 
     tc = TestClient(appmod.app)
     yield tc
-    appmod.drop_graph(port_obj, GRAPH)
+    appmod.drop_graph(appmod.build_app.port_obj, GRAPH)
 
 
 def test_index_serves_the_console(client):
@@ -76,3 +76,17 @@ def test_approved_cut_collapses_via_console(client):
     assert state["reachability"] == 0
     recs = client.get("/api/receipts").json()
     assert any(e.get("step") == "cut" for e in recs)
+
+
+# ---- audit/security: end-to-end hostile input hits the 422 schema wall ----
+# (the full field/pattern matrix lives in tests/test_console_schemas.py,
+#  which is engine-free and runs everywhere)
+
+def test_endpoints_return_422_on_hostile_input(client):
+    r = client.post("/api/finding", json={"kind": "credential_breach", "subject": "S-1-" + "9" * 10_000})
+    assert r.status_code == 422
+    r = client.post("/api/cut", json={
+        "src": HERO, "dst": HERO, "rel": "MEMBER_OF}]->(t) DETACH DELETE n //",
+        "approved": True,
+    })
+    assert r.status_code == 422

@@ -66,6 +66,9 @@
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+// audit/security: graph-derived strings (names, objectids, rel types come from
+// collector data files) are inserted via innerHTML — escape at the boundary.
+const esc = (s) => String(s).replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const banner = (msg) => { $('banner').textContent = msg || ''; };
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -82,16 +85,18 @@ async function refresh() {
   const paths = await api('/api/paths');
   $('paths').innerHTML = paths.paths.length
     ? paths.paths.map(p => '<div style="margin:10px 0">' +
-        '<div style="color:#7ba0bf">' + p.principal + ' → crown jewel</div>' +
-        p.hops.map(h => '<div class="hop">' + h.src + ' <span class="rel">-[' + h.rel + ']-></span> ' + h.dst + '</div>').join('') +
+        '<div style="color:#7ba0bf">' + esc(p.principal) + ' → crown jewel</div>' +
+        p.hops.map(h => '<div class="hop">' + esc(h.src) + ' <span class="rel">-[' + esc(h.rel) + ']-></span> ' + esc(h.dst) + '</div>').join('') +
         '</div>').join('')
     : '<span class="quiet">no owned principals — simulate a breach to begin</span>';
   const prop = await api('/api/proposal');
   $('proposal').innerHTML = prop.length
     ? prop.map(c => '<div class="row"><span>' +
-        c.src.slice(-6) + ' <span class="rel">-[' + c.rel + ']-></span> ' + c.dst.slice(-6) +
+        esc(c.src.slice(-6)) + ' <span class="rel">-[' + esc(c.rel) + ']-></span> ' + esc(c.dst.slice(-6)) +
         ' <span class="quiet">(on ' + c.paths_on + ' paths)</span></span>' +
-        '<button class="approve" onclick="approveCut(\'' + c.src + '\',\'' + c.dst + '\',\'' + c.rel + '\')">APPROVE CUT</button></div>').join('')
+        // onclick args are JSON-encoded for the JS layer, then entity-encoded
+        // for the HTML attribute layer (two-layer escape — audit/security)
+        '<button class="approve" onclick="approveCut(' + esc([c.src, c.dst, c.rel].map(JSON.stringify).join(',')) + ')">APPROVE CUT</button></div>').join('')
     : '<span class="quiet">nothing to propose</span>';
   const rec = await api('/api/receipts');
   $('receipts').textContent = rec.slice(-8).map(e => JSON.stringify(e)).join('\n') || '—';

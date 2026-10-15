@@ -15,29 +15,14 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
 
 from sever.agent.investigator import Investigator
+from sever.console.schemas import CutRequest, FindingRequest
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
 from sever.findings.attack_map import narrate
 from sever.findings.stream import Finding
 from sever.memory.flow import CaseLog
-
-
-class CutRequest(BaseModel):
-    src: str
-    dst: str
-    rel: str
-    approved: bool
-    approved_by: str = "console-operator"
-
-
-class FindingRequest(BaseModel):
-    kind: str = "credential_breach"
-    subject: str
-    target: str | None = None
-    rel: str | None = None
 
 
 def build_app() -> FastAPI:
