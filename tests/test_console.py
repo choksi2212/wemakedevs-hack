@@ -5,11 +5,11 @@ import importlib
 
 import pytest
 
-from tests.conftest import requires_engine, requires_sample, drop_graph
+from tests.conftest import requires_engine, requires_sample, drop_graph, prefixed
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 GMSA = "S-1-5-21-2697957641-2271029196-387917394-2102"
-GRAPH = "sever_test_console"
+GRAPH = prefixed("sever_test_console")
 
 pytestmark = [requires_engine, requires_sample]
 
@@ -90,6 +90,85 @@ def test_approved_cut_collapses_via_console(client):
     assert state["reachability"] == 0
     recs = client.get("/api/receipts").json()
     assert any(e.get("step") == "cut" for e in recs)
+
+
+# ---- the remediation PLAN: /api/plan + /api/plan/execute (audit4) ----
+
+
+def _plan_steps(client):
+    """GET the plan and echo it back in the execute payload shape — exactly
+    what the operator's APPROVE click sends."""
+    plan = client.get("/api/plan").json()
+    steps = [
+        {
+            "src": s["cut"]["src"], "rel": s["cut"]["rel"], "dst": s["cut"]["dst"],
+            "projected_reachability": s["projected_reachability"],
+        }
+        for s in plan["steps"]
+    ]
+    return plan, steps
+
+
+def test_plan_endpoint_proposes_measured_sequence(client):
+    client.post("/api/finding", json={"kind": "credential_breach", "subject": HERO})
+    r = client.get("/api/plan")
+    assert r.status_code == 200
+    plan = r.json()
+    assert plan["method"] == "graph_copy_remeasure"
+    assert plan["steps"] and plan["steps"][0]["step"] == 1
+    # the frozen sample's #1 cut is an attacker-only edge (benign usage 0,
+    # measured by the collateral estimate on the live engine)
+    assert plan["steps"][0]["benign_usage"] == 0
+    # projections never touch the live estate:
+    assert client.get("/api/state").json()["reachability"] == 1
+    # the plan is on the receipts ledger like every agent step
+    recs = client.get("/api/receipts").json()
+    assert any(e.get("step") == "plan" for e in recs)
+
+
+def test_plan_execute_gate_403_and_strict_bool(client):
+    client.post("/api/finding", json={"kind": "credential_breach", "subject": HERO})
+    _, steps = _plan_steps(client)
+    r = client.post("/api/plan/execute", json={"approved": False, "steps": steps})
+    assert r.status_code == 403
+    assert client.get("/api/state").json()["reachability"] == 1, "nothing executed"
+    # truthy non-bool approval dies at the schema, never executes (422)
+    r = client.post("/api/plan/execute", json={"approved": 1, "steps": steps})
+    assert r.status_code == 422
+    assert client.get("/api/state").json()["reachability"] == 1
+
+
+def test_plan_execute_gate_first_no_oracle_without_approval(client):
+    client.post("/api/finding", json={"kind": "credential_breach", "subject": HERO})
+    _, steps = _plan_steps(client)
+    steps[0]["rel"] = "generic_all"  # schema-valid, engine-vocabulary-unknown
+    r = client.post("/api/plan/execute", json={"approved": False, "steps": steps})
+    assert r.status_code == 403, "the gate fires before rel validity surfaces"
+    # and WITH approval the same rel is a clean 400, never a 500
+    r = client.post("/api/plan/execute", json={"approved": True, "steps": steps})
+    assert r.status_code == 400
+
+
+def test_plan_execute_approved_runs_the_whole_sequence(client):
+    client.post("/api/finding", json={"kind": "credential_breach", "subject": HERO})
+    plan, steps = _plan_steps(client)
+    r = client.post("/api/plan/execute", json={"approved": True, "steps": steps})
+    assert r.status_code == 200
+    result = r.json()
+    assert result["status"] == "completed"
+    assert result["executed_steps"] == len(steps)
+    # every receipt re-measured live and matched its projection (no drift)
+    assert all(s["plan_drift"] is False for s in result["steps"])
+    # the live estate ended exactly where the plan projected it
+    state = client.get("/api/state").json()
+    assert state["reachability"] == plan["steps"][-1]["projected_reachability"]
+    recs = client.get("/api/receipts").json()
+    assert any(e.get("step") == "plan_execute" for e in recs)
+
+
+def test_plan_execute_rejects_empty_step_lists(client):
+    r = client.post("/api/plan/execute", json={"approved": True, "steps": []})
+    assert r.status_code == 422, "an empty plan executes nothing — refuse it"
 
 
 # NOTE on the 400-contract tests below: they are NOT DB-free-testable —

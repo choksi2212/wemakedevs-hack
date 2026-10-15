@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import drop_graph
+from tests.conftest import drop_graph, prefixed
 from sever.etl.ad_collectors import NormalizedGraph, parse_ad_dir
 from sever.etl.entra_collectors import merge_entra, parse_entra_file
 
@@ -197,7 +197,7 @@ def test_cross_world_reachability_on_engine():
     # and an `if <always-True>: pass` tautology branch (audit3/test-forensics).
     try:
         from sever.core.falkor_port import FalkorGraphPort
-        name = "sever_test_entra_tiny"
+        name = prefixed("sever_test_entra_tiny")
         port = FalkorGraphPort(graph_name=name)
         port.node_count()
     except Exception:

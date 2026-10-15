@@ -125,3 +125,29 @@ class FindingRequest(BaseModel):
                 "rejected by the engine and would narrate a phantom mutation"
             )
         return self
+
+
+class PlanStep(BaseModel):
+    """One step of a remediation plan the operator is approving. The step
+    echoes back the projection the UI rendered (``projected_reachability``)
+    so the drift check in execute_plan can honestly compare what the
+    operator approved against what the engine measures."""
+    src: str = Field(min_length=1, max_length=256)
+    dst: str = Field(min_length=1, max_length=256)
+    rel: str = Field(max_length=64, pattern=REL_PATTERN)
+    projected_reachability: int = Field(ge=0)
+
+    _utf8 = field_validator("src", "dst", "rel")(_utf8_encodable)
+
+
+class PlanExecuteRequest(BaseModel):
+    """The plan-execution gate. ``approved`` is the same StrictBool contract
+    as CutRequest: only the exact JSON booleans true/false ever reach the
+    handler, which still checks ``approved is True`` — a plan is N cuts and
+    every one of them stays behind the human gate, one approved payload
+    listing exactly the steps the operator reviewed."""
+    approved: StrictBool
+    approved_by: str = Field(default="console-operator", min_length=1, max_length=128)
+    steps: list[PlanStep] = Field(min_length=1, max_length=10)
+
+    _utf8 = field_validator("approved_by")(_utf8_encodable)

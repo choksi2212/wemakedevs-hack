@@ -47,7 +47,7 @@ from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
 from sever.console.security import BodySizeLimitMiddleware
-from sever.console.schemas import CutRequest, FindingRequest
+from sever.console.schemas import CutRequest, FindingRequest, PlanExecuteRequest
 from sever.console.security import BodySizeLimitMiddleware
 from sever.core.falkor_port import FalkorGraphPort
 from sever.core.port import GraphPort
@@ -215,6 +215,53 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     @app.get("/api/proposal")
     async def proposal() -> list[dict[str, Any]]:
         return inv.propose(limit=5)
+
+    @app.get("/api/plan")
+    async def plan() -> dict[str, Any]:
+        # The remediation PLAN: a greedy k=3 cut sequence with per-step
+        # MEASURED projections (computed on an isolated GRAPH.COPY — the
+        # live estate is never touched by a proposal). The operator reviews
+        # the whole sequence, not one edge.
+        out = inv.propose_plan()
+        # mirror onto the console receipts ledger like every other agent
+        # step — the trail must show what was proposed, not only what ran
+        log.append({"step": "plan", "plan": out})
+        return out
+
+    @app.post("/api/plan/execute")
+    async def plan_execute(req: PlanExecuteRequest) -> dict[str, Any]:
+        # Gate check FIRST, exactly like /api/cut: an unapproved caller
+        # learns nothing about the plan's steps or rel validity.
+        if req.approved is not True:
+            raise HTTPException(status_code=403, detail="plan execution requires explicit human approval")
+        plan = {
+            "steps": [
+                {
+                    "step": i + 1,
+                    "cut": {"src": s.src, "rel": s.rel, "dst": s.dst},
+                    "projected_reachability": s.projected_reachability,
+                }
+                for i, s in enumerate(req.steps)
+            ]
+        }
+        try:
+            result = inv.execute_plan(plan, approved_by=req.approved_by)
+        except ValueError as e:
+            # Only reachable with a schema-valid but unknown rel: the gate
+            # above already handled the not-approved case, and the engine's
+            # closed-vocabulary guard rejects the rel before any Cypher runs
+            # (same contract as /api/cut: client error -> 400, not a 500).
+            raise HTTPException(status_code=400, detail=str(e))
+        except ENGINE_ERRORS:
+            # Engine died mid-plan: some steps may have landed — outcome
+            # unknown, honestly recorded, the ledger never invents a success.
+            log.append({"step": "plan_execute_failed",
+                        "approved_by": req.approved_by,
+                        "error": "engine unreachable mid-plan", "outcome": "unknown"})
+            raise
+        log.append({"step": "plan_execute", "result": result})
+        return result
+
 
     @app.post("/api/finding")
     async def finding(req: FindingRequest) -> dict[str, Any]:

@@ -140,6 +140,10 @@ CUT_DELETE_QUERY_TEMPLATE = (
 
 MARK_OWNED_QUERY = "MATCH (n {objectid: $oid}) SET n.owned = true"
 
+# Principals that can hold (possibly legitimate) access flows — the pool the
+# benign-usage/collateral estimate samples over (sever/core/scoring.py).
+USER_OBJECTIDS_QUERY = "MATCH (u:User) RETURN u.objectid AS objectid ORDER BY objectid"
+
 
 class FalkorGraphPort(GraphPort):
     def __init__(
@@ -203,6 +207,49 @@ class FalkorGraphPort(GraphPort):
     def owned_ids(self) -> list[str]:
         res = self.graph.query(OWNED_QUERY)
         return sorted(str(row[0]) for row in res.result_set)
+
+    def user_objectids(self) -> list[str]:
+        """All User principals of the loaded estate, deterministic order —
+        the sampling pool for the benign-usage (cut collateral) estimate."""
+        res = self.graph.query(USER_OBJECTIDS_QUERY)
+        return sorted(str(row[0]) for row in res.result_set)
+
+    # ---- isolated-copy projection substrate ----
+    # The multi-cut PLAN (scoring.plan_cut_sequence) projects each step on a
+    # scratch copy of the live estate so the live graph is never mutated by a
+    # proposal. GRAPH.COPY is a server-side, engine-native copy — the same
+    # engine that answers live queries answers the projections (live-verified
+    # on falkordb 6.0.0; copy of the 1480-node/12450-edge sample estate
+    # measures ~0.1s).
+    def scratch_copy(self, scratch_name: str) -> "FalkorGraphPort":
+        """Return a port on a fresh isolated copy of THIS graph.
+
+        Idempotent like every other graph lifecycle path: an existing
+        destination key is deleted first, mirroring make_live_port's
+        hermetic-start rule (a leftover scratch from a crashed run must
+        never be silently re-used and serve stale state into a plan).
+        """
+        from falkordb import Graph as _Graph
+
+        client = self.graph.client
+        try:
+            client.execute_command("GRAPH.DELETE", scratch_name)
+        except Exception:
+            pass  # no such key — the normal case
+        client.execute_command("GRAPH.COPY", self.graph_name, scratch_name)
+        return FalkorGraphPort(
+            client=_Graph(client=client, name=scratch_name),
+            graph_name=scratch_name,
+        )
+
+    def drop(self) -> None:
+        """Delete this port's graph key idempotently. Terminal for the port —
+        the plan projection's scratch graphs are dropped in a ``finally`` so
+        a crashed plan can never leak a scratch estate on the engine."""
+        try:
+            self.graph.client.execute_command("GRAPH.DELETE", self.graph_name)
+        except Exception:
+            pass
 
     def crown_jewels(self) -> list[str]:
         jewels = [str(row[0]) for row in self.graph.query(JEWELS_QUERY).result_set]

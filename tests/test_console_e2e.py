@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import requires_engine, requires_sample, drop_graph
+from tests.conftest import requires_engine, requires_sample, drop_graph, prefixed
 from sever.core.falkor_port import FalkorGraphPort
 
 pw_any = pytest.importorskip("playwright")
@@ -40,7 +40,7 @@ pytestmark = [requires_engine, requires_sample]
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 GMSA = "S-1-5-21-2697957641-2271029196-387917394-2102"
 PORT = int(os.environ.get("SEVER_E2E_PORT", "8165"))
-GRAPH = "sever_audit3_cl_e2e"
+GRAPH = prefixed("sever_audit3_cl_e2e")
 REPO = Path(__file__).resolve().parents[1]
 
 FETCH_GATE_JS = """

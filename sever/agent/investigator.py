@@ -17,7 +17,14 @@ from typing import Any
 from sever.agent.llm import LLM, OfflineNarrator
 from sever.core.jewels import DEFAULT_HOP_CAP
 from sever.core.port import GraphPort
-from sever.core.scoring import interdict, rank_cut_candidates, snapshot
+from sever.core.scoring import (
+    BENIGN_SAMPLE_SIZE,
+    benign_edge_usage,
+    interdict,
+    plan_cut_sequence,
+    rank_cut_candidates,
+    snapshot,
+)
 from sever.findings.attack_map import narrate
 from sever.findings.stream import Finding, apply_finding
 
@@ -164,8 +171,86 @@ class Investigator:
         return report
 
     # ---- human gate ----
-    def propose(self, limit: int = 3) -> list[dict[str, Any]]:
-        return rank_cut_candidates(self.port.edge_frequency(self.hop_cap), limit=limit)
+    def propose(self, limit: int = 3, benign_sample_size: int = BENIGN_SAMPLE_SIZE) -> list[dict[str, Any]]:
+        """Collateral-aware proposal list: attack coverage desc, benign usage
+        asc on ties, plus the measured benign_usage per edge. The triage
+        report's inline ``proposal`` is the fast-path (coverage-only) view;
+        this is the deliberate remediation surface — it pays for the sampled
+        benign-usage measurement and receipts it."""
+        benign = benign_edge_usage(self.port, self.hop_cap, benign_sample_size)
+        ranked = rank_cut_candidates(
+            self.port.edge_frequency(self.hop_cap), limit=limit, benign=benign["usage"]
+        )
+        for item in ranked:
+            item["benign_sample"] = {"sampled": benign["sampled"], "pool": benign["pool"]}
+        return ranked
+
+    def propose_plan(
+        self,
+        k: int = 3,
+        benign_sample_size: int = BENIGN_SAMPLE_SIZE,
+        scratch_name: str | None = None,
+    ) -> dict[str, Any]:
+        """Propose a k-cut PLAN (greedy sequence, measured projections) — the
+        human approves a plan, not one edge. Each step is projected on an
+        isolated GRAPH.COPY of the live estate: the live graph is not
+        touched, and nothing here executes."""
+        plan = plan_cut_sequence(
+            self.port, k=k, hop_cap=self.hop_cap,
+            benign_sample_size=benign_sample_size, scratch_name=scratch_name,
+        )
+        self.case_log.append(self._ledger_entry({"step": "plan", "plan": plan}))
+        return plan
+
+    def execute_plan(
+        self,
+        plan: dict[str, Any],
+        approved_by: str = "on-call-analyst",
+        require_explicit_approval: object = True,
+        gate: Any = None,
+    ) -> dict[str, Any]:
+        """Execute a proposed plan STEP BY STEP through the human gate.
+
+        Every step is an individually-gated live cut with its own before/
+        after receipt, re-measured against the plan's projection. The first
+        step whose measured reachability diverges from the projection STOPS
+        the plan — later steps were computed on a surface that no longer
+        exists, and SEVER does not execute stale projections. ``gate`` is an
+        optional per-step callable(step) -> bool consulted before each cut:
+        anything but the exact value True refuses the plan at that step with
+        NO mutation executed for it.
+        """
+        if require_explicit_approval is not True:
+            raise ValueError("plan execution requires explicit human approval")
+        receipts: list[dict[str, Any]] = []
+        status = "completed"
+        executed = 0
+        for step in plan.get("steps", []):
+            if gate is not None and gate(step) is not True:
+                status = "gate_refused_at_step"
+                self.case_log.append(self._ledger_entry({
+                    "step": "plan_gate_refused",
+                    "plan_step": step.get("step"),
+                    "cut": step.get("cut"),
+                }))
+                break
+            cut = step["cut"]
+            receipt = interdict(self.port, cut["src"], cut["dst"], cut["rel"], self.hop_cap)
+            receipt["approved_by"] = approved_by
+            receipt["approved_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            receipt["plan_step"] = step.get("step")
+            receipt["projected_reachability"] = step.get("projected_reachability")
+            drift = receipt["after"]["reachability"] != step.get("projected_reachability")
+            receipt["plan_drift"] = drift
+            receipts.append(receipt)
+            executed += 1
+            self.case_log.append(self._ledger_entry({"cut": receipt}))
+            if drift:
+                # reality diverged from the projection: every later step of
+                # the plan is stale — stop honestly, propose a re-plan
+                status = "drift_stopped_at_step"
+                break
+        return {"status": status, "executed_steps": executed, "steps": receipts}
 
     def approve_and_cut(
         self,

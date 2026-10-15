@@ -84,6 +84,13 @@ class _FakePort(GraphPort):
         self._check()
         return sorted(self._owned)
 
+    def user_objectids(self) -> list[str]:
+        # the benign-usage sampling pool (audit4): this estate's one User.
+        # _check() FIRST so an engine-dead /api/proposal still surfaces the
+        # connection error (clean 503) instead of a missing-method TypeError.
+        self._check()
+        return [ALICE]
+
     def crown_jewels(self) -> list[str]:
         self._check()
         return [DA]
