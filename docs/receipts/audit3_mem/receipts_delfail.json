@@ -1,0 +1,88 @@
+{
+  "beat": "DEL checkpoints key mid-case -> resume must fail-closed (live)",
+  "graph": "sever_audit3_mem",
+  "setup": {
+    "reset": {
+      "sever_audit3_mem": "deleted",
+      "sever_audit3_mem_checkpoints": "deleted"
+    },
+    "nodes": 1480,
+    "edges": 12450
+  },
+  "start_case_DEL": {
+    "args": [
+      "start",
+      "--thread",
+      "case-DEL",
+      "--graph",
+      "sever_audit3_mem",
+      "--finding-id",
+      "F-DEL",
+      "--subject",
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+    ],
+    "returncode": 0,
+    "stdout": "[t2] investigation paused at the HUMAN GATE (process 1 exiting)\n[t2] thread: case-DEL\n[t2] finding: F-DEL | subject: S-1-5-21-2697957641-2271029196-387917394-2110\n[t2] pending proposal (from shared case memory):\n        S-1-5-21-2697957641-2271029196-387917394-2101 -[MEMBER_OF]-> S-1-5-21-2697957641-2271029196-387917394-2102 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2102 -[READ_GMSAPASSWORD]-> S-1-5-21-2697957641-2271029196-387917394-2138 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 5 paths)\n[t2] reachability at pause: 1\n[t2] a FRESH process can resume this case from FalkorDB case memory\n",
+    "stderr": ""
+  },
+  "paused_case_DEL": {
+    "step": "awaiting_approval",
+    "finding": "F-DEL",
+    "proposal_top": {
+      "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "rel": "MEMBER_OF",
+      "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+      "paths_on": 5
+    }
+  },
+  "del": {
+    "key": "sever_audit3_mem_checkpoints",
+    "response": 1,
+    "exists_after": 0
+  },
+  "resume_after_del": {
+    "args": [
+      "resume",
+      "--thread",
+      "case-DEL",
+      "--graph",
+      "sever_audit3_mem",
+      "--approved-by",
+      "night-shift",
+      "--out",
+      "out/audit3_mem/receipt_case-DEL.json"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"N:\\wemakedev\\audit3mem-live\\scripts\\case_memory_live.py\", line 174, in <module>\n    raise SystemExit(main())\n                     ^^^^^^\n  File \"N:\\wemakedev\\audit3mem-live\\scripts\\case_memory_live.py\", line 170, in main\n    return args.fn(args)\n           ^^^^^^^^^^^^^\n  File \"N:\\wemakedev\\audit3mem-live\\scripts\\case_memory_live.py\", line 113, in do_resume\n    result = resume_investigation(flow, args.thread, approve=True, approved_by=args.approved_by)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"N:\\wemakedev\\audit3mem-live\\sever\\memory\\flow.py\", line 171, in resume_investigation\n    raise ValueError(f\"thread {thread_id!r} is not paused at the gate\")\nValueError: thread 'case-DEL' is not paused at the gate\n"
+  },
+  "in_process_resume": {
+    "raised": true,
+    "type": "ValueError",
+    "message": "thread 'case-DEL' is not paused at the gate"
+  },
+  "no_mutation": {
+    "edges": [
+      12450,
+      12450
+    ],
+    "reachability": [
+      1,
+      1
+    ]
+  },
+  "case_DEL_after_del": {
+    "thread": "case-DEL",
+    "values": {},
+    "next": []
+  },
+  "checkpoints_graph_recreated": {
+    "node_count": 0
+  },
+  "start_case_POST": {
+    "returncode": 0,
+    "stdout_tail": "APASSWORD]-> S-1-5-21-2697957641-2271029196-387917394-2138 (on 5 paths)\n        S-1-5-21-2697957641-2271029196-387917394-2110 -[GENERIC_ALL]-> S-1-5-21-2697957641-2271029196-387917394-2101 (on 5 paths)\n[t2] reachability at pause: 1\n[t2] a FRESH process can resume this case from FalkorDB case memory\n"
+  },
+  "failures": [],
+  "all_pass": true
+}

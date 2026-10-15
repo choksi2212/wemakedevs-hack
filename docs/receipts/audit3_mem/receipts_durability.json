@@ -1,0 +1,202 @@
+{
+  "beat": "kill-the-console durability + fresh-process resume (live)",
+  "graph": "sever_audit3_mem",
+  "port": 8183,
+  "setup": {
+    "reset": {
+      "sever_audit3_mem": "deleted",
+      "sever_audit3_mem_checkpoints": "deleted"
+    },
+    "nodes": 1480,
+    "edges": 12450
+  },
+  "console_pid": 47948,
+  "console_prekill": {
+    "state_events": 3,
+    "ledger_events": 4,
+    "reachability": 0
+  },
+  "holder_pid": 48572,
+  "paused_case_DUR": {
+    "step": "awaiting_approval",
+    "finding": "F-DUR",
+    "proposal_top": {
+      "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "rel": "MEMBER_OF",
+      "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+      "paths_on": 5
+    },
+    "reachability": 1
+  },
+  "kill_console": {
+    "pid": 47948,
+    "returncode": 0,
+    "stdout": "SUCCESS: The process with PID 56148 (child process of PID 47948) has been terminated.\nSUCCESS: The process with PID 47948 (child process of PID 51108) has been terminated.",
+    "stderr": ""
+  },
+  "kill_holder": {
+    "pid": 48572,
+    "returncode": 0,
+    "stdout": "SUCCESS: The process with PID 48572 (child process of PID 56088) has been terminated.",
+    "stderr": ""
+  },
+  "rekill_holder": {
+    "pid": 48572,
+    "returncode": 128,
+    "stdout": "",
+    "stderr": "ERROR: The process \"48572\" not found."
+  },
+  "console2_pid": 55572,
+  "console_post_restart": {
+    "ledger_events": 5,
+    "reachability": 1
+  },
+  "resume_fresh_process": {
+    "args": [
+      "resume",
+      "--thread",
+      "case-DUR",
+      "--graph",
+      "sever_audit3_mem",
+      "--approved-by",
+      "night-shift",
+      "--out",
+      "out/audit3_mem/receipt_case-DUR.json"
+    ],
+    "returncode": 0,
+    "stdout": "[t2] resumed in a FRESH process \ufffd thread case-DUR\n[t2] triage was remembered from case memory: finding=F-DUR\n[t2] subject was remembered from case memory: subject=S-1-5-21-2697957641-2271029196-387917394-2110\n[t2] remembered proposal top: S-1-5-21-2697957641-2271029196-387917394-2101 -[MEMBER_OF]-> S-1-5-21-2697957641-2271029196-387917394-2102\n[t2] cut executed: {'src': 'S-1-5-21-2697957641-2271029196-387917394-2101', 'dst': 'S-1-5-21-2697957641-2271029196-387917394-2102', 'rel': 'MEMBER_OF', 'relationships_removed': 1}\n[t2] reachability 1 -> 0 | requery 2.63ms | verdict=collapsed\n[t2] receipts written to out\\audit3_mem\\receipt_case-DUR.json\n",
+    "stderr": ""
+  },
+  "resumed_case_DUR": {
+    "thread": "case-DUR",
+    "values": {
+      "finding_id": "F-DUR",
+      "finding_kind": "credential_breach",
+      "subject": "S-1-5-21-2697957641-2271029196-387917394-2110",
+      "triage": {
+        "finding": "F-DUR",
+        "kind": "credential_breach",
+        "applied": false,
+        "before": {
+          "reachability": 0,
+          "owned": [],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "technique": "T1078.002 Valid Accounts: Domain Accounts",
+        "narration": "Compromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+        "paths": 5,
+        "proposal": [
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "rel": "MEMBER_OF",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+            "rel": "READ_GMSAPASSWORD",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+            "paths_on": 5
+          },
+          {
+            "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+            "rel": "GENERIC_ALL",
+            "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+            "paths_on": 5
+          }
+        ]
+      },
+      "proposal": [
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "rel": "MEMBER_OF",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "READ_GMSAPASSWORD",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2138",
+          "paths_on": 5
+        },
+        {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2110",
+          "rel": "GENERIC_ALL",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "paths_on": 5
+        }
+      ],
+      "approved": true,
+      "approved_by": "night-shift",
+      "receipt": {
+        "cut": {
+          "src": "S-1-5-21-2697957641-2271029196-387917394-2101",
+          "dst": "S-1-5-21-2697957641-2271029196-387917394-2102",
+          "rel": "MEMBER_OF",
+          "relationships_removed": 1
+        },
+        "before": {
+          "reachability": 1,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12450
+        },
+        "after": {
+          "reachability": 0,
+          "owned": [
+            "S-1-5-21-2697957641-2271029196-387917394-2110"
+          ],
+          "jewels": [
+            "S-1-5-21-2697957641-2271029196-387917394-512",
+            "S-1-5-21-2697957641-2271029196-387917394-519",
+            "S-1-5-21-2845847946-3451170323-4261139666-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-512",
+            "S-1-5-21-3702535222-3822678775-2090119576-519"
+          ],
+          "nodes": 1480,
+          "edges": 12449
+        },
+        "requery_ms": 2.63,
+        "verdict": "collapsed",
+        "approved_by": "night-shift",
+        "approved_at": "2026-10-15T17:22:27+00:00"
+      },
+      "step": "verified"
+    },
+    "next": []
+  },
+  "failures": [],
+  "all_pass": true
+}

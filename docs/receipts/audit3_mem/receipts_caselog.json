@@ -1,0 +1,55 @@
+{
+  "beat": "CaseLog under two CONSOLE PROCESSES (live)",
+  "graph": "sever_audit3_mem",
+  "console_pids": [
+    11228,
+    56016
+  ],
+  "requests": {
+    "port1": {
+      "count": 40,
+      "all_200": true
+    },
+    "port2": {
+      "count": 40,
+      "all_200": true
+    }
+  },
+  "stop_consoles": [
+    {
+      "pid": 11228,
+      "returncode": 0,
+      "stdout": "SUCCESS: The process with PID 35372 (child process of PID 11228) has been terminated.\nSUCCESS: The process with PID 11228 (child process of PID 17364) has been terminated.",
+      "stderr": ""
+    },
+    {
+      "pid": 56016,
+      "returncode": 0,
+      "stdout": "SUCCESS: The process with PID 55404 (child process of PID 56016) has been terminated.\nSUCCESS: The process with PID 56016 (child process of PID 17364) has been terminated.",
+      "stderr": ""
+    }
+  ],
+  "ledger": {
+    "path": "N:\\wemakedev\\audit3mem-live\\out\\cases\\sever_audit3_mem.jsonl",
+    "raw_lines": 80,
+    "events_read": 80
+  },
+  "ledger_first_last": {
+    "first": {
+      "ts": "2026-10-15T17:24:20+00:00",
+      "step": "state",
+      "reachability": 1,
+      "nodes": 1480,
+      "edges": 12450
+    },
+    "last": {
+      "ts": "2026-10-15T17:24:21+00:00",
+      "step": "state",
+      "reachability": 1,
+      "nodes": 1480,
+      "edges": 12450
+    }
+  },
+  "failures": [],
+  "all_pass": true
+}
