@@ -47,7 +47,11 @@ def make_live_port(graph_name: str, load_sample: bool = True) -> FalkorGraphPort
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
         graph_name=graph_name,
     )
-    if load_sample and port.node_count() == 0:
+    if load_sample:
+        # hermetic start (audit3/test-forensics flakiness sweep): a leftover
+        # graph from a crashed previous run must never silently skip the load
+        # and serve stale engine state to the test
+        drop_graph(port, graph_name)
         port.load(parse_ad_dir(SAMPLE_DIR))
     return port
 

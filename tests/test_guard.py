@@ -148,3 +148,57 @@ def test_cut_with_zero_edges_skips_the_delete():
     assert port.cut("A", "B", "GENERIC_ALL") == 0
     assert len(rec.calls) == 1                    # only the count query — no DELETE fired
     assert "DELETE" not in rec.calls[0][0]
+
+
+# ---- two-arm reachability (wire-shape, DB-free): BOTH arms issued, the
+# caller's hop cap bound into each pattern, union semantics + the owned-jewel
+# breach case (audit3/test-forensics: mutations M9/M11/M1 on reachability
+# were invisible to every engine-free test before this)
+
+
+class _SequenceGraph:
+    """Serves canned result rows in call order."""
+
+    def __init__(self, results):
+        from collections import deque
+
+        self.calls: list[str] = []
+        self._results = deque(results)
+
+    def query(self, query, params=None, timeout=None):
+        self.calls.append(query)
+
+        class _R:
+            result_set = self._results.popleft() if self._results else []
+
+        return _R()
+
+
+def test_reachability_two_arm_union_and_hop_cap_binding():
+    results = [
+        [["arm1-oid"]],    # arm 1 (Group -512/-519 jewels)
+        [["arm2-oid"]],    # arm 2 (AZUser GlobalAdministrator holders)
+        [["S-jewel-g"]],   # crown_jewels(): JEWELS_QUERY
+        [],                # crown_jewels(): AZ_JEWELS_QUERY
+        [["arm2-oid"]],    # owned_ids()
+    ]
+    rec = _SequenceGraph(results)
+    port = FalkorGraphPort(client=rec)
+    assert port.reachability(hop_cap=5) == 2  # UNION of both arms, deduped
+    arm_queries = [q for q in rec.calls if "shortestPath" in q]
+    assert len(arm_queries) == 2, "both arms must be issued"
+    group_arm, az_arm = arm_queries
+    assert "Group" in group_arm and "AZUser" not in group_arm
+    assert "AZUser" in az_arm and "GlobalAdministrator" in az_arm
+    # the CALLER's hop cap is bound into BOTH arm patterns (mutation M9)
+    assert "*..5" in group_arm and "*..5" in az_arm
+
+    # owned-jewel breach case (mutation M1): an owned crown jewel counts
+    # directly, even though shortestPath cannot see a 0-hop self-pair
+    rec2 = _SequenceGraph([
+        [], [],               # both arms: no path rows
+        [["S-jewel-g"]], [],  # crown jewels
+        [["S-jewel-g"]],      # owned: the jewel itself
+    ])
+    port2 = FalkorGraphPort(client=rec2)
+    assert port2.reachability() == 1

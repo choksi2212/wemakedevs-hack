@@ -190,12 +190,11 @@ def test_merged_stats_are_honest():
 
 @requires_entrada
 def test_cross_world_reachability_on_engine():
-    pytest.importorskip("sever.core.falkor_port")
-    from tests.conftest import requires_engine
-
-    if requires_engine.args[1] if False else True:
-        pass
-    # skip cleanly when no engine
+    # skip cleanly when no engine (the module pytestmark only gates on sample
+    # presence, so the engine check lives in the try/except below). The old
+    # head of this test was dead weight: a no-op importorskip of a module
+    # that imports fine without the engine, an unused requires_engine import,
+    # and an `if <always-True>: pass` tautology branch (audit3/test-forensics).
     try:
         from sever.core.falkor_port import FalkorGraphPort
         name = "sever_test_entra_tiny"

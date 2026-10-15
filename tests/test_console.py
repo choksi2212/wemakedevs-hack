@@ -16,6 +16,17 @@ pytestmark = [requires_engine, requires_sample]
 @pytest.fixture()
 def client(monkeypatch):
     monkeypatch.setenv("SEVER_FALKOR_GRAPH", GRAPH)
+    # hermetic start (audit3/test-forensics flakiness sweep): build_app only
+    # loads a sample into an EMPTY key, so a leftover graph from a crashed
+    # previous run would silently serve stale engine state to every test in
+    # this module — and the append-only receipts ledger (out/cases/*.jsonl)
+    # persists a poisoned line across runs, 500ing every later /api/receipts
+    # read (proven live during the mutation pass).
+    from sever.core.falkor_port import FalkorGraphPort
+    from sever.memory.flow import CaseLog
+
+    drop_graph(FalkorGraphPort(graph_name=GRAPH), GRAPH)
+    CaseLog(GRAPH).path.unlink(missing_ok=True)
     import sever.console.app as appmod
 
     importlib.reload(appmod)
@@ -30,6 +41,7 @@ def test_index_serves_the_console(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "SEVER" in r.text
+    assert "SIMULATED ESTATE" in r.text  # honesty chip ships with the UI
 
 
 def test_state_starts_clean(client):
@@ -180,6 +192,7 @@ def test_lone_surrogate_is_422_and_never_poisons_receipts(client):
     # receipts stay readable — no poisoned line in the append-only ledger
     r = client.get("/api/receipts")
     assert r.status_code == 200
+    assert isinstance(r.json(), list)  # ledger intact JSON — not just a 200
     assert client.get("/api/state").status_code == 200
 
 
@@ -205,3 +218,27 @@ def test_gate_403_only_for_wellformed_requests(client):
         "src": HERO, "dst": "S-1-5-21-t-9999", "rel": "MEMBER_OF\n", "approved": False,
     })
     assert r.status_code == 422
+
+
+def test_cut_handler_gate_is_identity_checked_past_the_schema(client):
+    """Defense-in-depth, pinned (audit3 mutation M13 flipped the handler's
+    ``is not True`` to truthiness and ZERO tests noticed — the StrictBool
+    schema was the only thing standing between ``approved: 1`` and this
+    layer). The handler's own gate must 403 even for a value that could only
+    arrive by bypassing pydantic (model_construct): identity, not truthiness.
+    On a truthiness gate the request would instead fall through to the
+    investigator's ValueError -> 400, so this test tells the two apart."""
+    import asyncio
+
+    from sever.console.app import app as fastapp
+    from sever.console.schemas import CutRequest
+
+    route = next(r for r in fastapp.routes if getattr(r, "path", "") == "/api/cut")
+    sneaky = CutRequest.model_construct(
+        src=HERO, dst="S-1-5-21-t-9999", rel="MEMBER_OF", approved=1, approved_by="x",
+    )
+    with pytest.raises(Exception) as ei:
+        asyncio.run(route.endpoint(sneaky))
+    assert getattr(ei.value, "status_code", None) == 403, (
+        "the handler gate must reject non-True by IDENTITY, not truthiness"
+    )

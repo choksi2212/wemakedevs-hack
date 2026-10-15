@@ -49,6 +49,10 @@ def test_hero_reachability_and_paths(port):
 
 
 def test_edge_frequency_and_cut_collapses(port):
+    # hermetic (audit3/test-forensics ordering sweep): this test previously
+    # depended on test_hero_reachability_and_paths having marked HERO owned
+    # first — run standalone it failed on `assert freq`
+    port.mark_owned(HERO)
     freq = port.edge_frequency()
     assert freq
     (src, rel, dst), count = max(freq.items(), key=lambda kv: kv[1])
