@@ -23,7 +23,7 @@ def client(monkeypatch):
 
     tc = TestClient(appmod.app)
     yield tc
-    appmod.drop_graph(port_obj, GRAPH)
+    drop_graph(appmod.app.state.port, GRAPH)
 
 
 def test_index_serves_the_console(client):
