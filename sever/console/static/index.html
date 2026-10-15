@@ -174,9 +174,9 @@
       ? paths.paths.map((p) =>
           '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> → crown jewel</div>' +
           '<div class="hops">' + p.hops.map((h, i) =>
-            '<div class="hop"><span class="node' + (i === 0 ? ' mut' : '') + '" title="' + esc(h.src_id) + '">' + esc(i === 0 ? h.src : short(h.src_id)) + '</span>' +
+            '<div class="hop"><span class="node' + (i === 0 ? ' mut' : '') + '" title="' + esc(h.src) + '">' + esc(short(h.src)) + '</span>' +
             '<span class="rel">-[' + esc(h.rel) + ']-></span>' +
-            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id) + '">' + esc(i >= p.hops.length - 1 ? h.dst : short(h.dst_id)) + '</span></div>'
+            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst) + '">' + esc(short(h.dst)) + '</span></div>'
           ).join('') + '</div></div>')
         .join('')
       : '<div class="empty">No owned principals — simulate a breach to begin.</div>';
