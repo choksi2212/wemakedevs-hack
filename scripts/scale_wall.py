@@ -79,7 +79,7 @@ def main() -> int:
     sample_mems = []
     for i in range(1, args.tenants + 1):
         try:
-            usage = raw.execute_command("GRAPH.MEMORY", f"{args.graph_prefix}{i:03d}")
+            usage = raw.execute_command("GRAPH.MEMORY", "USAGE", f"{args.graph_prefix}{i:03d}")
             mem_bytes += int(usage)
             if i % 25 == 0:
                 sample_mems.append((i, int(usage)))
