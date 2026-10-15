@@ -126,10 +126,9 @@ def console_url():
 
 @pytest.fixture()
 def fresh_gate(console_url, page):
-    """Breach if needed, refresh, and leave one APPROVE-able proposal."""
-    st, s = _api("/api/state", base=console_url)
-    if st == 200 and s and s["reachability"] == 0:
-        _api("/api/finding", {"kind": "credential_breach", "subject": HERO}, base=console_url)
+    """Reachability may be zeroed by a prior test's cut: re-grant a direct
+    hero->jewel edge, refresh, and leave one APPROVE-able proposal."""
+    _ensure_proposal(console_url)
     page.click("#btn-refresh")
     page.wait_for_selector("#proposal button.approve", timeout=20000)
 
@@ -161,10 +160,18 @@ def page(browser, console_url):
 
 
 def _ensure_proposal(console_url) -> None:
-    """A previous attempt's cut may have zeroed reachability: re-grant a
-    DIRECT hero->jewel edge so a proposal exists to arm the gate on."""
+    """Guarantee an armable proposal:
+    1. on a fresh graph nothing is OWNED -> breach the hero (the sample's
+       own paths then light up reachability);
+    2. if a prior test's cut zeroed reachability, re-grant a DIRECT
+       hero->jewel edge."""
     st, s = _api("/api/state", base=console_url)
-    if st == 200 and s and s["reachability"] == 0:
+    if st != 200 or not s:
+        return
+    if HERO not in s.get("owned", []):
+        _api("/api/finding", {"kind": "credential_breach", "subject": HERO}, base=console_url)
+        st, s = _api("/api/state", base=console_url)
+    if s["reachability"] == 0:
         jewel = s["jewels"][0] if s.get("jewels") else GMSA
         _api("/api/finding", {"kind": "cross_domain_trust", "subject": HERO,
                               "target": jewel, "rel": "TRUSTED_BY"}, base=console_url)

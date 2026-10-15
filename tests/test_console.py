@@ -8,6 +8,7 @@ import pytest
 from tests.conftest import requires_engine, requires_sample, drop_graph
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
+GMSA = "S-1-5-21-2697957641-2271029196-387917394-2102"
 GRAPH = "sever_test_console"
 
 pytestmark = [requires_engine, requires_sample]
@@ -92,7 +93,7 @@ def test_approved_cut_collapses_via_console(client):
 def test_finding_with_invalid_rel_is_rejected_400_not_500(client):
     before = client.get("/api/state").json()
     r = client.post("/api/finding", json={
-        "kind": "ace_granted", "subject": HERO, "target": "S-1-5-21-t-9999",
+        "kind": "ace_granted", "subject": HERO, "target": GMSA,
         "rel": "member_of",  # lowercase -> rejected by the closed rel vocabulary
     })
     assert r.status_code == 400
@@ -226,7 +227,12 @@ def test_every_documented_kind_round_trips_over_http(client):
     from sever.console.schemas import KNOWN_FINDING_KINDS
 
     for kind in KNOWN_FINDING_KINDS:
-        r = client.post("/api/finding", json={"kind": kind, "subject": HERO})
+        # audit3: ace_granted is only valid WITH a real grant; the
+        # informational kinds accept the targetless replay shape.
+        body = ({"kind": "ace_granted", "subject": HERO, "target": GMSA,
+                 "rel": "GENERIC_ALL"} if kind == "ace_granted"
+                else {"kind": kind, "subject": HERO})
+        r = client.post("/api/finding", json=body)
         assert r.status_code == 200, kind
         assert r.json()["simulated"] is True
 
