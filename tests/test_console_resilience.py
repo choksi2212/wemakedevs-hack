@@ -239,3 +239,37 @@ def test_engine_dead_before_the_probe_is_still_a_clean_503(console):
     assert r.json()["detail"].startswith("engine unreachable")
     # nothing was attempted — no failure line either
     assert all(e["step"] != "finding_failed" for e in tc.get("/api/receipts").json())
+
+
+def test_api_health_is_a_cheap_engine_probe_and_writes_no_receipt(console):
+    """audit5/deploy-audit: Render's HTTP health check has a 5-second window.
+    /api/state runs five engine queries and measured 6-24s against the live
+    FalkorDB Cloud under concurrent load — as the health path it caused an
+    instance-restart loop that wiped the ephemeral ledger roughly every 10
+    minutes. /api/health must touch the engine (one query — a dead engine
+    still fails the check) yet never append a receipt, so health-check
+    traffic cannot drown the demo ledger in `state` noise."""
+    tc, fake = console
+    r = tc.get("/api/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["nodes"] == 3  # the fake estate: ALICE, TIER1, DA
+    assert not any(e.get("step") == "health"
+                   for e in tc.get("/api/receipts").json())
+
+
+def test_engine_dead_health_503_discloses_no_infra_details(console):
+    """audit5/deploy-audit: the 503 detail must not echo the raw redis-py
+    message — it embeds the engine host:port, which is infrastructure
+    disclosure on a public URL. The exception class is the whole story."""
+    tc, fake = console
+    fake.ops_dead = True
+    r = tc.get("/api/health")
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert detail.startswith("engine unreachable")
+    assert "ConnectionError" in detail
+    assert "127.0.0.1" not in detail and "6379" not in detail
+    fake.ops_dead = False
+    assert tc.get("/api/health").status_code == 200
