@@ -179,33 +179,86 @@
     }
     return body;
   }
-  function banner(html) { const b = $('banner'); b.innerHTML = html; b.classList.add('show'); }
+  // shape guard: a 200 that parses but is NOT the shape the caller renders
+  // previously TypeErrored inside the consumers — the exact class of cryptic
+  // UI error this incident produced ("Cannot read properties of undefined").
+  // Every response is validated BEFORE rendering, so a wrong-shape body
+  // surfaces as an honest "malformed …" line, never a JS stack fragment.
+  function need(body, ok, what) {
+    if (!ok(body)) throw new Error('malformed ' + what + ' (engine stall?)');
+    return body;
+  }
+  function banner(html, flag) {
+    const b = $('banner');
+    b.innerHTML = html;
+    b.classList.add('show');
+    if (flag) b.dataset.flag = flag; else delete b.dataset.flag;
+  }
+  function bannerClearIf(flag) {
+    // a state-marker banner (engine down / partial data) is transient: it is
+    // cleared by the refresh that proves it wrong, and never by an action
+    // receipt (no flag), which carries information that must persist.
+    const b = $('banner');
+    if (b.dataset.flag === flag) {
+      b.classList.remove('show'); b.textContent = ''; delete b.dataset.flag;
+    }
+  }
 
   const setText = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
   const engineDown = () => {
     $('engine-chip').className = 'chip down';
     setText('engine-label', 'engine unreachable');
   };
+  const engineDegraded = () => {
+    // state IS fresh (it rendered), only some sections failed: claiming
+    // "engine unreachable" here would be a lie — the honest chip is degraded.
+    $('engine-chip').className = 'chip paused';
+    setText('engine-label', 'engine degraded — partial data');
+  };
 
   async function refresh() {
+    // latest-wins: a slow, stale refresh must never overwrite a newer
+    // refresh's render (double-click spam colliding with auto-refresh).
+    state.gen = (state.gen || 0) + 1;
+    const gen = state.gen;
     let s;
-    try { s = await api('/api/state'); }
-    catch (e) {
+    try {
+      s = need(await api('/api/state'), (b) => b && typeof b === 'object'
+        && typeof b.nodes === 'number' && typeof b.edges === 'number'
+        && Array.isArray(b.jewels) && Array.isArray(b.owned)
+        && typeof b.reachability === 'number' && typeof b.graph === 'string',
+        '/api/state response');
+    } catch (e) {
       engineDown();
+      // surface the failure once, but never clobber a concrete action
+      // receipt with a generic line, and never pretend the data below is
+      // fresh — it is last-known, and the message says so.
+      const b = $('banner');
+      if (!b.classList.contains('show'))
+        banner('<span class="res">state refresh failed — showing last known data below (' + esc(e.message) + ')</span>', 'down');
       return;
     }
+    if (gen !== state.gen) return;
+    bannerClearIf('down');
     $('engine-chip').className = 'chip';
     setText('engine-label', 'falkordb · ' + (s.graph || ''));
     setText('estate-chip', s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges · ' + s.jewels.length + ' jewels');
-    setText('updated-at', 'updated ' + new Date().toLocaleTimeString());
+    const at = new Date().toLocaleTimeString();
+    setText('updated-at', 'state updated ' + at);
     const r = $('reach');
     r.textContent = s.reachability;
     r.className = 'value ' + (s.reachability > 0 ? 'danger' : 'ok');
     $('estate-detail').textContent = 'owned: ' + (s.owned.length ? s.owned.map(short).join(', ') : 'none');
 
+    // each secondary section fails independently: state above is fresh, a
+    // failed section keeps its last known content and the banner says so —
+    // the UI must never present a partial refresh as a complete one.
+    const stale = [];
     try {
-    const paths = await api('/api/paths');
-    $('paths').innerHTML = paths.paths.length
+    const paths = need(await api('/api/paths'), (b) => b && Array.isArray(b.paths)
+      && b.paths.every((p) => p && typeof p.principal === 'string' && Array.isArray(p.hops)), '/api/paths response');
+      if (gen !== state.gen) return;
+      $('paths').innerHTML = paths.paths.length
       ? paths.paths.map((p) =>
           '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> → crown jewel</div>' +
           '<div class="hops">' + p.hops.map((h, i) =>
@@ -216,8 +269,13 @@
         .join('')
       : '<div class="empty">No owned principals — simulate a breach to begin.</div>';
 
-    const prop = await api('/api/proposal');
-    $('proposal').innerHTML = prop.length
+    } catch (e) { stale.push('attack paths (' + e.message + ')'); }
+    try {
+    const prop = need(await api('/api/proposal'), (b) => Array.isArray(b)
+      && b.every((c) => c && typeof c.src === 'string' && typeof c.rel === 'string'
+        && typeof c.dst === 'string' && typeof c.paths_on === 'number'), '/api/proposal response');
+      if (gen !== state.gen) return;
+      $('proposal').innerHTML = prop.length
       ? prop.map((c) =>
           '<div class="prop-row"><div class="prop-main"><span title="' + esc(c.src) + '">' + esc(short(c.src)) + '</span> ' +
           '<span class="rel">-[' + esc(c.rel) + ']-></span> ' +
@@ -234,14 +292,18 @@
     // a pending CONFIRM); if the edge is no longer proposed, disarm quietly.
     if (state.pending && !renderGate(state.pending, false)) { state.pending = null; removeEscape(); }
 
-    } catch (e) { engineDown(); }
+    } catch (e) { stale.push('interdiction proposal (' + e.message + ')'); }
     // receipts is a pure file route — it never touches the engine, so its
     // failure must NOT flip the whole-engine chip to "unreachable" while
     // /api/state just answered and paths/proposals keep rendering
     // (audit5/live-e2e: the chip lied for minutes while data flowed).
     // Fetch it in its own lane and degrade the CARD, not the chip.
     let rec = null, recErr = null;
-    try { rec = await api('/api/receipts'); } catch (e) { recErr = e; }
+    try {
+      rec = need(await api('/api/receipts'), (b) => Array.isArray(b)
+        && b.every((e) => e && typeof e === 'object' && typeof e.step === 'string'), '/api/receipts response');
+    } catch (e) { recErr = e; }
+    if (gen !== state.gen) return;
     if (recErr) {
       $('receipts').innerHTML =
         '<div class="entry"><span class="line" style="color:var(--warn)">ledger unavailable — ' +
@@ -287,7 +349,17 @@
       return '<div class="entry"><span class="badge ' + badgeFor(step) + '">' + step + '</span>' +
              '<span class="line" title="' + esc(line) + '">' + esc(line) + '</span>' +
              '<span class="ts">' + esc((e.ts || '').slice(11, 19)) + '</span></div>';
-    }).join('') || '<div class="entry"><span class="line">—</span></div>';;
+    }).join('') || '<div class="entry"><span class="line">—</span></div>';
+    }
+    if (gen !== state.gen) return;
+    bannerClearIf('partial');
+    if (stale.length) {
+      // partial failure: state rendered, some sections did not — say exactly
+      // that, keep the degraded chip (NOT "unreachable": state just arrived).
+      engineDegraded();
+      banner('<span class="res">partial data — ' + esc(stale.join(' · ')) +
+             ' — those sections show last known state</span>', 'partial');
+      setText('updated-at', 'state updated ' + at + ' · some sections stale');
     }
   }
 
@@ -330,11 +402,21 @@
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: 'console-operator'}),
     }).then((r) => {
+      need(r, (b) => b && b.cut && typeof b.cut.relationships_removed === 'number'
+        && b.before && typeof b.before.reachability === 'number'
+        && b.after && typeof b.after.reachability === 'number'
+        && typeof b.requery_ms === 'number' && typeof b.verdict === 'string',
+        'cut receipt');
       banner('<span class="technique">INTERDICTION RECEIPT</span>' +
              'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
              r.before.reachability + ' → <b>' + r.after.reachability + '</b> · re-query ' +
              r.requery_ms + 'ms · verdict <b>' + r.verdict + '</b>');
     }).catch((e) => {
+      // the gate buttons were disabled at execution start; a failed cut must
+      // not strand a permanently disabled row (a stuck state during an
+      // outage) — re-arming is safe: executeConfirm is idempotent by gate
+      // identity (state.pending was already consumed above).
+      cf.disabled = false; cn.disabled = false;
       banner('<span class="res">cut failed: ' + esc(e.message) + '</span>');
     }).then(() => refresh());
   }
@@ -395,7 +477,12 @@
   async function makePlan() {
     banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>');
     try {
-      state.plan = await api('/api/plan');
+      state.plan = need(await api('/api/plan'), (b) => b && typeof b === 'object'
+        && (typeof b.note === 'string'
+            || (Array.isArray(b.steps) && b.steps.every((x) => x && x.cut
+                && typeof x.cut.src === 'string' && typeof x.cut.rel === 'string'
+                && typeof x.cut.dst === 'string'))),
+        '/api/plan response');
       renderPlan();
     } catch (e) {
       banner('<span class="res">plan failed: ' + esc(e.message) + '</span>');
@@ -450,7 +537,7 @@
     if (cn) cn.disabled = true;
     banner('<span class="res">human gate: executing approved plan step-by-step — re-measuring each step live…</span>');
     try {
-      const r = await api('/api/plan/execute', {
+      const r = need(await api('/api/plan/execute', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           approved: true, approved_by: 'console-operator',
@@ -459,7 +546,9 @@
             projected_reachability: s.projected_reachability,
           })),
         }),
-      });
+      }), (b) => b && typeof b === 'object' && typeof b.status === 'string'
+        && typeof b.executed_steps === 'number' && Array.isArray(b.steps),
+        'plan result');
       const last = r.steps && r.steps.length ? r.steps[r.steps.length - 1].after.reachability : '?';
       banner('<span class="technique">PLAN RECEIPT · ' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
              'executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
@@ -479,10 +568,12 @@
       ? {kind, subject: HERO, target: GMSA, rel: 'GENERIC_ALL'}
       : {kind, subject: HERO};
     try {
-      const r = await api('/api/finding', {
+      const r = need(await api('/api/finding', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body),
-      });
+      }), (b) => b && typeof b === 'object' && typeof b.technique === 'string'
+        && typeof b.narration === 'string' && typeof b.simulated === 'boolean',
+        'finding response');
       const sim = r.simulated ? 'SIMULATED · ' : '';  // honesty: never pass replay findings off as live telemetry
       banner('<span class="technique">' + sim + esc(r.technique) + '</span>' + esc(r.narration));
     } catch (e) {
