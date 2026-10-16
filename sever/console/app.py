@@ -74,6 +74,16 @@ reachability's own internal re-reads), GET /api/proposal 185, GET /api/plan
   folded dialect — the probe returns None and every handler answers through
   the original port-method path, so the resilience contracts (503 lanes,
   honest ledgers) are exercised on the same code they pinned.
+- F900 (production, audit8/fix-code): the reach/paths/benign/projection arm
+  folds above are the port's cross-product WITH-shortestPath forms, so they
+  inherit the port's engine-version probe via ``_arms_ok`` — on engines
+  < falkordb 6.0.0 (the managed Cloud 4.22.0 the deployment runs on) those
+  forms undercount or return nothing, and production served reach 0 / paths
+  [] with an owned principal while the plan endpoint's per-pair path was
+  still correct. Old engines (and any port without the probe attribute —
+  every engine-free fake) answer through the original port-method path,
+  exactly as production did pre-fleet-7; modern engines keep the folds,
+  byte-identical, equivalence-pinned.
 """
 from __future__ import annotations
 
@@ -89,7 +99,6 @@ from starlette.responses import Response
 from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
-from sever.console.security import BodySizeLimitMiddleware
 from sever.console.schemas import CutRequest, FindingRequest, PlanExecuteRequest
 from sever.console.security import BodySizeLimitMiddleware
 from sever.core.falkor_port import (
@@ -125,6 +134,94 @@ def _engine_outage_errors() -> tuple[type[BaseException], ...]:
 
 
 ENGINE_ERRORS = _engine_outage_errors()
+
+
+def _boot_probe_errors() -> tuple[type[BaseException], ...]:
+    """The BOOT-time failure family: the outage classes plus the
+    ``ResponseError`` a reachable-but-not-FalkorDB RESP server answers to
+    GRAPH.QUERY with (verified live: Memurai on 6379 — INFO answers so the
+    falkordb constructor succeeds, then the first graph query rejects). At
+    boot these all mean "this endpoint cannot serve the product"; at REQUEST
+    time the family deliberately stays the documented outage pair only —
+    a ResponseError mid-request can be a genuine query bug and must fail
+    loud, never masquerade as an outage."""
+    try:
+        from redis.exceptions import ResponseError
+
+        return (*ENGINE_ERRORS, ResponseError)
+    except ImportError:  # pragma: no cover — falkordb always ships redis-py
+        return ENGINE_ERRORS
+
+
+BOOT_PROBE_ERRORS = _boot_probe_errors()
+
+
+class _UnreachablePort(GraphPort):
+    """Stand-in port for a boot that found no engine (audit8/fix-code, F303):
+    the falkordb client constructor itself dies when nothing listens (its
+    eager ``Is_Sentinel`` INFO probe raises), so no port object exists at
+    all. This shim re-raises the captured outage from every engine touch —
+    every request then surfaces the registered 503 JSON lane exactly as a
+    post-boot outage does. It never fabricates a single number; there is
+    deliberately no ``graph`` attribute, so the folded fast paths detect a
+    non-speaking port and fall to the port methods, which raise."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self.graph_name = os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo")
+
+    def _raise(self) -> None:
+        raise self._exc
+
+    # ---- GraphPort protocol: every engine touch is the captured outage ----
+    def load(self, graph: Any) -> None:
+        self._raise()
+
+    def node_count(self) -> int:
+        self._raise()
+
+    def edge_count(self) -> int:
+        self._raise()
+
+    def mark_owned(self, objectid: str) -> None:
+        self._raise()
+
+    def owned_ids(self) -> list[str]:
+        self._raise()
+
+    def crown_jewels(self) -> list[str]:
+        self._raise()
+
+    def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
+        self._raise()
+
+    def paths_to_jewels(self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP,
+                        ties: bool = False) -> list[list[tuple[str, str, str]]]:
+        self._raise()
+
+    def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:
+        self._raise()
+
+    def add_edge(self, src: str, dst: str, rel: str,
+                 props: dict[str, Any] | None = None) -> bool:
+        self._raise()
+
+    def cut(self, src: str, dst: str, rel: str) -> int:
+        self._raise()
+
+    def profile(self, query: str, params: dict[str, Any] | None = None) -> str:
+        self._raise()
+
+    def receipt(self) -> dict[str, Any]:
+        self._raise()
+
+    # the optional seams the console and scoring consult via getattr — both
+    # raise the outage rather than 500 with a misleading TypeError
+    def user_objectids(self) -> list[str]:
+        self._raise()
+
+    def scratch_copy(self, scratch_name: str) -> "GraphPort":
+        self._raise()
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +357,31 @@ def _estate_probe(port: GraphPort) -> tuple[int, int, list[str], list[str]] | No
         return None
     except Exception:
         return None
+
+
+def _arms_ok(port: GraphPort) -> bool:
+    """May the console's cross-product ARM folds run on this port?
+
+    audit8/fix-code, F900 (production): the console's folded arms
+    (_arm_reach / _arm_pair_paths / _benign_pair_paths) are the SAME
+    cross-product WITH-shortestPath forms the port gates on the engine
+    version — on engines < falkordb 6.0.0 (the deployed managed Cloud
+    4.22.0) those forms undercount or return nothing, which is exactly how
+    production served reach 0 / paths [] with an owned principal. The
+    console therefore applies the port's own probe result:
+    ``FalkorGraphPort._modern_engine`` (probed once via MODULE LIST).
+    Ports WITHOUT the attribute — every engine-free fake port of the
+    resilience suite, injected stubs — are conservatively False and answer
+    through the original port-method path, which is the path they already
+    take (their probe answers nothing) and the path their contracts pin.
+    build_app resolves this ONCE per app (see ``arms_fold_ok`` there) so
+    the MODULE LIST probe never lands inside a measured request sequence
+    (the round-trip receipts pin caught exactly that: cold /api/state
+    4 -> 5). On a modern engine nothing changes: the folds stay active and
+    the equivalence suite (tests/test_console_perf_folds.py) keeps proving
+    fold == port methods.
+    """
+    return bool(getattr(port, "_modern_engine", False))
 
 
 def _arm_reach(port: GraphPort, owned: list[str], jewels: list[str],
@@ -440,13 +562,27 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         app.add_exception_handler(_exc_cls, _engine_outage)
 
     if port is None:
-        port = FalkorGraphPort(
-            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-            graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
-            username=os.environ.get("SEVER_FALKOR_USER"),
-            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-        )
+        # Boot-time outage containment (audit8/fix-code, F303): the falkordb
+        # client CONSTRUCTOR is the first engine touch on the import path —
+        # its eager ``Is_Sentinel`` INFO probe raises when nothing listens,
+        # which is what killed ``uvicorn sever.console.app:app`` at import
+        # with a raw redis traceback. Contain it: an unreachable engine
+        # yields the outage-shim port below, the app still binds, and every
+        # request answers through the registered 503 JSON lane (the UI
+        # banner state) — the "engine-down containment" README §8 promises.
+        # Non-outage construction failures (a misconfigured host that
+        # raises anything else) still fail loud: they are configuration
+        # errors, not outages.
+        try:
+            port = FalkorGraphPort(
+                host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+                port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+                graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
+                username=os.environ.get("SEVER_FALKOR_USER"),
+                password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+            )
+        except BOOT_PROBE_ERRORS as exc:
+            port = _UnreachablePort(exc)
     # The receipts trail outlives the graph: the CaseLog file is keyed by graph
     # name and survives GRAPH.DELETE by design. It must therefore carry its own
     # estate-lifecycle markers, or history from a previous incarnation of the
@@ -455,19 +591,52 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # estate had been reset out-of-band overnight, and nothing in the trail
     # marked the discontinuity).
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
-    if port.node_count() == 0:
-        port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR",
-            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+    # Boot-time outage containment (audit8/fix-code, F303): the auto-load probe
+    # is the second engine touch on the import path, and when the engine is
+    # down — or the configured endpoint is a reachable-but-not-FalkorDB RESP
+    # server (live-verified: Memurai on 6379 answers the constructor's INFO
+    # and then rejects GRAPH.QUERY with a ResponseError) — it used to kill
+    # the process with a raw redis traceback BEFORE uvicorn ever bound: the
+    # judge-facing "engine-down containment" (README §8) and the 503 contract
+    # (§11) were unreachable post-boot-only niceties, and the free-tier Cloud
+    # instance stopping after an idle day meant a crash-loop, not
+    # containment. Contain instead: the app ALWAYS binds; when the probe
+    # fails with the boot-probe family every engine-touching request then
+    # answers through the registered 503 JSON lane (the UI banner state),
+    # and the attempt is on the receipts trail with outcome unknown — the
+    # ledger never invents a success and never loses the attempt.
+    # Non-outage boot failures (a missing SEVER_SAMPLE_DIR, corrupt
+    # collector JSON) still fail LOUD: those are configuration errors, not
+    # outages, and a silent partial boot would hide them.
+    try:
+        if port.node_count() == 0:
+            port.load(parse_ad_dir(os.environ.get(
+                "SEVER_SAMPLE_DIR",
+                str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+            log.append({
+                "step": "estate_loaded",
+                "nodes": port.node_count(),
+                "edges": port.edge_count(),
+                "note": "sample loaded into an empty graph — entries above this line "
+                        "describe a previous incarnation of the estate",
+            })
+    except BOOT_PROBE_ERRORS as exc:
         log.append({
-            "step": "estate_loaded",
-            "nodes": port.node_count(),
-            "edges": port.edge_count(),
-            "note": "sample loaded into an empty graph — entries above this line "
-                    "describe a previous incarnation of the estate",
+            "step": "console_boot_failed",
+            "error": f"engine unreachable at bootstrap: {type(exc).__name__}",
+            "outcome": "unknown",
         })
 
     inv = Investigator(port)
+    # F900 follow-up (caught by test_round_trip_receipts on ryzen): resolve
+    # the arm-fold gate ONCE, here, at app construction. _arms_ok consults
+    # the port's MODULE LIST engine probe — one engine round-trip the first
+    # time — and doing that lazily inside a handler landed the probe in the
+    # first measured poll sequence (cold /api/state receipts pinned 4, saw
+    # 5). Captured at build time the probe is paid during rig setup /
+    # production boot — never inside a measured request sequence — and the
+    # gate is a plain bool for the app's life: one engine, one answer.
+    arms_fold_ok = _arms_ok(port)
     app.state.port = port
 
     # audit7/perf-api: the /api/state cache discipline. Every mutation
@@ -578,9 +747,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # cold (probe + two arms) and 1 warm (the probe IS the cache check).
         # The fold refuses itself and falls back to the original path on any
         # dialect mismatch; an engine outage propagates to the 503 handler
-        # exactly as before.
+        # exactly as before. F900: on engines < 6.0.0 the arms undercount
+        # (production served reach 0 with an owned principal) — those
+        # engines answer through the port methods, exactly pre-fleet-7.
         probe = _estate_probe(port)
-        if probe is None:
+        if probe is None or not arms_fold_ok:
             data = _state_data_slow()
         else:
             nodes, edges, owned, jewels = probe
@@ -633,9 +804,12 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # batched arms — the response's (principal, jewel) order is
         # re-assembled to the port's enumeration order (owned sorted, then
         # jewels sorted), so the UI's render order is byte-identical.
+        # F900: the arms are cross-product forms — on engines < 6.0.0 they
+        # undercount (production served paths [] with an owned principal),
+        # so those engines keep the per-pair port loop, exactly pre-fleet-7.
         probe = _estate_probe(port)
         pairs = None
-        if probe is not None:
+        if probe is not None and arms_fold_ok:
             try:
                 pairs = _arm_pair_paths(port, inv.hop_cap)
             except _FoldUnsupported:
@@ -646,10 +820,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
                 for path in port.paths_to_jewels(owned):
                     # audit5/judge-experience: _names resolves each hop's
                     # objectid to a human name (src/dst) while keeping the raw
-                    # id (src_id/dst_id). The module-level names() below returns
-                    # raw SIDs — pre-fix every hop rendered as an elided
-                    # "…394-2110" that no judge could read, and the resolver
-                    # directly above was dead code.
+                    # id (src_id/dst_id). Pre-fix the hops rendered as elided
+                    # "…394-2110" SIDs that no judge could read — the raw-SID
+                    # list comprehension that used to sit here was dead code
+                    # (audit8/fix-code: the leftover module-level helper was
+                    # removed with it; zero callers repo-wide).
                     out["paths"].append({"principal": _name(owned), "hops": _names(path)})
             return out
         _nodes, _edges, owned, jewels = probe
@@ -669,9 +844,12 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # arms + two frequency arms — the same ranking inputs
         # (rank_cut_candidates is the port's own scoring function), the same
         # deterministic sample, the same fields.
+        # F900: the folded arms are cross-product forms — on engines < 6.0.0
+        # they undercount, so those engines answer through inv.propose
+        # (port.edge_frequency's per-pair legacy loop), exactly pre-fleet-7.
         probe = _estate_probe(port)
         out: list[dict[str, Any]]
-        if probe is None:
+        if probe is None or not arms_fold_ok:
             out = inv.propose(limit=5)
         else:
             _nodes, _edges, owned, _jewels = probe
@@ -713,10 +891,13 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         same early-stop honesty. Returns None when the port does not speak
         the folded dialect (the caller then runs inv.propose_plan, the
         original loop); engine outages and projection failures propagate to
-        the handler's ledgered 503 lanes unchanged."""
+        the handler's ledgered 503 lanes unchanged. F900: on engines
+        < 6.0.0 the arm forms undercount, so the folded plan refuses
+        itself there and the caller's inv.propose_plan (scoring's per-pair
+        enumeration — the form production proved on the Cloud) answers."""
         hop_cap = inv.hop_cap
         probe = _estate_probe(port)
-        if probe is None:
+        if probe is None or not arms_fold_ok:
             return None
         _nodes, _edges, owned, jewels = probe
         base_reach = _arm_reach(port, owned, jewels, hop_cap)
@@ -992,10 +1173,6 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # expose for tests/teardown
     build_app.port_obj = port
     return app
-
-
-def names(hops):
-    return [{"src": s, "rel": r, "dst": d} for s, r, d in hops]
 
 
 if os.environ.get("SEVER_CONSOLE_NO_BOOTSTRAP") == "1":
