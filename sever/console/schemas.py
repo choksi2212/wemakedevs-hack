@@ -51,7 +51,7 @@ audit3/console-logic — honest rejection of impossible findings:
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, StrictInt, field_validator, model_validator
 
 from sever.findings.attack_map import ATTACK_MAP
 
@@ -75,6 +75,26 @@ def _utf8_encodable(value: str | None) -> str | None:
     return value
 
 
+def _no_control_chars(value: str | None) -> str | None:
+    """Reject C0/C1 control characters (NUL, DEL, ESC, ...) -> 422.
+
+    audit5/brutal-edge (HIGH, live-verified): a NUL byte (U+0000) in
+    subject/target/dst passed every prior check, reached the engine as a
+    query parameter, and FalkorDB rejected the query with
+    redis ResponseError("Failed to parse the value of parameter") — which the
+    console's outage handler (ConnectionError/TimeoutError only) did not
+    catch, surfacing a bare HTTP 500 on /api/finding, /api/cut and
+    /api/plan/execute. Objectids, SIDs, GUIDs and rel names never contain
+    control characters, so rejecting them here (before any mutation) turns
+    the 500 into the documented 422 with zero false positives.
+    """
+    if value is None:
+        return value
+    if any(ord(ch) < 0x20 or 0x7F <= ord(ch) <= 0x9F for ch in value):
+        raise ValueError("must not contain control characters (NUL/DEL/ESC)")
+    return value
+
+
 def _known_kind(value: str) -> str:
     """Reject unknown finding kinds — no fabricated ATT&CK labels, no phantom
     ledger entries (audit3/console-logic, live-verified pre-fix behavior)."""
@@ -94,6 +114,7 @@ class CutRequest(BaseModel):
     approved_by: str = Field(default="console-operator", min_length=1, max_length=128)
 
     _utf8 = field_validator("src", "dst", "rel", "approved_by")(_utf8_encodable)
+    _ctl = field_validator("src", "dst", "rel", "approved_by")(_no_control_chars)
 
 
 class FindingRequest(BaseModel):
@@ -103,6 +124,7 @@ class FindingRequest(BaseModel):
     rel: str | None = Field(default=None, max_length=64, pattern=REL_PATTERN)
 
     _utf8 = field_validator("kind", "subject", "target", "rel")(_utf8_encodable)
+    _ctl = field_validator("kind", "subject", "target", "rel")(_no_control_chars)
     _kind = field_validator("kind")(_known_kind)
 
     @model_validator(mode="after")
@@ -135,9 +157,13 @@ class PlanStep(BaseModel):
     src: str = Field(min_length=1, max_length=256)
     dst: str = Field(min_length=1, max_length=256)
     rel: str = Field(max_length=64, pattern=REL_PATTERN)
-    projected_reachability: int = Field(ge=0)
+    # audit5/brutal-edge: lax int coercion accepted "3" and unbounded 2**70 —
+    # the projection is an operator-echoed count; strict ints only, bounded
+    # far above any real reachability figure (jewels × principals).
+    projected_reachability: StrictInt = Field(ge=0, le=1_000_000)
 
     _utf8 = field_validator("src", "dst", "rel")(_utf8_encodable)
+    _ctl = field_validator("src", "dst", "rel")(_no_control_chars)
 
 
 class PlanExecuteRequest(BaseModel):
@@ -151,3 +177,4 @@ class PlanExecuteRequest(BaseModel):
     steps: list[PlanStep] = Field(min_length=1, max_length=10)
 
     _utf8 = field_validator("approved_by")(_utf8_encodable)
+    _ctl = field_validator("approved_by")(_no_control_chars)

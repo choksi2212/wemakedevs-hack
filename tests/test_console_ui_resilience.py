@@ -161,7 +161,10 @@ def test_html_proxy_error_page_yields_readable_text_not_parse_artifact(static_si
             )
             _assert_no_parse_artifact(banner)
             assert banner.startswith("finding failed:"), banner
-            assert "502 Bad Gateway" in banner, banner  # the real cause, surfaced
+            # audit5/live-e2e union: HTML proxy pages are NAMED, not dumped —
+            # the first 120 chars of "<!DOCTYPE html>..." markup is noise, the
+            # honest diagnosis is "server error 502 (HTML error page)".
+            assert "server error 502 (HTML error page)" in banner, banner
         finally:
             browser.close()
 

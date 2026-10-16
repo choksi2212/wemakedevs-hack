@@ -172,9 +172,10 @@ def test_receipts_failure_degrades_the_card_not_the_engine_chip():
     The receipts card gets its own honest degraded line instead."""
     assert "ledger unavailable" in HTML
     # the receipts fetch must sit AFTER the engine-backed catch (own lane),
-    # in its own try — never inside the engine's try/catch
-    eng_catch = HTML.index("} catch (e) { engineDown(); }")
-    rec_try = HTML.index("try { rec = await api('/api/receipts'); }")
+    # in its own try — never inside the engine's try/catch. audit5/resilience
+    # union: the fetch is shape-guarded via need(...) but stays in its own lane.
+    eng_catch = HTML.index("engineDown();")
+    rec_try = HTML.index("rec = need(await api('/api/receipts')")
     assert rec_try > eng_catch, "receipts fetch must live in its own try, after the engine lane"
     assert "renderReceipts" not in HTML  # renderer stays inline in the sink (dom_escape pins)
     assert "engineDown" in HTML and "engine unreachable" in HTML  # state-failure lane intact

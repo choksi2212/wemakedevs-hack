@@ -222,7 +222,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
 
     @app.get("/api/health")
-    async def health() -> dict[str, Any]:
+    def health() -> dict[str, Any]:
         # audit5/deploy-audit: Render's HTTP health check needs a 2xx within
         # its 5-second window. /api/state runs five engine queries (incl. the
         # full reachability traversal) and measured 6-24s against FalkorDB
@@ -250,7 +250,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
 
 
     @app.get("/api/state")
-    async def state() -> dict[str, Any]:
+    def state() -> dict[str, Any]:
         data = {
             "backend": "falkordb",
             "graph": port.graph_name,
@@ -288,7 +288,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return data
 
     @app.get("/api/paths")
-    async def paths() -> dict[str, Any]:
+    def paths() -> dict[str, Any]:
         out: dict[str, Any] = {"paths": []}
         for owned in port.owned_ids():
             for path in port.paths_to_jewels(owned):
@@ -302,7 +302,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return out
 
     @app.get("/api/proposal")
-    async def proposal() -> list[dict[str, Any]]:
+    def proposal() -> list[dict[str, Any]]:
         out = inv.propose(limit=5)
         # audit5/judge-experience: the operator approves a cut between
         # PRINCIPALS, not between opaque SID tails — resolve display names.
@@ -313,7 +313,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return out
 
     @app.get("/api/plan")
-    async def plan() -> dict[str, Any]:
+    def plan() -> dict[str, Any]:
         # The remediation PLAN: a greedy k=3 cut sequence with per-step
         # MEASURED projections (computed on an isolated GRAPH.COPY — the
         # live estate is never touched by a proposal). The operator reviews
@@ -346,7 +346,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return out
 
     @app.post("/api/plan/execute")
-    async def plan_execute(req: PlanExecuteRequest) -> dict[str, Any]:
+    def plan_execute(req: PlanExecuteRequest) -> dict[str, Any]:
         # Gate check FIRST, exactly like /api/cut: an unapproved caller
         # learns nothing about the plan's steps or rel validity.
         if req.approved is not True:
@@ -381,7 +381,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
 
 
     @app.post("/api/finding")
-    async def finding(req: FindingRequest) -> dict[str, Any]:
+    def finding(req: FindingRequest) -> dict[str, Any]:
         # Honest rejection (audit3/console-logic): a finding is about real
         # principals of the loaded estate. Pre-fix, a breach on a nonexistent
         # objectid was a 200 phantom no-op whose narration claimed "this
@@ -439,7 +439,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         }
 
     @app.post("/api/cut")
-    async def cut(req: CutRequest) -> dict[str, Any]:
+    def cut(req: CutRequest) -> dict[str, Any]:
         # The gate check comes FIRST: an unapproved caller learns nothing
         # about rel validity (no oracle without approval).
         if req.approved is not True:

@@ -31,6 +31,14 @@ services:
         value: sever_demo
       - key: SEVER_SAMPLE_DIR
         value: /app/data/ad_sample
+      # audit5/latency-forensics + incident-verify: 30s/10s defaults are generous
+      # for a judge-facing demo — a stalled engine surfaces as a clean 503 in
+      # ~10s instead of a half-minute hang (legitimate queries measured p95
+      # <100ms direct; the boot-time auto-load runs before uvicorn binds).
+      - key: SEVER_FALKOR_SOCKET_TIMEOUT
+        value: "10"
+      - key: SEVER_FALKOR_CONNECT_TIMEOUT
+        value: "5"
       - key: SEVER_BACKEND
         generateValue: false    # documented as dead config; kept unset on purpose
 # NOTE: the console is fail-fast at boot — SEVER_FALKOR_HOST/PORT/PASSWORD must
