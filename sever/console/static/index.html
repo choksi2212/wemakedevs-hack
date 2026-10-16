@@ -59,30 +59,65 @@
   .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
   .btn.approve { border-color: var(--success); color: #7ED08C; font-weight: 600; }
   .btn.approve:hover { background: #14231A; }
-  .btn.confirm { border-color: var(--success); background: #14231A; }
-  .btn.cancel { border-color: var(--border); color: var(--text-2); }
+  /* audit6/ui-flow — the staged gate: armed row = ATTENTION (amber inset bar
+     + slow pulse + flag), CONFIRM = the interdiction act itself (solid
+     danger — the one irreversible button on the page), cancel = the quiet
+     escape. Text, classes, Escape and focus behavior are contract, pinned. */
+  .btn.confirm { border-color: var(--danger); background: var(--danger); color: #0A0C10; font-weight: 700; }
+  .btn.confirm:hover { background: var(--danger); border-color: var(--danger); filter: brightness(1.12); }
+  .btn.cancel { border-color: var(--border); background: none; color: var(--text-3); }
+  .btn.cancel:hover { background: none; border-color: var(--border-strong); color: var(--text-2); }
+  .gate-flag { display: inline-flex; align-items: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); border: 1px solid #5C4A22; background: #1A160C; border-radius: 3px; padding: 2px 8px; }
+  /* armed layout: the row wraps and the gate (flag + CONFIRM + cancel)
+     drops to a full-width strip below the edge detail, so the cut's
+     full context stays readable while the gate owns the row. */
+  .prop-row:has(.confirm) { flex-wrap: wrap; border-color: #6E5824; background: #191307; box-shadow: inset 3px 0 0 var(--warn); animation: sever-armed 1.8s ease-in-out infinite; }
+  .prop-cta:has(.confirm) { width: 100%; }
+  .actions:has(.confirm) { flex-direction: column; align-items: flex-end; gap: 6px; }
+  @keyframes sever-armed { 0%, 100% { box-shadow: inset 3px 0 0 var(--warn), 0 0 0 0 rgba(212, 153, 63, 0); } 50% { box-shadow: inset 3px 0 0 var(--warn), 0 0 0 5px rgba(212, 153, 63, .1); } }
+  @media (prefers-reduced-motion: reduce) { .prop-row:has(.confirm) { animation: none; } }
   .btn[disabled] { opacity: .45; cursor: not-allowed; }
   .banner { margin-top: 14px; padding: 10px 12px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); font-size: 12.5px; color: var(--text-2); display: none; }
   .banner.show { display: block; }
   .banner .technique { color: var(--warn); font-family: var(--mono); font-size: 11px; display: block; margin-bottom: 4px; }
   .banner .res { color: var(--text); font-family: var(--mono); font-size: 11.5px; display: block; margin-top: 4px; }
-  .path-block { margin: 14px 0; }
-  .path-block + .path-block { border-top: 1px solid var(--border); padding-top: 14px; }
+  /* audit6/ui-flow — each path renders as ONE flowing kill chain: chips for
+     principals (attacker chip red-tinted, crown-jewel chip green-tinted),
+     small mono rel arrows between, raw objectid on hover. A 3-hop chain
+     reads as prose: A -[rel]-> B -[rel]-> C -[rel]-> JEWEL. */
+  .path-block { margin: 12px 0; }
+  .path-block + .path-block { border-top: 1px solid var(--border); padding-top: 12px; }
   .path-head { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
   .path-head b { color: var(--text); font-weight: 600; }
-  .hops { margin-top: 6px; border-left: 2px solid var(--border-strong); }
-  .hop { display: flex; gap: 10px; align-items: baseline; padding: 4px 0 4px 12px; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; }
-  .hop .node { color: var(--text); }
-  .hop .node.mut { color: var(--warn); }
-  .hop .rel { color: var(--text-3); font-size: 11px; }
-  .hop .jewel { color: var(--danger); }
+  .path-head .tail { color: #7ED08C; font-size: 11px; }
+  .hops { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 2px; }
+  .hop { display: inline-flex; gap: 4px; align-items: center; padding: 0; font-family: var(--mono); font-size: 12px; }
+  .hop .node { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-2); color: var(--text); font-size: 11.5px; cursor: help; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hop .node::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); flex: none; }
+  .hop .node.mut { border-color: #5E2A2E; background: #1D1215; }
+  .hop .node.mut::before { background: var(--danger); }
+  .hop .rel { color: var(--text-3); font-size: 10px; }
+  .hop .jewel { border-color: #2E5138; background: #121D15; }
+  .hop .jewel::before { background: var(--success); }
   .empty { color: var(--text-3); font-size: 12.5px; padding: 8px 0; }
-  .prop-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  /* audit6/ui-flow — the ranked-cut card: endpoint names + rel badge, the
+     paths_on coverage count as a prominence bar (full width = top-ranked
+     edge), and the benign-collateral note as quiet reassurance. */
+  .prop-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
   .prop-row:last-child { border-bottom: none; }
-  .prop-main { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; }
-  .prop-main .rel { color: var(--warn); }
-  .prop-main .quiet { color: var(--text-3); font-size: 11px; margin-left: 8px; }
-  .prop-cta { display: flex; gap: 8px; }
+  .prop-main { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .prop-main .rel { display: inline-flex; color: var(--warn); border: 1px solid #4A5A2E; background: #171B10; border-radius: 3px; padding: 1px 6px; font-size: 10px; letter-spacing: .04em; }
+  .prop-main .quiet { color: var(--text-3); font-size: 10.5px; }
+  .prop-main .quiet.safe { color: #7ED08C; }
+  .prop-main .quiet.risk { color: var(--warn); }
+  .prop-edge { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+  .prop-edge .ep { color: var(--text); font-weight: 600; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .covbar { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .covbar .track { flex: none; width: 160px; height: 5px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+  .covbar .track i { display: block; height: 100%; width: 0; background: var(--danger); }
+  .covbar .num { color: var(--text-3); font-size: 10.5px; }
+  .covbar .num b { color: var(--text-2); font-weight: 600; }
+  .prop-cta { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
   .ledger { max-height: 300px; overflow-y: auto; }
   .entry { display: flex; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
   .entry:last-child { border-bottom: none; }
@@ -91,6 +126,26 @@
   .badge.finding { border-color: #4A5A2E; color: var(--warn); }
   .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
+  /* audit6/ui-flow — the remediation plan: numbered step sequence, per-step
+     verdict chips (projected before the gate, live re-measured after), the
+     drift-stop state visually distinct (skipped steps + drift note), and
+     honesty notes as system commentary. */
+  .plan-meta { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); letter-spacing: .02em; margin-bottom: 10px; }
+  .plan-row { align-items: flex-start; }
+  .plan-row .prop-main { gap: 4px; }
+  .step-no { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-2); color: var(--text-2); font-family: var(--mono); font-size: 11px; }
+  .vchip { flex: none; display: inline-flex; align-items: center; border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 7px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .vchip.collapsed { border-color: #2E5138; color: #7ED08C; }
+  .vchip.degraded { border-color: #5C4A22; color: var(--warn); }
+  .vchip.drifted { border-color: #5E2A2E; color: var(--danger); }
+  .plan-row.skipped { opacity: .45; }
+  .plan-row.skipped .step-no { border-style: dashed; color: var(--text-3); }
+  .plan-result { margin-top: 10px; padding: 8px 12px; border-radius: 4px; font-size: 11.5px; line-height: 1.6; }
+  .plan-result.drift-note { border: 1px solid #5E2A2E; background: #1D1215; color: var(--text-2); }
+  .plan-result.drift-note b { color: var(--danger); }
+  .plan-result.done-note { border: 1px solid #2E5138; background: #121D15; color: var(--text-2); }
+  .plan-result.done-note b { color: #7ED08C; }
+  .sys-note { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; margin-top: 12px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); line-height: 1.6; }
   footer { padding: 12px 20px; font-size: 11px; color: var(--text-3); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: 16px; }
 </style>
 </head>
@@ -166,6 +221,13 @@
   const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null };
   const short = (id) => id.length > 34 ? '\u2026' + id.slice(-8) : id;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // audit6/ui-flow: client-side id→name view for the PLAN card. Plan steps
+  // ship raw objectids (the cut API is id-addressed); /api/paths and
+  // /api/proposal already resolve the same principals to server-verified
+  // names, so those pairs are harvested into this cache and the plan
+  // sequence reads like the proposal rows. Unresolved ids fall back to
+  // short() — the card never guesses a name.
+  const idNames = {};
 
   // Operator attribution for receipts (audit5/multi-client): the shared estate
   // has many simultaneous operators, but every cut receipt used to say
@@ -295,15 +357,28 @@
     const paths = need(await api('/api/paths'), (b) => b && Array.isArray(b.paths)
       && b.paths.every((p) => p && typeof p.principal === 'string' && Array.isArray(p.hops)), '/api/paths response');
       if (gen !== state.gen) return;
+      // audit6/ui-flow: harvest the server-resolved name pairs for the plan
+      // card's id→name view (hops carry display name + raw objectid).
+      paths.paths.forEach((p) => p.hops.forEach((h) => {
+        if (h.src_id && h.src && h.src_id !== h.src) idNames[h.src_id] = h.src;
+        if (h.dst_id && h.dst && h.dst_id !== h.dst) idNames[h.dst_id] = h.dst;
+      }));
+      // audit6/ui-flow: each path renders as ONE flowing kill chain — a
+      // red-tinted attacker chip first, small mono rel arrows between, a
+      // green-tinted crown-jewel chip last; hover any chip for its raw
+      // objectid. The chain reads as prose: A -[rel]-> B -[rel]-> JEWEL.
       $('paths').innerHTML = paths.paths.length
-      ? paths.paths.map((p) =>
-          '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> → crown jewel</div>' +
-          '<div class="hops">' + p.hops.map((h, i) =>
-            '<div class="hop"><span class="node' + (i === 0 ? ' mut' : '') + '" title="' + esc(h.src_id && h.src_id !== h.src ? h.src + ' (' + h.src_id + ')' : h.src) + '">' + esc(short(h.src)) + '</span>' +
-            '<span class="rel">-[' + esc(h.rel) + ']-></span>' +
-            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id && h.dst_id !== h.dst ? h.dst + ' (' + h.dst_id + ')' : h.dst) + '">' + esc(short(h.dst)) + '</span></div>'
-          ).join('') + '</div></div>')
-        .join('')
+      ? paths.paths.map((p) => {
+          const h0 = p.hops[0];
+          return '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> <span class="tail">→ crown jewel</span></div>' +
+          '<div class="hops">' +
+          (h0 ? '<span class="hop"><span class="node mut" title="' + esc(h0.src_id && h0.src_id !== h0.src ? h0.src + ' (' + h0.src_id + ')' : h0.src) + '">' + esc(short(h0.src)) + '</span></span>' : '') +
+          p.hops.map((h, i) =>
+            '<span class="hop"><span class="rel">-[' + esc(h.rel) + ']-></span>' +
+            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id && h.dst_id !== h.dst ? h.dst + ' (' + h.dst_id + ')' : h.dst) + '">' + esc(short(h.dst)) + '</span></span>'
+          ).join('') +
+          '</div></div>';
+        }).join('')
       // audit5/judge-experience: distinguish "nothing owned" (demo not
       // started) from "owned but fully contained" (surface collapsed) — the
       // old single message lied in the second case.
@@ -317,19 +392,41 @@
       && b.every((c) => c && typeof c.src === 'string' && typeof c.rel === 'string'
         && typeof c.dst === 'string' && typeof c.paths_on === 'number'), '/api/proposal response');
       if (gen !== state.gen) return;
+      // audit6/ui-flow: harvest proposal names into the id→name view too.
+      prop.forEach((c) => {
+        if (c.src_name && c.src_name !== c.src) idNames[c.src] = c.src_name;
+        if (c.dst_name && c.dst_name !== c.dst) idNames[c.dst] = c.dst_name;
+      });
+      // audit6/ui-flow: the ranked-cut card. Endpoint names carry the raw
+      // objectid on hover, and the button keeps data-src/data-dst/data-rel —
+      // the cut API is addressed by objectid, never by display name
+      // (audit5/judge-experience). paths_on is a prominence bar relative to
+      // the top-ranked edge (full track = the #1 cut), not a bare number;
+      // the benign note is quiet reassurance: green when the edge is
+      // attacker-only, amber when legitimate flows cross it.
+      const maxOn = prop.reduce((m, c) => Math.max(m, c.paths_on || 0), 0);
       $('proposal').innerHTML = prop.length
-      ? prop.map((c) =>
-          // audit5/judge-experience: display the server-resolved principal
-          // NAME here, but keep the data-* attributes as raw objectids —
-          // the cut API is addressed by objectid, never by display name.
-          '<div class="prop-row"><div class="prop-main"><span title="' + esc(c.src_name && c.src_name !== c.src ? c.src_name + ' (' + c.src + ')' : c.src) + '">' + esc(short(c.src_name || c.src)) + '</span> ' +
-          '<span class="rel">-[' + esc(c.rel) + ']-></span> ' +
-          '<span title="' + esc(c.dst_name && c.dst_name !== c.dst ? c.dst_name + ' (' + c.dst + ')' : c.dst) + '">' + esc(short(c.dst_name || c.dst)) + '</span>' +
-          '<span class="quiet">on ' + c.paths_on + ' path-edge occurrences' +
-          (c.benign_usage != null ? ' · benign ' + c.benign_usage + (c.benign_sample ? ' of ' + c.benign_sample.sampled + ' sampled' : '') : '') +
-          '</span></div>' +
-          '<div class="prop-cta"><button class="btn approve" data-src="' + esc(c.src) + '" data-dst="' + esc(c.dst) + '" data-rel="' + esc(c.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button></div></div>')
-        .join('')
+      ? prop.map((c) => {
+          const pct = maxOn > 0 ? Math.max(4, Math.round(100 * c.paths_on / maxOn)) : 0;
+          const benignNote = c.benign_usage == null ? '' :
+            '<span class="quiet ' + (c.benign_usage > 0 ? 'risk' : 'safe') + '">' +
+            'benign ' + esc(c.benign_usage) + (c.benign_sample ? ' of ' + esc(c.benign_sample.sampled) + ' sampled' : '') +
+            (c.benign_usage > 0
+              ? ' — legitimate flows cross this edge; expect collateral'
+              : ' — attacker-only edge; no sampled legitimate flow') +
+            '</span>';
+          return '<div class="prop-row"><div class="prop-main">' +
+          '<div class="prop-edge">' +
+          '<span class="ep" title="' + esc(c.src_name && c.src_name !== c.src ? c.src_name + ' (' + c.src + ')' : c.src) + '">' + esc(short(c.src_name || c.src)) + '</span>' +
+          '<span class="rel">-[' + esc(c.rel) + ']-></span>' +
+          '<span class="ep" title="' + esc(c.dst_name && c.dst_name !== c.dst ? c.dst_name + ' (' + c.dst + ')' : c.dst) + '">' + esc(short(c.dst_name || c.dst)) + '</span>' +
+          '</div>' +
+          '<div class="covbar"><span class="track"><i style="width:' + esc(pct) + '%"></i></span>' +
+          '<span class="num">on <b>' + esc(c.paths_on) + '</b> path-edge occurrences</span></div>' +
+          benignNote +
+          '</div>' +
+          '<div class="prop-cta"><button class="btn approve" data-src="' + esc(c.src) + '" data-dst="' + esc(c.dst) + '" data-rel="' + esc(c.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button></div></div>';
+        }).join('')
       : '<div class="empty" style="padding:12px 16px">Nothing to propose — every attack path is already severed (reachability 0). A fresh deploy of the sample estate restores the demo.</div>';
     document.querySelectorAll('#proposal button.approve').forEach((b) =>
       b.addEventListener('click', () => armGate(b.dataset.src, b.dataset.dst, b.dataset.rel)));
@@ -494,7 +591,12 @@
     const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(p.src) + '"][data-dst="' + CSS.escape(p.dst) + '"][data-rel="' + CSS.escape(p.rel) + '"]');
     if (!btn) return false;
     const cta = btn.closest('.prop-cta');
+    // audit6/ui-flow: the staged gate — the amber flag states what is armed,
+    // CONFIRM (solid danger) is the interdiction act, cancel is the quiet
+    // escape; Escape key cancels, focus stays on CONFIRM. Button text,
+    // classes and aria-labels are the pinned two-step contract.
     cta.innerHTML =
+      '<span class="gate-flag" aria-hidden="true">armed — confirm severs the edge · esc cancels</span>' +
       '<button class="btn confirm" type="button" aria-label="Confirm the cut">CONFIRM CUT</button>' +
       '<button class="btn cancel" type="button" aria-label="Cancel the cut">cancel</button>';
     const cf = cta.querySelector('.confirm');
@@ -545,6 +647,9 @@
   // estate); execution POSTs the exact steps the operator reviewed, and the
   // server re-measures each step — stopping at the first projection drift.
   async function makePlan() {
+    // audit6/ui-flow: a fresh plan invalidates any prior execution's
+    // per-step verdicts — the card starts from a clean projection state.
+    state.planResult = null;
     banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>');
     try {
       state.plan = need(await api('/api/plan'), (b) => b && typeof b === 'object'
@@ -563,33 +668,75 @@
     const card = $('plan-card');
     if (!plan) { card.style.display = 'none'; return; }
     card.style.display = '';
-    const rows = (plan.steps || []).map((s) =>
-      '<div class="prop-row"><div class="prop-main">#' + esc(s.step) + ' cut ' +
-      '<span title="' + esc(s.cut.src) + '">' + esc(short(s.cut.src)) + '</span> ' +
-      '<span class="rel">-[' + esc(s.cut.rel) + ']-></span> ' +
-      '<span title="' + esc(s.cut.dst) + '">' + esc(short(s.cut.dst)) + '</span>' +
-      '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences' +
-      // benign_usage null = NOT measured (the fast-path proposal shape) — the
-      // plan card must never print the literal 'null' (audit5/live-e2e); 0
-      // is a real measurement (attacker-only edge) and renders as such.
-      (s.benign_usage != null ? ' · benign ' + esc(s.benign_usage) : ' · benign not measured') +
-      ' · projected reachability ' + esc(s.projected_reachability) + ' (' + esc(s.projected_verdict) + ')</span></div></div>'
-    ).join('');
-    const body = (plan.steps || []).length
-      ? rows + '<div class="actions"><button class="btn approve" id="btn-plan-approve" type="button" aria-label="Approve the whole cut sequence">APPROVE PLAN</button></div>'
+    // audit6/ui-flow: steps as a numbered sequence. Before the gate each
+    // step carries its PROJECTED verdict chip; after execution the chip
+    // flips to the LIVE re-measured verdict (with a drift marker when
+    // reality diverged), the drift-stop leaves unexecuted steps visibly
+    // skipped, and the honesty notes render as system commentary. Endpoint
+    // names come from the id→name view harvested out of paths/proposal;
+    // the raw objectid stays on hover and in the executed cut receipts.
+    const steps = plan.steps || [];
+    const result = state.planResult || null;
+    const disp = (id) => short(idNames[id] || id);
+    const rawTitle = (id) => { const n = idNames[id]; return n && n !== id ? n + ' (' + id + ')' : id; };
+    const rows = steps.map((s, i) => {
+      const done = result && result.steps && i < result.executed_steps ? result.steps[i] : null;
+      const notRun = result && !done;
+      const v = done ? done.verdict : s.projected_verdict;
+      return '<div class="prop-row plan-row' + (notRun ? ' skipped' : '') + '">' +
+      '<span class="step-no">' + esc(s.step) + '</span>' +
+      '<div class="prop-main">' +
+        '<div class="prop-edge">' +
+        '<span class="ep" title="' + esc(rawTitle(s.cut.src)) + '">' + esc(disp(s.cut.src)) + '</span>' +
+        '<span class="rel">-[' + esc(s.cut.rel) + ']-></span>' +
+        '<span class="ep" title="' + esc(rawTitle(s.cut.dst)) + '">' + esc(disp(s.cut.dst)) + '</span>' +
+        '</div>' +
+        '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences' +
+        // benign_usage null = NOT measured (the fast-path proposal shape) — the
+        // plan card must never print the literal 'null' (audit5/live-e2e); 0
+        // is a real measurement (attacker-only edge) and renders as such.
+        (s.benign_usage != null ? ' · benign ' + esc(s.benign_usage) + ' of ' + esc(plan.benign_sample_size != null ? plan.benign_sample_size : '?') + ' sampled' : ' · benign not measured') +
+        ' · projected reachability ' + esc(s.projected_reachability) +
+        (done && done.after ? ' → measured ' + esc(done.after.reachability) : '') +
+        '</span>' +
+      '</div>' +
+      (notRun
+        ? '<span class="vchip" title="the plan stopped before this step — its projection is stale, it was never executed">not executed</span>'
+        : '<span class="vchip ' + esc(v != null ? v : '') + (done && done.plan_drift ? ' drifted' : '') + '">' +
+          esc((done ? 'live · ' : 'projected · ') + String(v != null ? v : '?').replace(/_/g, ' ')) +
+          (done && done.plan_drift ? ' — drift' : '') +
+          '</span>') +
+      '</div>';
+    }).join('');
+    const drift = result ? String(result.status).indexOf('drift') >= 0 : false;
+    const finalReach = result && result.steps && result.steps.length ? result.steps[result.steps.length - 1].after.reachability : '?';
+    const summary = !result ? '' :
+      (drift
+        ? '<div class="plan-result drift-note"><b>drift-stop at step ' + esc(result.executed_steps) + '</b> — the live re-measure diverged from the projection, so the remaining step(s) were not executed: they were computed on a surface that no longer exists. Re-plan from the current estate.</div>'
+        : '<div class="plan-result done-note">executed <b>' + esc(result.executed_steps) + ' of ' + esc(steps.length) + '</b> step(s) — every step matched its live re-measure · reachability → <b>' + esc(finalReach) + '</b></div>');
+    const body = steps.length
+      // once executed, the sequence is history: no APPROVE button, the
+      // card shows the measured trail instead (re-running a stale
+      // sequence is what the drift-stop exists to prevent).
+      ? rows + summary + (result ? '' : '<div class="actions"><button class="btn approve" id="btn-plan-approve" type="button" aria-label="Approve the whole cut sequence">APPROVE PLAN</button></div>')
       : '<div class="empty" style="padding:12px 16px">' + esc(plan.note || 'nothing to plan — surface collapsed') + '</div>';
     $('plan-body').innerHTML =
-      '<div style="font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:8px">k=' + esc(plan.k) +
-      ' · base reachability ' + esc(plan.base ? plan.base.reachability : '?') + ' · ' + esc(plan.method) + '</div>' +
+      '<div class="plan-meta">k=' + esc(plan.k) +
+      ' · base reachability ' + esc(plan.base ? plan.base.reachability : '?') +
+      ' · ' + esc(plan.method) + ' · projections measured on an isolated copy, re-measured live at execution</div>' +
       body +
-      '<div style="font-size:11px;color:var(--text-3);margin-top:10px">' + esc(plan.honesty || '') + '</div>';
+      '<div class="sys-note">' + esc(plan.honesty || '') + '</div>';
     const b = $('btn-plan-approve');
     if (b) b.addEventListener('click', armPlanGate);
   }
   function armPlanGate() {
     // two-step gate, same contract as a single cut's APPROVE → CONFIRM
     const cta = document.querySelector('#plan-body .actions');
+    // audit6/ui-flow: same staged language as the single-cut gate — amber
+    // armed flag, solid-danger CONFIRM, quiet cancel. (No Escape hint here:
+    // the plan gate has no key listener — the flag must not promise one.)
     cta.innerHTML =
+      '<span class="gate-flag" aria-hidden="true">armed — confirm executes every step</span>' +
       '<button class="btn confirm" id="btn-plan-confirm" type="button" aria-label="Confirm the plan">CONFIRM PLAN</button>' +
       '<button class="btn cancel" id="btn-plan-cancel" type="button" aria-label="Cancel the plan">cancel</button>';
     $('btn-plan-confirm').addEventListener('click', executePlan);
@@ -620,11 +767,18 @@
         && typeof b.executed_steps === 'number' && Array.isArray(b.steps),
         'plan result');
       const last = r.steps && r.steps.length ? r.steps[r.steps.length - 1].after.reachability : '?';
+      // audit6/ui-flow: keep the measured per-step receipts — renderPlan
+      // flips the verdict chips to live re-measures, dims the steps the
+      // drift-stop skipped, and retires the APPROVE button (the sequence
+      // is history once executed; a stale sequence is what drift exists
+      // to prevent).
+      state.planResult = r;
       banner('<span class="technique">PLAN RECEIPT · ' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
              'executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
              (String(r.status).indexOf('drift') >= 0
                ? ' · projection drift — later steps NOT executed, re-plan needed'
                : ' · every step matched its live re-measure'));
+      renderPlan();
     } catch (e) {
       banner('<span class="res">plan execution failed: ' + esc(e.message) + '</span>');
     }
