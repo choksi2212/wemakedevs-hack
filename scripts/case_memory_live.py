@@ -167,6 +167,20 @@ def main() -> int:
                            help="receipt file for this resume (parallel cases keep their own)")
     p_resume.set_defaults(fn=do_resume)
     args = parser.parse_args()
+
+    # Quickstart guard (F309, scripts slice — mirrors sever/eval/ablation.py):
+    # the falkordb client constructor eagerly sends INFO, so a dead engine (or
+    # a non-FalkorDB RESP server) raises here, before any thread work. One
+    # actionable line + exit 2 (distinct from a measurement failure) beats the
+    # raw redis traceback for a judge who skipped `docker compose up -d` (§9).
+    try:
+        _port(args.graph).node_count()
+    except Exception as exc:
+        print(
+            f"engine unreachable ({type(exc).__name__}) — "
+            "run `docker compose up -d` (README §9) first"
+        )
+        return 2
     return args.fn(args)
 
 

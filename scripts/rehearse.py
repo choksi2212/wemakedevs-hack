@@ -56,13 +56,26 @@ def main() -> int:
 
     from sever.core.falkor_port import FalkorGraphPort
 
-    port = FalkorGraphPort(
-        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        graph_name=args.graph,
-        username=os.environ.get("SEVER_FALKOR_USER"),
-        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-    )
+    # Quickstart guard (F309, scripts slice — mirrors sever/eval/ablation.py):
+    # falkordb's client constructor eagerly sends INFO, so a dead engine (or a
+    # non-FalkorDB RESP server) raises before any demo work. One actionable
+    # line + exit 2 (distinct from a measurement failure) beats the raw redis
+    # traceback for a judge who skipped `docker compose up -d` (README §9).
+    try:
+        port = FalkorGraphPort(
+            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+            graph_name=args.graph,
+            username=os.environ.get("SEVER_FALKOR_USER"),
+            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+        )
+        port.node_count()
+    except Exception as exc:
+        print(
+            f"engine unreachable ({type(exc).__name__}) — "
+            "run `docker compose up -d` (README §9) first"
+        )
+        return 2
     if port.node_count() == 0:
         t0 = time.perf_counter()
         port.load(normalized)
