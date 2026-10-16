@@ -118,10 +118,11 @@ during transient 502 windows). **One real leak, now fixed**: the 503 outage
 handler returned `engine unreachable: {exc}` and the raw redis-py message
 embeds the engine **host:port**; it now reports the exception class only
 (`engine unreachable: ConnectionError`). Two non-code hygiene flags for the
-owner: (a) the FalkorDB Cloud **password is 7 characters** — rotate it (then
-update the service env; never commit it); (b) the Render API key used for
-this audit exists in plaintext in local Hermes log files — keep the machine
-closed or rotate the key. No secret is in the repo: `render.yaml` keeps
+owner (details intentionally omitted from this public doc): (a) rotate the
+FalkorDB Cloud engine credential this audit flagged, then update the service
+env; never commit it; (b) rotate the deploy-dashboard API key this audit used
+and keep the build machine closed — it exists only in local tooling logs,
+never in the repo. No secret is in the repo: `render.yaml` keeps
 `sync: false` and the API env-var list contains only the six `SEVER_*` names.
 
 ## 6. Keepalive — promised but not running
