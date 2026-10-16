@@ -432,8 +432,11 @@
     state.pending = null;
     removeEscape();
     if (!p) return;
-    const cf = document.querySelector('#proposal .prop-cta .confirm');
-    if (cf) {
+    // INVARIANT: at most ONE armed gate may exist in the DOM. Under load the
+    // refresh swap + re-arm can overlap (ryzen full-suite caught two armed
+    // generations resolving at once) — sweep EVERY armed CTA, not just the
+    // querySelector-first match, so a stray second confirm can never linger.
+    document.querySelectorAll('#proposal .prop-cta .confirm').forEach((cf) => {
       const cta = cf.closest('.prop-cta');
       const hadFocus = cf === document.activeElement || cta.contains(document.activeElement);
       cta.innerHTML =
@@ -441,7 +444,7 @@
       const nb = cta.querySelector('.approve');
       nb.addEventListener('click', () => armGate(p.src, p.dst, p.rel));
       if (hadFocus) nb.focus();
-    }
+    });
   }
   function executeConfirm(p, cf, cn) {
     // one code path for the CONFIRM click handler and the mid-swap pointer
@@ -475,6 +478,19 @@
     }).then(() => refresh());
   }
   function renderGate(p, focusConfirm) {
+    // INVARIANT (armed gates): sweep any stray armed CTA first — a refresh
+    // swap racing the re-arm could otherwise leave two CONFIRM generations in
+    // the DOM at once (ryzen full-suite, strict-mode evidence). Restoring the
+    // stray to its APPROVE state keeps at most ONE armed gate, always.
+    document.querySelectorAll('#proposal .prop-cta .confirm').forEach((cf) => {
+      const cta = cf.closest('.prop-cta');
+      const hadFocus = cf === document.activeElement || cta.contains(document.activeElement);
+      cta.innerHTML =
+        '<button class="btn approve" type="button" data-src="' + esc(p.src) + '" data-dst="' + esc(p.dst) + '" data-rel="' + esc(p.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button>';
+      const nb = cta.querySelector('.approve');
+      nb.addEventListener('click', () => armGate(p.src, p.dst, p.rel));
+      if (hadFocus) nb.focus();
+    });
     const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(p.src) + '"][data-dst="' + CSS.escape(p.dst) + '"][data-rel="' + CSS.escape(p.rel) + '"]');
     if (!btn) return false;
     const cta = btn.closest('.prop-cta');
