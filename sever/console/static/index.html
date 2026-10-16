@@ -101,6 +101,7 @@
   <span class="chip" id="engine-chip" role="status" aria-live="polite"><span class="dot"></span><span id="engine-label">engine</span></span>
   <span class="chip" id="estate-chip" role="status" aria-live="polite">loading…</span>
   <span class="chip" id="refresh-chip"><span class="dot"></span><button id="refresh-toggle" class="chip-btn" type="button" aria-pressed="true" title="Toggle auto-refresh (15s)">live · auto</button></span>
+  <span class="chip" id="operator-chip" title="Receipts attribution: set your operator name once via ?operator=your-name (persisted per browser). Appears as approved_by on every cut / plan receipt.">op: <span id="operator-label">console-operator</span></span>
   <span class="spacer"></span>
   <span class="tagline">collateral-ranked cut plans → <b>human gate</b> → re-query → receipts</span>
 </header>
@@ -152,6 +153,24 @@
   const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null };
   const short = (id) => id.length > 26 ? '\u2026' + id.slice(-8) : id;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // Operator attribution for receipts (audit5/multi-client): the shared estate
+  // has many simultaneous operators, but every cut receipt used to say
+  // approved_by 'console-operator' (hardcoded), so the ledger could never say
+  // WHO confirmed an interdiction. Set your name once via ?operator=your-name
+  // (persisted in localStorage per browser; strict charset, <=32 chars) — it
+  // rides on every cut and plan-execute receipt as approved_by. Default keeps
+  // the old value, so nothing changes until an operator opts in.
+  const OPERATOR_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$/;
+  const pickOperator = (v) => OPERATOR_RE.test(String(v || '')) ? v : null;
+  const OPERATOR = (() => {
+    let stored = null;
+    try { stored = pickOperator(localStorage.getItem('sever-operator')); } catch (e) {}
+    const fromUrl = pickOperator(new URLSearchParams(location.search).get('operator'));
+    if (fromUrl) { try { localStorage.setItem('sever-operator', fromUrl); } catch (e) {} }
+    return fromUrl || stored || 'console-operator';
+  })();
+  { const el = $('operator-label'); if (el) el.textContent = OPERATOR; }
 
   async function api(path, opts) {
     // resilient read: a stalled/proxied-out backend can hand back an EMPTY or
@@ -308,7 +327,7 @@
     banner('<span class="res">human gate: executing approved cut…</span>');
     api('/api/cut', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: 'console-operator'}),
+      body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: OPERATOR}),
     }).then((r) => {
       banner('<span class="technique">INTERDICTION RECEIPT</span>' +
              'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
@@ -422,7 +441,7 @@
       const r = await api('/api/plan/execute', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          approved: true, approved_by: 'console-operator',
+          approved: true, approved_by: OPERATOR,
           steps: (plan.steps || []).map((s) => ({
             src: s.cut.src, rel: s.cut.rel, dst: s.cut.dst,
             projected_reachability: s.projected_reachability,

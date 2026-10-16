@@ -207,9 +207,16 @@ class CaseLog:
                 _unlock_handle(lockf)
 
     def append(self, event: dict[str, Any]) -> None:
-        event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
-        line = json.dumps(event, default=str) + "\n"
         with self._locked():
+            # The timestamp is stamped INSIDE the lock, so file order is always
+            # a valid timestamp order (non-decreasing): a judge reading the
+            # ledger top-to-bottom never sees time run backwards. Stamping
+            # before acquiring the lock let a writer parked on the lock carry
+            # an earlier stamp past a later writer's already-flushed entry
+            # (audit5/multi-client hardening — no regression was observed in
+            # 1300+ interleaved entries, this makes the guarantee structural).
+            event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
+            line = json.dumps(event, default=str) + "\n"
             # a previous writer may have died mid-line: terminate the torn
             # fragment and stamp a repair record so it can never merge with
             # this line and read() can skip it (audit3/console-logic contract)

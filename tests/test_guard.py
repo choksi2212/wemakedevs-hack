@@ -5,8 +5,7 @@ import pytest
 
 from sever.core.falkor_port import (
     AZ_JEWELS_QUERY,
-    CUT_COUNT_QUERY_TEMPLATE,
-    CUT_DELETE_QUERY_TEMPLATE,
+    CUT_ATOMIC_QUERY_TEMPLATE,
     JEWELS_QUERY,
     MARK_OWNED_QUERY,
     PATH_QUERY_TEMPLATE,
@@ -31,8 +30,10 @@ def test_query_constants_shape():
     assert "algo.SPpaths" in path_q and "pathCount: 100" in path_q
     assert "relTypes" in path_q  # ties mode: traversal set enforced server-side
     assert "$oid" in path_q and "$target" in path_q
-    assert "$src" in CUT_COUNT_QUERY_TEMPLATE.format(rel="GENERIC_ALL")
-    assert "DELETE r" in CUT_DELETE_QUERY_TEMPLATE.format(rel="GENERIC_ALL")
+    cut_q = CUT_ATOMIC_QUERY_TEMPLATE.format(rel="GENERIC_ALL")
+    assert "$src" in cut_q and "$dst" in cut_q
+    assert "DELETE r" in cut_q and "RETURN count(r)" in cut_q
+    assert cut_q.count("MATCH") == 1  # atomic: no separate pre-count read
     assert "SET n.owned = true" in MARK_OWNED_QUERY
     assert "ENDS WITH" in JEWELS_QUERY and "ENDS WITH" in AZ_JEWELS_QUERY
     # AZ holders are collector data: the suffix match must be case-insensitive
@@ -142,12 +143,18 @@ def test_add_edge_wire_shape_and_idempotent_false():
     assert len(rec2.calls) == 1
 
 
-def test_cut_with_zero_edges_skips_the_delete():
+def test_cut_is_one_atomic_statement_even_for_zero_edges():
+    # audit5/multi-client: the count-then-delete pair (which skipped the
+    # DELETE when the count read 0) is gone — cut is now ONE engine-side
+    # delete-and-count statement, atomic per command, so a zero-match cut
+    # still costs exactly one call, returns 0, and cannot race a concurrent
+    # cutter into a phantom double-claim.
     rec = _RecordingClient(results=[[0]])
     port = FalkorGraphPort(client=rec)
     assert port.cut("A", "B", "GENERIC_ALL") == 0
-    assert len(rec.calls) == 1                    # only the count query — no DELETE fired
-    assert "DELETE" not in rec.calls[0][0]
+    assert len(rec.calls) == 1                    # one atomic statement — never two
+    assert "DELETE r" in rec.calls[0][0]
+    assert "RETURN count(r)" in rec.calls[0][0]
 
 
 # ---- two-arm reachability (wire-shape, DB-free): BOTH arms issued, the

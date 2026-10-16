@@ -37,6 +37,7 @@ Math honesty (README material):
 """
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
@@ -175,7 +176,18 @@ def plan_cut_sequence(
             "plan_completes_at_step": None,
             "note": "surface already collapsed (0 breach paths) — nothing to plan",
         }
-    name = scratch_name or f"{getattr(port, 'graph_name', 'graph')}_plan_scratch"
+    # UNIQUE scratch key per invocation (audit5/multi-client): the fixed
+    # ``{graph}_plan_scratch`` name made two concurrent planners share ONE
+    # engine-side copy — one planner's GRAPH.DELETE/COPY churn landed under the
+    # other's mid-plan measurements, serving contaminated projections to the
+    # human gate (all-steps-no_effect plans, wrong plan_completes_at_step) or
+    # bare 500s (measured 3/8 concurrent planners, audit5/multi-client). The
+    # recognizable ``{graph}_plan_scratch_`` prefix is kept so a key leaked by
+    # a crashed process stays identifiable and cleanable; the ``finally``
+    # drop() still removes it on every normal path.
+    name = scratch_name or (
+        f"{getattr(port, 'graph_name', 'graph')}_plan_scratch_{os.urandom(4).hex()}"
+    )
     scratch = copier(name)
     steps: list[dict[str, Any]] = []
     completes_at: int | None = None
