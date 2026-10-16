@@ -8,6 +8,7 @@ Live-verified on falkordb 6.0.0 (self-hosted Docker + FalkorDB Cloud).
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from sever.core.jewels import (
