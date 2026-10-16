@@ -52,13 +52,26 @@ def main() -> int:
     print(f"[hybrid] merged estate: {merged.stats['node_count']} nodes / {merged.stats['edge_count']} edges "
           f"| bridges: {merged.stats['entra_bridges']} (bidirectional)")
 
-    port = FalkorGraphPort(
-        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        graph_name=args.graph,
-        username=os.environ.get("SEVER_FALKOR_USER"),
-        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-    )
+    # Quickstart guard (F309, scripts slice — mirrors sever/eval/ablation.py):
+    # falkordb's client constructor eagerly sends INFO, so a dead engine (or a
+    # non-FalkorDB RESP server) raises before any beat work. One actionable
+    # line + exit 2 (distinct from a measurement failure) beats the raw redis
+    # traceback for a judge who skipped `docker compose up -d` (README §9).
+    try:
+        port = FalkorGraphPort(
+            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+            graph_name=args.graph,
+            username=os.environ.get("SEVER_FALKOR_USER"),
+            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+        )
+        port.node_count()
+    except Exception as exc:
+        print(
+            f"engine unreachable ({type(exc).__name__}) — "
+            "run `docker compose up -d` (README §9) first"
+        )
+        return 2
     t0 = time.time()
     port.load(merged)
     print(f"[hybrid] loaded into '{args.graph}' in {time.time()-t0:.1f}s | jewels: {len(port.crown_jewels())}")

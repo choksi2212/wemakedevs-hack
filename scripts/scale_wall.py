@@ -48,12 +48,25 @@ def main() -> int:
     base = parse_ad_dir(args.sample_dir)
     print(f"[scale] base graph: {base.stats['node_count']} nodes / {base.stats['edge_count']} edges")
 
-    falkor = FalkorGraphPort(
-        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        username=os.environ.get("SEVER_FALKOR_USER"),
-        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-    )
+    # Quickstart guard (F309, scripts slice — mirrors sever/eval/ablation.py):
+    # falkordb's client constructor eagerly sends INFO, so a dead engine (or a
+    # non-FalkorDB RESP server) raises before the scale wall starts. One
+    # actionable line + exit 2 (distinct from a measurement failure) beats the
+    # raw redis traceback for a judge who skipped `docker compose up -d` (§9).
+    try:
+        falkor = FalkorGraphPort(
+            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+            username=os.environ.get("SEVER_FALKOR_USER"),
+            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+        )
+        falkor.node_count()  # probe: 0 on an empty/missing graph, raises on a dead/non-FalkorDB engine
+    except Exception as exc:
+        print(
+            f"engine unreachable ({type(exc).__name__}) — "
+            "run `docker compose up -d` (README §9) first"
+        )
+        return 2
     raw = falkor.graph.client
 
     # per-tenant hero/jewel remap for the latency sample (same transform as make_tenant)
