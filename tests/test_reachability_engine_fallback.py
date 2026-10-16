@@ -3,16 +3,18 @@
 Production evidence (deployed Cloud 4.22.0, dep-db94uvek, develop b6dae5a):
 /api/state answered reach 0 and /api/paths answered [] WITH an owned
 principal, while ryzen 6.0.0 was green on the same code. Root cause: the
-fleet-7 arm forms (all-owned AND $oid-bound per-owned cross-product
-WITH-shortestPath) are not evaluated correctly on engines < falkordb 6.0.0
-for this estate shape; the legacy per-pair forms (both endpoints
-$param-bound) are the only family production proved there — reach 0->1
-verified repeatedly pre-fleet-7, and the plan endpoint's per-pair
-enumeration kept answering base_reachability=1 through the whole outage.
+fleet-7 arm forms (the $oid-bound per-owned cross-product
+WITH-shortestPath arms) answer nothing on engines < falkordb 6.0.0 for
+this estate shape — production answered reach 0 with an owned principal
+on TWO deploys; the pre-fleet-7 forms (two-arm all-pairs reachability +
+per-pair canonical paths) are what ran green on that Cloud estate for
+days (reach 0->1 verified repeatedly), and the reopen's raw wire test
+re-proved the per-pair canonical query against the live Cloud.
 
 These pins hold the fix on a REAL engine (the same engine the fold suite
 runs on, 6.0.0): forcing the port's version probe to the Cloud family
-(42200) must select the per-pair fallback and answer EXACTLY what the
+(42200) must select the pre-fleet-7 fallback (two-arm all-pairs
+reachability + per-pair canonical paths) and answer EXACTLY what the
 modern-arm path answers on the same estate — reachability, paths, and the
 console's /api/state and /api/paths responses, byte-identical. A port
 without the probe attribute (every engine-free fake) is conservatively
@@ -59,7 +61,6 @@ def test_forced_old_engine_reachability_equals_per_pair_reference(forced_old):
     from sever.core.jewels import DEFAULT_HOP_CAP, cypher_traversal_pattern
 
     port = forced_old
-    modern = None
     # per-pair existence reference, computed directly on the engine
     probe = REACHABILITY_QUERY_TEMPLATE.format(
         pattern=cypher_traversal_pattern(DEFAULT_HOP_CAP))
@@ -80,7 +81,8 @@ def test_forced_old_engine_reachability_equals_per_pair_reference(forced_old):
 
     old_engine_answer = port.reachability()
     assert old_engine_answer == expected, (
-        "the <6.0.0 fallback must equal the per-pair reference"
+        "the <6.0.0 fallback (pre-fleet-7 two-arm form) must equal the "
+        "per-pair reference"
     )
     assert old_engine_answer == modern, (
         f"the forced-old answer ({old_engine_answer}) must equal the "
