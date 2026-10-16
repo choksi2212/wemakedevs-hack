@@ -26,6 +26,20 @@ Math honesty (README material):
   moment reality diverges (the live estate mutated after planning), which
   is why Investigator.execute_plan re-measures each step and STOPS at the
   first drift instead of trusting the plan.
+- Measurement FORM (audit7/perf-scoring): the plan measures each state —
+  base and every post-cut projection — with the per-(owned, jewel) canonical
+  enumeration it already performs for edge scoring, plus the same owned-
+  jewel 0-hop union reachability() applies. That per-pair form evaluates the
+  SAME traversal pattern + hop cap the two-arm reachability query evaluates
+  per (owned, jewel) row, so it is the same measurement in a different form
+  (pinned arm == per-pair == DB-free oracle in
+  tests/test_live_interdiction_invariants.py, and old-vs-new receipts in
+  tests/test_perf_equivalence.py). It removes the all-pairs arm query —
+  the 2-4s-per-traversal query on the multi-tenant cloud engine that made a
+  k=3 plan take 13-14s — while still re-measuring the mutated copy after
+  every cut: the enumeration is fresh at every step, nothing is carried
+  over from a pre-cut state.
+
 - "Kills most paths (N of M)" — never "all paths" unless re-measured to zero.
 - Collateral (benign usage): an edge can sit on the attacker's paths AND on
   other, non-owned principals' canonical jewel paths — cutting it disrupts
@@ -49,6 +63,60 @@ from sever.core.port import GraphPort
 # same estate always receipts the same numbers — replay-identical like every
 # other SEVER artifact.
 BENIGN_SAMPLE_SIZE = 25
+
+
+def _multi_canonical_paths(
+    port: Any,
+    objectids: list[str],
+    hop_cap: int,
+    jewels: list[str] | None = None,
+) -> dict[str, list[list[tuple[str, str, str]]]]:
+    """Seam accessor with the pre-audit7 fallback: a port that HAS
+    canonical_paths_multi (every GraphPort subclass) gets the one-call
+    enumeration; a duck-typed port without it falls back to the
+    per-principal paths_to_jewels loop — identical numbers, identical
+    per-pair semantics (it is the same loop the ABC default runs)."""
+    multi = getattr(port, "canonical_paths_multi", None)
+    if multi is not None:
+        return multi(objectids, hop_cap, jewels)
+    return {oid: port.paths_to_jewels(oid, hop_cap) for oid in objectids}
+
+
+def _enumeration_frequency(
+    paths_by_owned: dict[str, list[list[tuple[str, str, str]]]],
+) -> dict[tuple[str, str, str], int]:
+    """Per-edge occurrence count across the enumerated canonical paths —
+    the same count ``port.edge_frequency()`` computes from the same
+    enumeration (audit7: the plan owns its enumeration so ONE pass feeds
+    both the edge scoring and the reachability projection)."""
+    freq: dict[tuple[str, str, str], int] = {}
+    for paths in paths_by_owned.values():
+        for path in paths:
+            for hop in path:
+                freq[hop] = freq.get(hop, 0) + 1
+    return freq
+
+
+def _reached_principals(
+    paths_by_owned: dict[str, list[list[tuple[str, str, str]]]],
+    owned: list[str],
+    jewel_set: set[str],
+) -> set[str]:
+    """The reachability SET behind the headline count, derived from the
+    per-(owned, jewel) canonical enumeration.
+
+    Equivalent to the port's ``reachability()`` on the same graph state: the
+    canonical per-pair probe evaluates the same traversal pattern + hop cap
+    the two-arm reachability query evaluates per (owned, jewel) row (pinned
+    arm == per-pair == DB-free oracle in tests/test_live_interdiction_
+    invariants.py), and the owned-jewel union below is the same 0-hop breach
+    term ``FalkorGraphPort.reachability`` applies. An owned principal with
+    at least one enumerated path is its own witness — edge removal can never
+    un-reach it, and can never reach more — so this is a measurement of the
+    state it is handed, never a projection across states.
+    """
+    reached = {oid for oid, paths in paths_by_owned.items() if paths}
+    return reached | (set(owned) & jewel_set)
 
 
 def rank_cut_candidates(
@@ -109,9 +177,15 @@ def benign_edge_usage(
     step = max(1, len(pool) // sample_size) if pool else 1
     sample = pool[::step][:sample_size] if pool else []
     usage: dict[tuple[str, str, str], int] = {}
-    for principal in sample:
+    # ONE enumeration call for the whole sample (audit7/perf-scoring): the
+    # ABC's canonical_paths_multi defaults to the per-principal
+    # paths_to_jewels loop (identical queries + identical numbers), and a
+    # backend override batches the same per-pair canonical probes into a
+    # single UNWIND query — the per-principal round-trips were the cloud
+    # plan's dominant cost after the arm queries.
+    for principal, paths in _multi_canonical_paths(port, sample, hop_cap).items():
         hops: set[tuple[str, str, str]] = set()
-        for path in port.paths_to_jewels(principal, hop_cap):
+        for path in paths:
             for hop in path:
                 hops.add(tuple(hop))
         for h in hops:
@@ -149,7 +223,13 @@ def plan_cut_sequence(
     Honesty contract of the returned receipts:
     - "projected_reachability" is a real measurement on the mutated copy —
       never a simulation over a frozen path set (re-routes after a cut are
-      visible to it, which is exactly the point of a multi-cut plan).
+      visible to it, which is exactly the point of a multi-cut plan). The
+      measurement re-enumerates the post-cut copy per (owned, jewel) pair —
+      the per-pair form of the same traversal the two-arm reachability
+      query evaluates (pinned equivalent in
+      tests/test_live_interdiction_invariants.py; old-vs-new receipts in
+      tests/test_perf_equivalence.py) — and the base number is measured on
+      the same isolated copy, so one receipt speaks about one estate state.
     - "benign_usage" per step is re-measured on the mutated copy too: step 2
       sees the collateral of the surface that exists AFTER step 1.
     - the plan stops early when the copy measures zero ("plan_completes_at_step").
@@ -165,17 +245,6 @@ def plan_cut_sequence(
             "plan_cut_sequence requires a port with scratch_copy(name) — "
             "projections are measured on an isolated copy, never simulated"
         )
-    base = snapshot(port, hop_cap)
-    if base["reachability"] == 0:
-        return {
-            "k": k,
-            "method": "graph_copy_remeasure",
-            "base": {"reachability": 0, "owned": base["owned"], "jewels": base["jewels"]},
-            "benign_sample_size": benign_sample_size,
-            "steps": [],
-            "plan_completes_at_step": None,
-            "note": "surface already collapsed (0 breach paths) — nothing to plan",
-        }
     # UNIQUE scratch key per invocation (audit5/multi-client): the fixed
     # ``{graph}_plan_scratch`` name made two concurrent planners share ONE
     # engine-side copy — one planner's GRAPH.DELETE/COPY churn landed under the
@@ -192,15 +261,41 @@ def plan_cut_sequence(
     steps: list[dict[str, Any]] = []
     completes_at: int | None = None
     try:
-        prev = base["reachability"]
+        # All numbers — base AND every per-step projection — are measured on
+        # the isolated copy (the copy IS the snapshot the plan reasons about;
+        # measuring the base there keeps every number in one receipt from one
+        # consistent estate state instead of straddling a live read and a
+        # copy). One enumeration per state feeds BOTH the edge scoring and
+        # the reachability projection (see _reached_principals): the plan
+        # re-enumerates the mutated copy after every cut, so re-routes stay
+        # visible — the arm-query FORM of reachability is replaced by the
+        # pinned-equivalent per-pair form, not the re-measurement.
+        owned = scratch.owned_ids()
+        jewels = scratch.crown_jewels()
+        jewel_set = set(jewels)
+        paths_by_owned = _multi_canonical_paths(scratch, owned, hop_cap, jewels)
+        base_reach = len(_reached_principals(paths_by_owned, owned, jewel_set))
+        if base_reach == 0:
+            return {
+                "k": k,
+                "method": "graph_copy_remeasure",
+                "base": {"reachability": 0, "owned": owned, "jewels": jewels},
+                "benign_sample_size": benign_sample_size,
+                "steps": [],
+                "plan_completes_at_step": None,
+                "note": "surface already collapsed (0 breach paths) — nothing to plan",
+            }
+        prev = base_reach
         for i in range(1, k + 1):
-            freq = scratch.edge_frequency(hop_cap)
+            freq = _enumeration_frequency(paths_by_owned)
             if not freq:
                 break
             benign = benign_edge_usage(scratch, hop_cap, benign_sample_size)
             top = rank_cut_candidates(freq, limit=1, benign=benign["usage"])[0]
             removed = scratch.cut(top["src"], top["dst"], top["rel"])
-            projected = scratch.reachability(hop_cap)
+            # fresh enumeration of the MUTATED copy = the post-cut measurement
+            paths_by_owned = _multi_canonical_paths(scratch, owned, hop_cap, jewels)
+            projected = len(_reached_principals(paths_by_owned, owned, jewel_set))
             if removed == 0:
                 verdict = "no_effect"
             elif projected == 0:
@@ -225,7 +320,7 @@ def plan_cut_sequence(
     return {
         "k": k,
         "method": "graph_copy_remeasure",
-        "base": {"reachability": base["reachability"], "owned": base["owned"], "jewels": base["jewels"]},
+        "base": {"reachability": base_reach, "owned": owned, "jewels": jewels},
         "benign_sample_size": benign_sample_size,
         "steps": steps,
         "plan_completes_at_step": completes_at,

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from typing import Any
 
 from sever.etl.ad_collectors import NormalizedGraph
@@ -52,6 +53,55 @@ class GraphPort(ABC):
     @abstractmethod
     def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:
         """Per-edge occurrence count across all owned->jewel paths (scoring input)."""
+
+    def canonical_paths_multi(
+        self,
+        objectids: Sequence[str],
+        hop_cap: int = DEFAULT_HOP_CAP,
+        jewels: Sequence[str] | None = None,
+    ) -> dict[str, list[list[tuple[str, str, str]]]]:
+        """Canonical shortest path per (principal, jewel) pair for MANY
+        principals in ONE call — the batched form of paths_to_jewels.
+
+        Returns ``{objectid: [path, ...]}`` where each path is a hop list
+        exactly as ``paths_to_jewels(objectid, hop_cap)`` returns it —
+        including the empty list for principals with no path to any jewel.
+        Per-principal path ORDER is unconstrained (every consumer counts or
+        dedups, never orders).
+
+        DEFAULT IMPLEMENTATION = the per-principal ``paths_to_jewels`` loop:
+        identical semantics AND identical per-pair engine queries, so a
+        backend without an override behaves exactly as before (audit7
+        perf-scoring left the loop as the ABC default on purpose — the ABC
+        cannot issue Cypher itself).
+
+        Backends SHOULD override with ONE batched query — UNWIND the
+        (principal, jewel) pair list and evaluate the same shortestPath
+        pattern per row server-side. Engine-verified form on falkordb 6.0.0
+        (see tests/test_perf_equivalence.py::BatchedFalkorPort, which pins
+        old-vs-new path equality and the round-trip win):
+
+            UNWIND $pairs AS pair
+            MATCH (o {objectid: pair.o}), (t {objectid: pair.j})
+            WITH o, t, pair, shortestPath((o)-{pattern}->(t)) AS p
+            WHERE p IS NOT NULL
+            RETURN pair.o AS oid, p AS p
+
+        with ``$pairs`` a list of ``{"o": objectid, "j": jewel}`` maps. The
+        plain ``UNWIND $oids AS oid ... {objectid: oid}`` form is REJECTED by
+        the engine ("'oid' not defined") — the pairs-of-maps form is the one
+        that parses. An override MUST apply the same hop-cap + traversal-set
+        guard ``paths_to_jewels`` applies and keep the empty-list convention
+        for principals with no path.
+
+        ``jewels`` is an optional pre-fetched crown-jewel list (the caller
+        often already has it — passing it saves the backend the per-call
+        ``crown_jewels()`` round-trips); ``None`` means the backend derives
+        the jewels itself. The default implementation ignores it (the loop
+        re-derives jewels inside ``paths_to_jewels`` exactly as before).
+        """
+        return {oid: self.paths_to_jewels(oid, hop_cap) for oid in objectids}
+
 
     @abstractmethod
     def add_edge(self, src: str, dst: str, rel: str, props: dict[str, Any] | None = None) -> bool:
