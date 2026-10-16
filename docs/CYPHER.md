@@ -1,10 +1,13 @@
 # SEVER — The Cypher Queries the Product Depends On
 
 Rule 10 requires publishing the exact queries. These are the **live-verified**
-forms — executed against falkordb 6.0.0 (case-log receipts in
+forms — executed against falkordb 6.0.0 (self-hosted Docker; case-log receipts in
 `docs/receipts/receipts_live_sever_demo.json`; GRAPH.PROFILE receipt of the canonical
 path query in `docs/receipts/profile.txt`, ~1.1 ms in-engine on the
-1,480-node / 12,450-edge demo tenant) — maintained as module constants in
+1,480-node / 12,450-edge demo tenant) and re-verified form-by-form on the managed
+FalkorDB Cloud engine (module `graph` 4.22.0 —
+`docs/receipts/audit5_cloud_instance.json`: every shipped form parses and runs
+identically on both engines) — maintained as module constants in
 `sever/core/falkor_port.py` (`JEWELS_QUERY`, `AZ_JEWELS_QUERY`,
 `MARK_OWNED_QUERY`, `OWNED_QUERY`, `USER_OBJECTIDS_QUERY`,
 `REACHABILITY_METHOD`,
@@ -78,7 +81,11 @@ paths via the built-in procedure (measured: cross-domain tie sets take
 15–25s+ per pair — the live agent loop uses the canonical form). The
 traversal set is passed server-side as `relTypes` (the full 43-type list,
 inlined from `TRAVERSAL_RELS` — no user input), and the hop cap is enforced
-app-side because SPpaths has no working hop-bound config:
+app-side because SPpaths has no working hop-bound config. (audit5 note: until
+`audit5/cloud-instance` the raw `{{…}}`-escaped template reached the engine
+unformatted and was rejected deterministically on BOTH engines —
+4.22.0: `Invalid input '{'`, 6.0.0: `unhandled type in inlined properties`;
+`falkor_port.py` now `.format()`s it, live-verified on both):
 
 ```cypher
 MATCH (o {objectid: $oid}), (t {objectid: $target})
@@ -182,20 +189,24 @@ CREATE INDEX FOR (n:User) ON (n.objectid)
 ## Engine quirks mapped during the build (all live-verified)
 
 - `shortestPath` is only valid as a WITH/RETURN expression, not `MATCH p = …`
+  (audit5 cross-check: both the WITH form and the RETURN form parse and run
+  on 4.22.0 AND 6.0.0 — the shipped code keeps the WITH form; receipts:
+  `audit5_cloud_instance.json`)
 - `shortestPath` hop ranges must be upper-bounded (`*..N`; a lower bound such
   as `*1..N` is rejected) — hence `cypher_traversal_pattern` emits `*..N`
 - `algo.SPpaths` is configured with node references, not patterns — the call
   in `PATH_QUERY_TEMPLATE` passes `sourceNode`/`targetNode`/`pathCount` plus
-  `relTypes` (the 43 traversal types; live-verified honored — a
-  CONTAINED_BY-only pair returns 0 rows under `relTypes: ['MEMBER_OF']`).
+  `relTypes` (the 43 traversal types; live-verified honored on BOTH engines —
+  a CONTAINED_BY-only pair returns 0 rows under `relTypes: ['MEMBER_OF']`).
   Unknown config keys are accepted and SILENTLY IGNORED (`maxHops: 2` still
   returns a 12-hop path), so the hop cap is enforced app-side on the parsed
   hops, and its returned paths carry raw integer node ids on edges, so hops
   are rebuilt from the ordered node list via index-zip (`_row_to_hops`).
-  Observed on a shared engine under concurrent graph create/delete churn:
-  the procedure can intermittently fail server-side ("unhandled type in
-  inlined properties") — reachability and the live loop therefore use only
-  the canonical shortestPath form.
+  Previously attributed to "intermittent server-side failure under concurrent
+  graph churn" ("unhandled type in inlined properties"): audit5 pinned the
+  deterministic root cause — the raw unformatted template, rejected on both
+  engines (see the ties-mode note above); fixed in `falkor_port.py`, and the
+  live loop / reachability use only the canonical shortestPath form anyway.
 - property values must be primitives or primitive arrays — FalkorDB rejects
   maps/lists, so ingest JSON-serializes list/dict property values
   (`_clean_props`), and the boolean-shaped collector flags (`IsACLProtected`,

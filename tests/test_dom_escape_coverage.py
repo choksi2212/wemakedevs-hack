@@ -125,10 +125,11 @@ def test_every_innerhtml_sink_escapes_or_trusts_html_adjacent_operands():
     src = INDEX.read_text(encoding="utf-8")
     js = re.search(r"<script>(.*)</script>", src, re.S).group(1)
     sinks = _sink_statements(js)
-    # the console has exactly these eight sinks today (audit4 added the plan
-    # card + plan gate); a new sink must extend this test consciously, not
-    # slip through
-    assert len(sinks) == 8, [s[:60] for s in sinks]
+    # the console has exactly these nine sinks today (audit4 added the plan
+    # card + plan gate; audit5/live-e2e added the receipts-card degraded
+    # line when the pure-file /api/receipts route fails independently of the
+    # engine); a new sink must extend this test consciously, not slip through
+    assert len(sinks) == 9, [s[:60] for s in sinks]
 
     violations = []
     for stmt in sinks:
@@ -156,8 +157,9 @@ def test_no_untrusted_field_appears_raw_in_any_sink():
     js = re.search(r"<script>(.*)</script>", src, re.S).group(1)
     sinks = _sink_statements(js)
     untrusted = ["p.principal", "h.src", "h.dst", "h.rel", "c.src", "c.dst",
-                 "c.rel", "e.message", "r.technique", "r.narration", "p.src",
-                 "p.dst", "p.rel", "esc((e.ts",
+                 "c.rel", "e.message", "recErr.message", "r.technique",
+                 "r.narration", "p.src", "p.dst", "p.rel", "e.ts",
+
                  # plan surfaces (audit4): every dynamic plan field must be
                  # esc()-wrapped at its sink too
                  "s.cut.src", "s.cut.dst", "s.cut.rel", "plan.note",
@@ -203,8 +205,14 @@ def test_no_untrusted_field_appears_raw_in_any_sink():
         for field in untrusted:
             assert field not in residue, (field, stmt[:80])
     # pinned byte patterns: the receipts sink timestamp and ledger line escapes
-    receipts_stmt = next(s for s in sinks if "receipts" in s)
-    assert "esc((e.ts" in receipts_stmt
+    # (audit5/live-e2e: two sinks now touch #receipts — the degraded-card line
+    # and the ledger render; the pins target the RENDER sink)
+    receipts_stmt = next(s for s in sinks if "slice(-40)" in s)
+    # audit5/judge-experience: ts is now rendered via new Date(...).toLocaleTimeString
+    # (local clock) — the invariant pinned here is that e.ts only ever reaches
+    # the DOM through esc(...).
+    assert "esc(e.ts" in receipts_stmt
+
     assert receipts_stmt.count("esc(line)") == 2  # title attribute AND text node
     # trusted ledger-literal placement pinned: badgeFor(step) drives the class,
     # step is the raw trusted ledger literal (audit3/console-logic markup)

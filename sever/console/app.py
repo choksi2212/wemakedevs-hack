@@ -139,7 +139,15 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # UI banner showing a JSON-parse artifact instead of the cause
         # (audit3/console-logic, live-verified by killing the engine between
         # /api/finding and /api/cut).
-        return JSONResponse(status_code=503, content={"detail": f"engine unreachable: {exc}"})
+        # audit5/deploy-audit: the raw redis-py message embeds the engine's
+        # host:port ("Error connecting to r-....cloud:59719") — surfacing it
+        # on the public URL is infrastructure disclosure. Report the
+        # exception class only: the cause stays machine-readable
+        # (ConnectionError vs TimeoutError) and the banner still says why.
+        return JSONResponse(
+            status_code=503,
+            content={"detail": f"engine unreachable: {type(exc).__name__}"},
+        )
 
     for _exc_cls in ENGINE_ERRORS:
         app.add_exception_handler(_exc_cls, _engine_outage)
@@ -152,13 +160,27 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             username=os.environ.get("SEVER_FALKOR_USER"),
             password=os.environ.get("SEVER_FALKOR_PASSWORD"),
         )
+    # The receipts trail outlives the graph: the CaseLog file is keyed by graph
+    # name and survives GRAPH.DELETE by design. It must therefore carry its own
+    # estate-lifecycle markers, or history from a previous incarnation of the
+    # estate reads as if it happened to this one (audit5/multi-client: the live
+    # ledger recorded 10 "removed 1" cuts whose edges exist again today — the
+    # estate had been reset out-of-band overnight, and nothing in the trail
+    # marked the discontinuity).
+    log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
             "SEVER_SAMPLE_DIR",
             str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+        log.append({
+            "step": "estate_loaded",
+            "nodes": port.node_count(),
+            "edges": port.edge_count(),
+            "note": "sample loaded into an empty graph — entries above this line "
+                    "describe a previous incarnation of the estate",
+        })
 
     inv = Investigator(port)
-    log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
     app.state.port = port
 
     def _names(hops: list[tuple[str, str, str]]) -> list[dict[str, str]]:
@@ -171,12 +193,21 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             })
         return out
 
+    _name_cache: dict[str, str] = {}
+
     def _name(oid: str) -> str:
+        # audit5/judge-experience: resolve SIDs to human names (a judge must
+        # read "T1_TONYMONTANA@PHANTOM.CORP", not "…394-2110"). Cached: names
+        # never change on cuts, and the 15s auto-refresh would otherwise
+        # re-query the same ids on every poll.
+        hit = _name_cache.get(oid)
+        if hit is not None:
+            return hit
         res = port.graph.query(
             "MATCH (n {objectid: $o}) RETURN n.name AS name LIMIT 1", {"o": oid})
-        if res.result_set and res.result_set[0][0]:
-            return str(res.result_set[0][0])
-        return oid
+        name = str(res.result_set[0][0]) if res.result_set and res.result_set[0][0] else oid
+        _name_cache[oid] = name
+        return name
 
     def _objectid_exists(oid: str) -> bool:
         """Resolves against the loaded estate — the honest-rejection probe:
@@ -190,8 +221,36 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     async def index() -> str:
         return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
 
+    @app.get("/api/health")
+    def health() -> dict[str, Any]:
+        # audit5/deploy-audit: Render's HTTP health check needs a 2xx within
+        # its 5-second window. /api/state runs five engine queries (incl. the
+        # full reachability traversal) and measured 6-24s against FalkorDB
+        # Cloud under concurrent load — as the health path it missed its
+        # window, Render restarted the instance every ~60s of that, and each
+        # restart wiped the ephemeral receipts ledger (three instance boots
+        # in 21 minutes, live-verified 2026-10-16). This probe touches the
+        # engine with ONE cheap query (a dead engine still 503s through the
+        # shared outage handler, so fail-fast semantics are unchanged) and
+        # never appends a receipt, so health-check traffic cannot drown the
+        # demo ledger in `state` noise.
+        return {
+            "status": "ok",
+            "backend": "falkordb",
+            "graph": port.graph_name,
+            "nodes": port.node_count(),
+        }
+
+    # audit5/judge-experience: /api/state is polled every 15s by every open
+    # console tab. Pre-fix, each poll appended a "state" line to the
+    # receipts ledger — 4 lines/minute of identical spam burying the cut and
+    # finding receipts a judge actually needs to see. Log state only when it
+    # changes; the transition itself is the receipt.
+    last_state_log: dict[str, Any] = {"key": None}
+
+
     @app.get("/api/state")
-    async def state() -> dict[str, Any]:
+    def state() -> dict[str, Any]:
         data = {
             "backend": "falkordb",
             "graph": port.graph_name,
@@ -199,37 +258,95 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             "edges": port.edge_count(),
             "jewels": port.crown_jewels(),
             "owned": port.owned_ids(),
+            # audit5/judge-experience: names for the owned list — the metric
+            # sub-line under the big reachability number must read as
+            # principals, not as elided SID tails.
+            "owned_names": [_name(o) for o in port.owned_ids()],
             "reachability": port.reachability(),
         }
-        log.append({"step": "state", **{k: data[k] for k in ("reachability", "nodes", "edges")}})
+        if data["nodes"] == 0:
+            # Out-of-band reset detector (audit5/multi-client): the engine-side
+            # graph can be deleted or replaced by anything other than this
+            # console (operator GRAPH.DELETE, ETL re-ingest) and the receipts
+            # file survives it. Without a marker, cuts recorded before the
+            # reset contradict the re-loaded estate and a judge cannot see
+            # where the story broke.
+            log.append({
+                "step": "estate_missing",
+                "note": "graph is empty — the estate was deleted or reset outside "
+                        "this console; receipts continuity breaks here",
+            })
+            last_state_log["key"] = None
+        # audit5/judge-experience: /api/state is polled every 15s by every open
+        # console tab — log state only when it CHANGES (the transition itself
+        # is the receipt), so poll traffic cannot bury the cut/finding story.
+        key = (data["reachability"], data["nodes"], data["edges"])
+        if key != last_state_log["key"]:
+            last_state_log["key"] = key
+            log.append({"step": "state", **{k: data[k] for k in ("reachability", "nodes", "edges")}})
+
         return data
 
     @app.get("/api/paths")
-    async def paths() -> dict[str, Any]:
+    def paths() -> dict[str, Any]:
         out: dict[str, Any] = {"paths": []}
         for owned in port.owned_ids():
             for path in port.paths_to_jewels(owned):
-                out["paths"].append({"principal": _name(owned), "hops": names(path)})
+                # audit5/judge-experience: _names resolves each hop's
+                # objectid to a human name (src/dst) while keeping the raw
+                # id (src_id/dst_id). The module-level names() below returns
+                # raw SIDs — pre-fix every hop rendered as an elided
+                # "…394-2110" that no judge could read, and the resolver
+                # directly above was dead code.
+                out["paths"].append({"principal": _name(owned), "hops": _names(path)})
         return out
 
     @app.get("/api/proposal")
-    async def proposal() -> list[dict[str, Any]]:
-        return inv.propose(limit=5)
+    def proposal() -> list[dict[str, Any]]:
+        out = inv.propose(limit=5)
+        # audit5/judge-experience: the operator approves a cut between
+        # PRINCIPALS, not between opaque SID tails — resolve display names.
+        # src/dst keep the raw objectids: the cut API must receive ids.
+        for item in out:
+            item["src_name"] = _name(item["src"])
+            item["dst_name"] = _name(item["dst"])
+        return out
 
     @app.get("/api/plan")
-    async def plan() -> dict[str, Any]:
+    def plan() -> dict[str, Any]:
         # The remediation PLAN: a greedy k=3 cut sequence with per-step
         # MEASURED projections (computed on an isolated GRAPH.COPY — the
         # live estate is never touched by a proposal). The operator reviews
         # the whole sequence, not one edge.
-        out = inv.propose_plan()
+        try:
+            out = inv.propose_plan()
+        except ENGINE_ERRORS:
+            # engine outage mid-plan: record the attempt (outcome unknown),
+            # then let the registered 503 handler answer — same contract as
+            # finding_failed/cut_failed.
+            log.append({"step": "plan_failed",
+                        "error": "engine unreachable mid-plan", "outcome": "unknown"})
+            raise
+        except Exception as e:
+            # Any other projection failure (an engine-side graph-lifecycle
+            # race, a scratch collision, an internal bug) must still leave the
+            # ATTEMPT on the receipts trail. Pre-fix, a failed /api/plan
+            # vanished without a ledger entry — an invisible hole for a judge
+            # reconstructing the story (audit5/multi-client: concurrent
+            # planners 500'd with no trace).
+            log.append({"step": "plan_failed",
+                        "error": f"plan projection failed: {e}", "outcome": "unknown"})
+            raise HTTPException(
+                status_code=503,
+                detail=f"plan projection failed — engine graph lifecycle race, retry: {e}",
+            )
         # mirror onto the console receipts ledger like every other agent
         # step — the trail must show what was proposed, not only what ran
         log.append({"step": "plan", "plan": out})
         return out
 
     @app.post("/api/plan/execute")
-    async def plan_execute(req: PlanExecuteRequest) -> dict[str, Any]:
+    def plan_execute(req: PlanExecuteRequest) -> dict[str, Any]:
         # Gate check FIRST, exactly like /api/cut: an unapproved caller
         # learns nothing about the plan's steps or rel validity.
         if req.approved is not True:
@@ -264,7 +381,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
 
 
     @app.post("/api/finding")
-    async def finding(req: FindingRequest) -> dict[str, Any]:
+    def finding(req: FindingRequest) -> dict[str, Any]:
         # Honest rejection (audit3/console-logic): a finding is about real
         # principals of the loaded estate. Pre-fix, a breach on a nonexistent
         # objectid was a 200 phantom no-op whose narration claimed "this
@@ -314,10 +431,15 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             "simulated": True,  # findings stream is a labeled breach-timeline replay, not live telemetry
             "applied": report.applied,
             "reachability": report.after["reachability"],
+            # audit5/judge-experience: the replay estate loads pre-breached,
+            # so both demo buttons often change nothing — the UI must be able
+            # to SHOW "1 → 1, no surface change" instead of leaving the judge
+            # wondering whether the click worked.
+            "reachability_before": report.before["reachability"],
         }
 
     @app.post("/api/cut")
-    async def cut(req: CutRequest) -> dict[str, Any]:
+    def cut(req: CutRequest) -> dict[str, Any]:
         # The gate check comes FIRST: an unapproved caller learns nothing
         # about rel validity (no oracle without approval).
         if req.approved is not True:
@@ -343,8 +465,18 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return receipt
 
     @app.get("/api/receipts")
-    async def receipts() -> list[dict[str, Any]]:
-        return log.read()
+    async def receipts(limit: int = 200) -> list[dict[str, Any]]:
+        # Bounded tail (audit5/live-e2e): the ledger is append-only and grows
+        # with every poll — every /api/state appends a line, so a day of
+        # auto-refresh plus operator traffic makes the full-ledger response
+        # grow without bound until the public deployment's worker died on it
+        # (live 502s, Oct 16 06:15Z). The UI renders the newest 40; the API
+        # ships the newest ``limit`` events (newest-last, unchanged order).
+        # The full file stays on disk for forensics — it is never the HTTP
+        # payload.
+        limit = max(1, min(limit, 5000))
+        events = log.read()
+        return events[-limit:] if limit < len(events) else events
 
     # expose for tests/teardown
     build_app.port_obj = port

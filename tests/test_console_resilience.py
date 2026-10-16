@@ -239,3 +239,78 @@ def test_engine_dead_before_the_probe_is_still_a_clean_503(console):
     assert r.json()["detail"].startswith("engine unreachable")
     # nothing was attempted — no failure line either
     assert all(e["step"] != "finding_failed" for e in tc.get("/api/receipts").json())
+
+
+
+def test_api_health_is_a_cheap_engine_probe_and_writes_no_receipt(console):
+    """audit5/deploy-audit: Render's HTTP health check has a 5-second window.
+    /api/state runs five engine queries and measured 6-24s against the live
+    FalkorDB Cloud under concurrent load — as the health path it caused an
+    instance-restart loop that wiped the ephemeral ledger roughly every 10
+    minutes. /api/health must touch the engine (one query — a dead engine
+    still fails the check) yet never append a receipt, so health-check
+    traffic cannot drown the demo ledger in `state` noise."""
+    tc, fake = console
+    r = tc.get("/api/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["nodes"] == 3  # the fake estate: ALICE, TIER1, DA
+    assert not any(e.get("step") == "health"
+                   for e in tc.get("/api/receipts").json())
+
+
+def test_engine_dead_health_503_discloses_no_infra_details(console):
+    """audit5/deploy-audit: the 503 detail must not echo the raw redis-py
+    message — it embeds the engine host:port, which is infrastructure
+    disclosure on a public URL. The exception class is the whole story."""
+    tc, fake = console
+    fake.ops_dead = True
+    r = tc.get("/api/health")
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert detail.startswith("engine unreachable")
+    assert "ConnectionError" in detail
+    assert "127.0.0.1" not in detail and "6379" not in detail
+    fake.ops_dead = False
+    assert tc.get("/api/health").status_code == 200
+
+
+# ---- audit5/live-e2e: bounded receipts tail (the unbounded-ledger 502s) ----
+
+
+def test_receipts_response_is_bounded_to_the_newest_events(console):
+    """GET /api/receipts must never ship the whole append-only ledger.
+
+    Live finding (Oct 16 06:15Z): the public deployment's ledger grew with
+    every poll (each /api/state appends a line) until GET /api/receipts —
+    the only route that returns the full file — started dying at the proxy
+    (502s) and the UI's receipts card froze. The endpoint now ships the
+    newest ``limit`` events (default 200); the UI renders the newest 40.
+    """
+    tc, fake = console
+    from sever.memory.flow import CaseLog
+
+    lg = CaseLog("sever_audit3_cl_resil")
+    for i in range(260):
+        lg.append({"step": "state", "reachability": i})
+    recs = tc.get("/api/receipts").json()
+    assert len(recs) == 200, "default tail must be 200 events, not the full ledger"
+    assert recs[-1]["reachability"] == 259, "newest-last order must be preserved"
+    assert recs[0]["reachability"] == 60, "the tail starts at len-200"
+    # explicit limit: bounded both ways, newest still last
+    assert [r["reachability"] for r in tc.get("/api/receipts?limit=3").json()] == [257, 258, 259]
+    assert len(tc.get("/api/receipts?limit=99999").json()) == 260  # cap 5000 -> whole (small) ledger
+    assert len(tc.get("/api/receipts?limit=0").json()) == 1  # degenerate clamps to 1, never 0
+
+
+def test_receipts_still_returns_everything_while_small(console):
+    """The bound must be invisible for young ledgers: a small ledger ships
+    in full (no truncation marker, same order) — the API contract the
+    existing console tests and the demo receipts rely on."""
+    tc, fake = console
+    tc.get("/api/state")  # appends the first state line
+    recs = tc.get("/api/receipts").json()
+    assert 0 < len(recs) < 200
+    assert recs[-1]["step"] == "state"
+

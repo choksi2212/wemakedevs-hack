@@ -22,9 +22,11 @@ ENV SEVER_SAMPLE_DIR=/app/data/ad_sample \
 
 EXPOSE 8000
 
-# engine liveness in `docker ps`: /api/state is the same probe the Render
-# health check uses; the UI flips to "engine unreachable" when it 500s
+# engine liveness in `docker ps`: /api/health is the same probe the Render
+# health check uses (audit5/deploy-audit: /api/state measured 6-24s on the
+# live Cloud — outside Render's 5s health-check window — so the health probe
+# must stay cheap; the UI still reads /api/state for full estate data)
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -sf http://localhost:${PORT:-8000}/api/state || exit 1
+  CMD curl -sf http://localhost:${PORT:-8000}/api/health || exit 1
 
 CMD ["sh", "-c", "uvicorn sever.console.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

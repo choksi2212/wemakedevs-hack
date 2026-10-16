@@ -4,11 +4,14 @@ The exact Cypher SEVER depends on lives here as module constants — these are t
 queries reproduced in the README's "Cypher queries" section and shown with
 GRAPH.PROFILE receipts in the demo.
 
-Live-verified on falkordb 6.0.0 (self-hosted Docker + FalkorDB Cloud).
+Live-verified on falkordb 6.0.0 (self-hosted Docker) and on the managed
+FalkorDB Cloud instance (module 'graph' 4.22.0 — see
+docs/receipts/receipts_cloud_live.json and audit5_cloud_instance.json).
 """
 from __future__ import annotations
 
 import os
+import socket
 from typing import Any
 
 from sever.core.jewels import (
@@ -97,18 +100,24 @@ REACHABILITY_QUERY_TEMPLATE = (
 )
 
 # Per-pair SHORTEST-path tie enumeration (offline analysis mode, capped at
-# 100 paths). FalkorDB quirk: shortestPath works only as a WITH-clause
-# expression; algo.SPpaths enumerates ties but yields raw node ids on edges —
-# hence the index-zip hop parser below. The traversal set is passed server-side
-# via `relTypes` (live-verified honored: a CONTAINED_BY-only pair returns 0
-# rows under relTypes ['MEMBER_OF']) and re-enforced app-side, because SPpaths
-# has NO working hop-bound config on falkordb 6.0.0 — unknown config keys such
-# as `maxHops` are accepted and silently ignored (a 12-hop path is returned
-# even under maxHops: 2), so the hop cap is applied to the parsed hops.
-# Observed on a shared engine under concurrent graph create/delete churn: the
-# procedure can intermittently fail server-side ("unhandled type in inlined
-# properties") — one more reason the live loop and the reachability metric use
-# only the canonical shortestPath form.
+# 100 paths). The canonical form is the WITH-clause expression — audit5
+# cross-checked both engines (Cloud 4.22.0 + self-hosted 6.0.0): the WITH
+# form AND the RETURN form both parse+run on each, but the WITH form is the
+# one shipped everywhere. algo.SPpaths enumerates ties but yields raw node
+# ids on edges — hence the index-zip hop parser below. The traversal set is
+# passed server-side via `relTypes` (live-verified honored on BOTH engines:
+# a CONTAINED_BY-only pair returns 0 rows under relTypes ['MEMBER_OF']) and
+# re-enforced app-side, because SPpaths has NO working hop-bound config on
+# falkordb 6.0.0 — unknown config keys such as `maxHops` are accepted and
+# silently ignored (a 12-hop path is returned even under maxHops: 2), so the
+# hop cap is applied to the parsed hops.
+# audit5/cloud-instance correction: the "unhandled type in inlined
+# properties" error was NOT an intermittent churn bug — it is the
+# deterministic 6.0.0 parser's rejection of the raw {{…}}-escaped template
+# that this module used to ship unformatted (4.22.0 rejects it with
+# "Invalid input '{'"); the template is now .format()-ed before it reaches
+# the engine, verified live on both. One more reason the live loop and the
+# reachability metric use only the canonical shortestPath form anyway.
 PATH_QUERY_TEMPLATE = (
     "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
     "CALL algo.SPpaths({{sourceNode: o, targetNode: t, relTypes: "
@@ -130,13 +139,21 @@ EDGE_FREQUENCY_STEP = (
     "sever/core/falkor_port.py)"
 )
 
-CUT_COUNT_QUERY_TEMPLATE = (
+# Atomic delete-and-count: ONE engine-side statement removes the relationship
+# and reports how many it removed. The previous count-then-delete pair was a
+# TOCTOU seam under the console's multi-client traffic: two operators cutting
+# the same edge concurrently could BOTH read the pre-count (n=1) before either
+# DELETE ran, so both receipts claimed relationships_removed=1 for one edge —
+# the ledger double-claimed a single removal (measured 6/6 race rounds,
+# audit5/multi-client, cross-process). The engine executes each command
+# atomically, so the single-statement form serializes: the first cutter
+# removes and counts 1; the second matches zero rows and honestly returns
+# 0 -> verdict no_effect. Live-verified on falkordb 6.0.0 (delete-return-count
+# form returns [[1]] on a match and [[0]] on no match, including parallel-edge
+# removals counted per matched row).
+CUT_ATOMIC_QUERY_TEMPLATE = (
     "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
-    "RETURN count(r) AS n"
-)
-CUT_DELETE_QUERY_TEMPLATE = (
-    "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
-    "DELETE r"
+    "DELETE r RETURN count(r) AS n"
 )
 
 MARK_OWNED_QUERY = "MATCH (n {objectid: $oid}) SET n.owned = true"
@@ -167,10 +184,33 @@ class FalkorGraphPort(GraphPort):
             # dragged until the proxy cut them, surfacing as empty responses).
             # A stalled query now fails in <= SEVER_FALKOR_SOCKET_TIMEOUT
             # seconds as a clean ConnectionError -> the console's 503 JSON.
+            #
+            # TCP keepalive (audit5/latency-forensics) keeps the pooled
+            # engine connection provably alive across the 10-minute
+            # keep-alive ping gap so a middlebox idle timeout (AWS NLB
+            # defaults to 350s) can never silently strand it: measured, a
+            # FalkorDB Cloud connection survives >=620s idle untouched
+            # (server tcp-keepalive 300 helps), and redis-py applies
+            # SO_KEEPALIVE + these options at connect time (verified against
+            # falkordb-py 6.x: FalkorDB.__init__ passes both straight into
+            # redis.Redis -> Connection). Options tuned so a dead peer is
+            # detected in ~60s (< the 30s socket timeout's worst case is
+            # unchanged; the OS probes instead of the request hanging on a
+            # socket nobody is answering). Linux (Render) accepts all three;
+            # Windows has no TCP_KEEPIDLE -> plain SO_KEEPALIVE there.
+            keepalive_options = {}
+            if hasattr(socket, "TCP_KEEPIDLE"):
+                keepalive_options = {
+                    socket.TCP_KEEPIDLE: 30,
+                    socket.TCP_KEEPINTVL: 10,
+                    socket.TCP_KEEPCNT: 3,
+                }
             fdb = FalkorDB(
                 host=host, port=port, username=username, password=password,
                 socket_timeout=int(os.environ.get("SEVER_FALKOR_SOCKET_TIMEOUT", "30")),
                 socket_connect_timeout=int(os.environ.get("SEVER_FALKOR_CONNECT_TIMEOUT", "10")),
+                socket_keepalive=True,
+                socket_keepalive_options=(keepalive_options or None),
             )
             self.graph = fdb.select_graph(graph_name)
         self.graph_name = graph_name
@@ -303,7 +343,13 @@ class FalkorGraphPort(GraphPort):
         paths: list[list[tuple[str, str, str]]] = []
         for jewel in self.crown_jewels():
             query = (
-                PATH_QUERY_TEMPLATE
+                # .format() unwraps the {{...}} escapes into the literal Cypher
+                # the engine parses — until audit5/cloud-instance the RAW
+                # template reached the engine and was rejected on BOTH engines
+                # (4.22.0: "Invalid input '{'"; 6.0.0: "unhandled type in
+                # inlined properties") — the ties mode was dead at the engine,
+                # masked by test_live_semantics' broad engine-bug except.
+                PATH_QUERY_TEMPLATE.format()
                 if ties
                 else CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern)
             )
@@ -360,12 +406,12 @@ class FalkorGraphPort(GraphPort):
     def cut(self, src: str, dst: str, rel: str) -> int:
         if not _valid_rel(rel):
             raise ValueError(f"invalid relationship type: {rel!r}")
-        count_q = CUT_COUNT_QUERY_TEMPLATE.format(rel=rel)
-        n = int(self._scalar(count_q, {"src": src, "dst": dst}))
-        if n > 0:
-            delete_q = CUT_DELETE_QUERY_TEMPLATE.format(rel=rel)
-            self.graph.query(delete_q, {"src": src, "dst": dst})
-        return n
+        # Single atomic statement: the count is computed by the engine over the
+        # same MATCH that performs the DELETE, so no concurrent cutter can read
+        # a stale pre-count (see CUT_ATOMIC_QUERY_TEMPLATE). ``count(r)`` still
+        # returns a row on zero matches, so ``_scalar`` never sees None here.
+        query = CUT_ATOMIC_QUERY_TEMPLATE.format(rel=rel)
+        return int(self._scalar(query, {"src": src, "dst": dst}))
 
     # ---- receipts ----
     def profile(self, query: str, params: dict[str, Any] | None = None) -> str:
