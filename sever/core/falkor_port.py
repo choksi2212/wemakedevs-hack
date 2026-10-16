@@ -580,7 +580,10 @@ class FalkorGraphPort(GraphPort):
 
     def _note_rt(self, kind: str, head: str) -> None:
         if len(self._rt_log) < 512:
-            self._rt_log.append(f"{kind} {head[:96]}")
+            # 160 chars keeps the arm queries identifiable through their
+            # shortestPath clause in receipts (the load-bearing token sits
+            # ~112 chars into the arm text)
+            self._rt_log.append(f"{kind} {head[:160]}")
 
     def rt_reset(self) -> None:
         """Zero the round-trip counters (audit driver seam)."""
