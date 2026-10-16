@@ -149,3 +149,55 @@ def test_text_tokens_meet_aa_contrast_on_their_surfaces():
     for fg, bg in pairs:
         ratio = _contrast(tokens[fg], surfaces[bg])
         assert ratio >= 4.5, f"--{fg} on --{bg}: {ratio:.2f} < 4.5 (WCAG AA)"
+
+
+# ---- audit5/live-e2e: proxy-error and per-card degradation copy ----
+
+
+def test_api_never_surfaces_raw_html_error_pages():
+    """A reverse-proxy 502 body is a full HTML error page (Render's branded
+    page, live-observed Oct 16: the banner rendered "finding failed:
+    <!DOCTYPE html> <html lang=\"en\">..."). The api() helper must detect
+    HTML bodies and say what happened instead of echoing markup."""
+    assert "HTML error page" in HTML, "the HTML-body guard must exist in api()"
+    assert "server error ' + res.status" in HTML
+    # the raw-echo path survives only for genuinely plain-text bodies
+    assert "text.slice(0, 120)" in HTML
+
+
+def test_receipts_failure_degrades_the_card_not_the_engine_chip():
+    """/api/receipts is a pure file route: its failure must not flip the
+    whole-engine chip to "unreachable" while /api/state still answers
+    (live-observed: chip lied for minutes while estate data kept flowing).
+    The receipts card gets its own honest degraded line instead."""
+    assert "ledger unavailable" in HTML
+    # the receipts fetch must sit AFTER the engine-backed catch (own lane),
+    # in its own try — never inside the engine's try/catch
+    eng_catch = HTML.index("} catch (e) { engineDown(); }")
+    rec_try = HTML.index("try { rec = await api('/api/receipts'); }")
+    assert rec_try > eng_catch, "receipts fetch must live in its own try, after the engine lane"
+    assert "renderReceipts" not in HTML  # renderer stays inline in the sink (dom_escape pins)
+    assert "engineDown" in HTML and "engine unreachable" in HTML  # state-failure lane intact
+
+
+def test_plan_card_never_prints_a_literal_null_benign_usage():
+    """benign_usage null = NOT measured (fast-path proposal shape): the plan
+    card must render 'benign not measured', never the literal 'null'
+    (the proposal card already hides it; audit5/live-e2e found the plan card
+    printed it raw)."""
+    assert "benign not measured" in HTML
+    # the OLD unconditional byte pattern (literal directly concatenating the
+    # unguarded value) must be gone; the guarded ternary still contains
+    # "benign ' + esc(s.benign_usage)" INSIDE its measured branch, which is
+    # exactly the fix.
+    assert "occurrences \u00b7 benign ' + esc(s.benign_usage)" not in HTML, \
+        "unconditional benign render must be gone"
+
+
+def test_confirm_plan_disables_during_execution():
+    """CONFIRM PLAN must disable during the multi-second /api/plan/execute
+    POST exactly like the single-cut gate's CONFIRM CUT (double-press must
+    never fire a second plan execution)."""
+    assert HTML.count("cf.disabled") >= 1
+    assert "if (cf) cf.disabled = true;" in HTML
+    assert "if (cn) cn.disabled = true;" in HTML

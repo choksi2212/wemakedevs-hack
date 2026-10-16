@@ -163,8 +163,15 @@
     let body = null;
     try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
     if (!res.ok) {
-      const detail = (body && (body.detail || body.message)) ||
-        (text ? text.slice(0, 120) : 'empty response (backend stalled?)');
+      let detail = (body && (body.detail || body.message));
+      if (!detail) {
+        if (!text) detail = 'empty response (backend stalled?)';
+        else if (/^\s*</.test(text)) detail = 'server error ' + res.status + ' (HTML error page)';
+        else detail = text.slice(0, 120);
+      }
+      // a reverse-proxy 502/503 page is HTML, never operator copy: surfacing
+      // its markup raw (audit5/live-e2e: "finding failed: <!DOCTYPE html>…")
+      // is noise, not a diagnosis — say what happened instead.
       throw new Error(typeof detail === 'string' ? detail : ('HTTP ' + res.status));
     }
     if (body === null || body === undefined) {
@@ -227,7 +234,19 @@
     // a pending CONFIRM); if the edge is no longer proposed, disarm quietly.
     if (state.pending && !renderGate(state.pending, false)) { state.pending = null; removeEscape(); }
 
-    const rec = await api('/api/receipts');
+    } catch (e) { engineDown(); }
+    // receipts is a pure file route — it never touches the engine, so its
+    // failure must NOT flip the whole-engine chip to "unreachable" while
+    // /api/state just answered and paths/proposals keep rendering
+    // (audit5/live-e2e: the chip lied for minutes while data flowed).
+    // Fetch it in its own lane and degrade the CARD, not the chip.
+    let rec = null, recErr = null;
+    try { rec = await api('/api/receipts'); } catch (e) { recErr = e; }
+    if (recErr) {
+      $('receipts').innerHTML =
+        '<div class="entry"><span class="line" style="color:var(--warn)">ledger unavailable — ' +
+        esc(recErr.message) + '</span></div>';
+    } else {
     $('receipts').innerHTML = rec.slice(-40).reverse().map((e) => {
       const step = e.step || 'state';
       const badgeFor = (s) => s === 'cut' || s === 'cut_failed' ? 'cut'
@@ -268,9 +287,10 @@
       return '<div class="entry"><span class="badge ' + badgeFor(step) + '">' + step + '</span>' +
              '<span class="line" title="' + esc(line) + '">' + esc(line) + '</span>' +
              '<span class="ts">' + esc((e.ts || '').slice(11, 19)) + '</span></div>';
-    }).join('') || '<div class="entry"><span class="line">—</span></div>';
-    } catch (e) { engineDown(); }
+    }).join('') || '<div class="entry"><span class="line">—</span></div>';;
+    }
   }
+
 
   let escapeListener = null;
   function removeEscape() {
@@ -391,7 +411,11 @@
       '<span title="' + esc(s.cut.src) + '">' + esc(short(s.cut.src)) + '</span> ' +
       '<span class="rel">-[' + esc(s.cut.rel) + ']-></span> ' +
       '<span title="' + esc(s.cut.dst) + '">' + esc(short(s.cut.dst)) + '</span>' +
-      '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences · benign ' + esc(s.benign_usage) +
+      '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences' +
+      // benign_usage null = NOT measured (the fast-path proposal shape) — the
+      // plan card must never print the literal 'null' (audit5/live-e2e); 0
+      // is a real measurement (attacker-only edge) and renders as such.
+      (s.benign_usage != null ? ' · benign ' + esc(s.benign_usage) : ' · benign not measured') +
       ' · projected reachability ' + esc(s.projected_reachability) + ' (' + esc(s.projected_verdict) + ')</span></div></div>'
     ).join('');
     const body = (plan.steps || []).length
@@ -417,6 +441,13 @@
   }
   async function executePlan() {
     const plan = state.plan;
+    // one POST in flight: a second CONFIRM press during the (multi-second)
+    // execute must never fire a second /api/plan/execute — same protection
+    // as the single-cut gate's executeConfirm (audit5/live-e2e).
+    const cf = document.getElementById('btn-plan-confirm');
+    const cn = document.getElementById('btn-plan-cancel');
+    if (cf) cf.disabled = true;
+    if (cn) cn.disabled = true;
     banner('<span class="res">human gate: executing approved plan step-by-step — re-measuring each step live…</span>');
     try {
       const r = await api('/api/plan/execute', {
