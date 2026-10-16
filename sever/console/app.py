@@ -136,6 +136,94 @@ def _engine_outage_errors() -> tuple[type[BaseException], ...]:
 ENGINE_ERRORS = _engine_outage_errors()
 
 
+def _boot_probe_errors() -> tuple[type[BaseException], ...]:
+    """The BOOT-time failure family: the outage classes plus the
+    ``ResponseError`` a reachable-but-not-FalkorDB RESP server answers to
+    GRAPH.QUERY with (verified live: Memurai on 6379 — INFO answers so the
+    falkordb constructor succeeds, then the first graph query rejects). At
+    boot these all mean "this endpoint cannot serve the product"; at REQUEST
+    time the family deliberately stays the documented outage pair only —
+    a ResponseError mid-request can be a genuine query bug and must fail
+    loud, never masquerade as an outage."""
+    try:
+        from redis.exceptions import ResponseError
+
+        return (*ENGINE_ERRORS, ResponseError)
+    except ImportError:  # pragma: no cover — falkordb always ships redis-py
+        return ENGINE_ERRORS
+
+
+BOOT_PROBE_ERRORS = _boot_probe_errors()
+
+
+class _UnreachablePort(GraphPort):
+    """Stand-in port for a boot that found no engine (audit8/fix-code, F303):
+    the falkordb client constructor itself dies when nothing listens (its
+    eager ``Is_Sentinel`` INFO probe raises), so no port object exists at
+    all. This shim re-raises the captured outage from every engine touch —
+    every request then surfaces the registered 503 JSON lane exactly as a
+    post-boot outage does. It never fabricates a single number; there is
+    deliberately no ``graph`` attribute, so the folded fast paths detect a
+    non-speaking port and fall to the port methods, which raise."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+        self.graph_name = os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo")
+
+    def _raise(self) -> None:
+        raise self._exc
+
+    # ---- GraphPort protocol: every engine touch is the captured outage ----
+    def load(self, graph: Any) -> None:
+        self._raise()
+
+    def node_count(self) -> int:
+        self._raise()
+
+    def edge_count(self) -> int:
+        self._raise()
+
+    def mark_owned(self, objectid: str) -> None:
+        self._raise()
+
+    def owned_ids(self) -> list[str]:
+        self._raise()
+
+    def crown_jewels(self) -> list[str]:
+        self._raise()
+
+    def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
+        self._raise()
+
+    def paths_to_jewels(self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP,
+                        ties: bool = False) -> list[list[tuple[str, str, str]]]:
+        self._raise()
+
+    def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:
+        self._raise()
+
+    def add_edge(self, src: str, dst: str, rel: str,
+                 props: dict[str, Any] | None = None) -> bool:
+        self._raise()
+
+    def cut(self, src: str, dst: str, rel: str) -> int:
+        self._raise()
+
+    def profile(self, query: str, params: dict[str, Any] | None = None) -> str:
+        self._raise()
+
+    def receipt(self) -> dict[str, Any]:
+        self._raise()
+
+    # the optional seams the console and scoring consult via getattr — both
+    # raise the outage rather than 500 with a misleading TypeError
+    def user_objectids(self) -> list[str]:
+        self._raise()
+
+    def scratch_copy(self, scratch_name: str) -> "GraphPort":
+        self._raise()
+
+
 # ---------------------------------------------------------------------------
 # audit7/perf-api: the fold layer.
 #
@@ -471,13 +559,27 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         app.add_exception_handler(_exc_cls, _engine_outage)
 
     if port is None:
-        port = FalkorGraphPort(
-            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-            graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
-            username=os.environ.get("SEVER_FALKOR_USER"),
-            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-        )
+        # Boot-time outage containment (audit8/fix-code, F303): the falkordb
+        # client CONSTRUCTOR is the first engine touch on the import path —
+        # its eager ``Is_Sentinel`` INFO probe raises when nothing listens,
+        # which is what killed ``uvicorn sever.console.app:app`` at import
+        # with a raw redis traceback. Contain it: an unreachable engine
+        # yields the outage-shim port below, the app still binds, and every
+        # request answers through the registered 503 JSON lane (the UI
+        # banner state) — the "engine-down containment" README §8 promises.
+        # Non-outage construction failures (a misconfigured host that
+        # raises anything else) still fail loud: they are configuration
+        # errors, not outages.
+        try:
+            port = FalkorGraphPort(
+                host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+                port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+                graph_name=os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"),
+                username=os.environ.get("SEVER_FALKOR_USER"),
+                password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+            )
+        except BOOT_PROBE_ERRORS as exc:
+            port = _UnreachablePort(exc)
     # The receipts trail outlives the graph: the CaseLog file is keyed by graph
     # name and survives GRAPH.DELETE by design. It must therefore carry its own
     # estate-lifecycle markers, or history from a previous incarnation of the
@@ -486,16 +588,40 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # estate had been reset out-of-band overnight, and nothing in the trail
     # marked the discontinuity).
     log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
-    if port.node_count() == 0:
-        port.load(parse_ad_dir(os.environ.get(
-            "SEVER_SAMPLE_DIR",
-            str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+    # Boot-time outage containment (audit8/fix-code, F303): the auto-load probe
+    # is the second engine touch on the import path, and when the engine is
+    # down — or the configured endpoint is a reachable-but-not-FalkorDB RESP
+    # server (live-verified: Memurai on 6379 answers the constructor's INFO
+    # and then rejects GRAPH.QUERY with a ResponseError) — it used to kill
+    # the process with a raw redis traceback BEFORE uvicorn ever bound: the
+    # judge-facing "engine-down containment" (README §8) and the 503 contract
+    # (§11) were unreachable post-boot-only niceties, and the free-tier Cloud
+    # instance stopping after an idle day meant a crash-loop, not
+    # containment. Contain instead: the app ALWAYS binds; when the probe
+    # fails with the boot-probe family every engine-touching request then
+    # answers through the registered 503 JSON lane (the UI banner state),
+    # and the attempt is on the receipts trail with outcome unknown — the
+    # ledger never invents a success and never loses the attempt.
+    # Non-outage boot failures (a missing SEVER_SAMPLE_DIR, corrupt
+    # collector JSON) still fail LOUD: those are configuration errors, not
+    # outages, and a silent partial boot would hide them.
+    try:
+        if port.node_count() == 0:
+            port.load(parse_ad_dir(os.environ.get(
+                "SEVER_SAMPLE_DIR",
+                str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+            log.append({
+                "step": "estate_loaded",
+                "nodes": port.node_count(),
+                "edges": port.edge_count(),
+                "note": "sample loaded into an empty graph — entries above this line "
+                        "describe a previous incarnation of the estate",
+            })
+    except BOOT_PROBE_ERRORS as exc:
         log.append({
-            "step": "estate_loaded",
-            "nodes": port.node_count(),
-            "edges": port.edge_count(),
-            "note": "sample loaded into an empty graph — entries above this line "
-                    "describe a previous incarnation of the estate",
+            "step": "console_boot_failed",
+            "error": f"engine unreachable at bootstrap: {type(exc).__name__}",
+            "outcome": "unknown",
         })
 
     inv = Investigator(port)
