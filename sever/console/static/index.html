@@ -154,9 +154,23 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   async function api(path, opts) {
+    // resilient read: a stalled/proxied-out backend can hand back an EMPTY or
+    // truncated body with any status — blind res.json() then throws the cryptic
+    // "Unexpected end of JSON input" instead of a usable message. Parse text,
+    // surface the real status, and degrade to a clean engine-unreachable line.
     const res = await fetch(path, opts);
-    if (!res.ok) throw new Error((await res.json()).detail || ('HTTP ' + res.status));
-    return res.json();
+    const text = await res.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
+    if (!res.ok) {
+      const detail = (body && (body.detail || body.message)) ||
+        (text ? text.slice(0, 120) : 'empty response (backend stalled?)');
+      throw new Error(typeof detail === 'string' ? detail : ('HTTP ' + res.status));
+    }
+    if (body === null || body === undefined) {
+      throw new Error('HTTP ' + res.status + ' — empty/malformed response body (engine stall?)');
+    }
+    return body;
   }
   function banner(html) { const b = $('banner'); b.innerHTML = html; b.classList.add('show'); }
 
