@@ -1,0 +1,14 @@
+{
+  "beat": "test-suite count receipt (audit6/docs-core) — live pytest run, DB-free host, no docker: engine-gated tests skip cleanly by design",
+  "date": "2026-10-16",
+  "worktree": "re6-docs-core",
+  "branch": "audit6/docs-core",
+  "commit": "12d1392 (origin/develop tip)",
+  "command": "python -m pytest --timeout=120 -p no:cacheprovider",
+  "collected": 454,
+  "passed": 278,
+  "skipped": 176,
+  "failed": 0,
+  "duration_s": 61.21,
+  "notes": "skips are the live-engine suites (they skip cleanly when no FalkorDB is reachable, per the README test section); with the engine up they execute — 454 is the total collected count, not a claimed engine-up pass count (no engine-up full-suite run is recorded in this repo). Historical audit4 run on branch audit4/judge-sim (origin/main 7a30ede): 377 collected, 213 passed, 164 engine-skips, 0 failures."
+}

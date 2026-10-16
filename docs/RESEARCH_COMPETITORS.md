@@ -5,6 +5,13 @@
 > execute it → re-query the graph → emit a before/after receipt**, plus graph-per-tenant on FalkorDB and
 > cross-process case memory. Compiled 2026-10-16 on branch `audit4/competitor-landscape`.
 
+> **TL;DR** — **No product on the market closes the interdiction loop.** BHE is
+> closest but its own copy says *remediation guidance* — a human executes; the OSS
+> re-rankers analyze and report; commercial ISPM players block at authentication or
+> re-extract; academia formulates offline. Two artifacts to cite: the
+> **[gap matrix](#gap-matrix-who-does-what)** (who does what, one table) and the
+> honest backlog of **features they have that SEVER lacks**.
+
 ## Verdict
 
 **No product on the market closes the interdiction loop.** Every player stops at discovery, ranking,
