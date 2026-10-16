@@ -8,8 +8,9 @@ COPY pyproject.toml README.md ./
 COPY sever ./sever
 RUN pip install --no-cache-dir -e ".[console]"
 
-# the official BloodHound CE sample estate (Apache-2.0, SpecterOps) so the
-# console can auto-load the demo tenant at boot without any manual step
+# the official BloodHound CE sample estate (Apache-2.0, SpecterOps — license
+# notice bundled at THIRD_PARTY_NOTICES.md) so the console can auto-load the
+# demo tenant at boot without any manual step
 RUN mkdir -p data/ad_sample \
     && apt-get update -qq && apt-get install -qq -y curl unzip ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
