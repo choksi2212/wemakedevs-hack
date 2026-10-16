@@ -9,6 +9,7 @@ Live-verified on falkordb 6.0.0 (self-hosted Docker + FalkorDB Cloud).
 from __future__ import annotations
 
 import os
+import socket
 from typing import Any
 
 from sever.core.jewels import (
@@ -167,10 +168,33 @@ class FalkorGraphPort(GraphPort):
             # dragged until the proxy cut them, surfacing as empty responses).
             # A stalled query now fails in <= SEVER_FALKOR_SOCKET_TIMEOUT
             # seconds as a clean ConnectionError -> the console's 503 JSON.
+            #
+            # TCP keepalive (audit5/latency-forensics) keeps the pooled
+            # engine connection provably alive across the 10-minute
+            # keep-alive ping gap so a middlebox idle timeout (AWS NLB
+            # defaults to 350s) can never silently strand it: measured, a
+            # FalkorDB Cloud connection survives >=620s idle untouched
+            # (server tcp-keepalive 300 helps), and redis-py applies
+            # SO_KEEPALIVE + these options at connect time (verified against
+            # falkordb-py 6.x: FalkorDB.__init__ passes both straight into
+            # redis.Redis -> Connection). Options tuned so a dead peer is
+            # detected in ~60s (< the 30s socket timeout's worst case is
+            # unchanged; the OS probes instead of the request hanging on a
+            # socket nobody is answering). Linux (Render) accepts all three;
+            # Windows has no TCP_KEEPIDLE -> plain SO_KEEPALIVE there.
+            keepalive_options = {}
+            if hasattr(socket, "TCP_KEEPIDLE"):
+                keepalive_options = {
+                    socket.TCP_KEEPIDLE: 30,
+                    socket.TCP_KEEPINTVL: 10,
+                    socket.TCP_KEEPCNT: 3,
+                }
             fdb = FalkorDB(
                 host=host, port=port, username=username, password=password,
                 socket_timeout=int(os.environ.get("SEVER_FALKOR_SOCKET_TIMEOUT", "30")),
                 socket_connect_timeout=int(os.environ.get("SEVER_FALKOR_CONNECT_TIMEOUT", "10")),
+                socket_keepalive=True,
+                socket_keepalive_options=(keepalive_options or None),
             )
             self.graph = fdb.select_graph(graph_name)
         self.graph_name = graph_name
