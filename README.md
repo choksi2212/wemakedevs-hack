@@ -208,77 +208,105 @@ sequenceDiagram
 ## 3. Control architecture — the interdiction loop
 
 ```mermaid
-flowchart TD
-  F["finding lands - breach, kerberoast, live ACE grant"] --> M["graph mutates - mark_owned or a new edge"]
-  M --> R["two-arm reachability - owned principals to crown jewels"]
-  R --> P["enumerate one canonical path per owned-jewel pair"]
-  P --> S["score every edge by the paths it lies on"]
-  S --> C["collateral tie-break - benign_usage sampled from the estate"]
-  C --> PR["ranked proposal - top edge plus alternates"]
-  PR --> G{"human gate - APPROVE"}
-  G -->|"not approved"| X["no cut - proposal expires with the next finding"]
-  G -->|"approved"| G2{"human gate - CONFIRM, literal True only"}
-  G2 -->|"confirmed"| CUT["DELETE the live edge"]
-  G2 -->|"no confirm"| X
-  CUT --> REQ["re-query reachability - measured, never assumed"]
-  REQ --> V{"verdict by re-query"}
-  V -->|"zero paths"| COL["COLLAPSED"]
-  V -->|"paths survive"| DEG["DEGRADED - honest"]
-  V -->|"no change"| NOE["NO_EFFECT - honest"]
-  COL --> RC["append-only receipt - before, after, ms"]
-  DEG --> RC
-  NOE --> RC
-  RC --> R2["loop re-scores the mutated estate"]
-  R2 --> PR
+flowchart LR
+  subgraph SG1["1 · the finding"]
+    F["finding lands — breach, kerberoast, live ACE grant"]
+    M["graph mutates — mark_owned or a new edge"]
+    F --> M
+  end
+  subgraph SG2["2 · the ranking"]
+    R["two-arm reachability — owned principals to crown jewels"]
+    P["enumerate one canonical path per owned-jewel pair"]
+    S["score every edge by the paths it lies on"]
+    C["collateral tie-break — benign_usage sampled from the estate"]
+    PR["ranked proposal — top edge plus alternates"]
+    R --> P --> S --> C --> PR
+  end
+  subgraph SG3["3 · the human gate"]
+    G{"APPROVE"}
+    G2{"CONFIRM — literal True only"}
+    X["no cut — proposal expires with the next finding"]
+    G -->|"not approved"| X
+    G -->|"approved"| G2
+    G2 -->|"confirmed"| CUT["DELETE the live edge"]
+    G2 -->|"no confirm"| X
+  end
+  subgraph SG4["4 · the receipt"]
+    REQ["re-query reachability — measured, never assumed"]
+    V{"verdict by re-query"}
+    COL["COLLAPSED"]
+    DEG["DEGRADED — honest"]
+    NOE["NO_EFFECT — honest"]
+    RC["append-only receipt — before, after, ms"]
+    REQ --> V
+    V -->|"zero paths"| COL --> RC
+    V -->|"paths survive"| DEG --> RC
+    V -->|"no change"| NOE --> RC
+  end
+  M --> R
+  PR --> G
+  CUT --> REQ
+  RC -->|"loop re-scores the mutated estate"| R
 ```
 
-The loop's honesty rules, each one pinned by live tests:
+The loop's honesty rules — every one pinned by live tests:
 
-- **findings** mutate the graph (`mark_owned`, live ACE grants) — the estate is never static
-- **proposals** are always real: an edge that lies on zero enumerated paths cannot be proposed
-- **collateral is ranked**: coverage ties break toward *attacker-only* edges — each candidate
-  receipts `benign_usage`, the number of sampled non-owned principals whose own jewel paths
-  cross it (25 sampled of the estate's pool, deterministic stride; the sampled estimate is
-  labeled, never passed off as an exact count). An edge that carries someone else's access
-  story loses the tie; receipts say by how much. *(NoiseHound re-ranks attack paths by
-  detection cost — SEVER is the remediation-side flip: rank the CUT by the disruption it
-  would cause.)*
-- **plans are sequences, not one edge**: `GET /api/plan` proposes a greedy k=3 cut sequence,
-  every step projected on an isolated `GRAPH.COPY` of the live estate — re-enumerated and
-  re-measured after each cut, never simulated from a frozen path set. The live graph is never
-  touched by a proposal, and the plan stops early the moment its copy measures zero
-  (no invented third step).
-- **execution re-measures every step and stops at the first drift**: a plan step whose live
-  re-query diverges from its projection halts the rest — later steps were computed on a
-  surface that no longer exists, and stale projections never execute. `drift_stopped_at_step`
-  is a status, not a failure to hide.
-- **the gate** passes only on the exact value `True` — schema, handler and tests all pin it independently
-- **verdicts are measured claims**: `collapsed` only when a re-query returns 0, `degraded` only when
-  paths survive, `no_effect` for honest no-ops — a cut can never *increase* reachability
-- **receipts** are append-only, cross-process locked, and self-repairing after a crashed writer
-- **case memory** persists the gate state itself, so the human decision survives process death
+| Rule | What the engine guarantees | Detail (receipts-traced) |
+|---|---|---|
+| **findings** | mutate the graph (`mark_owned`, live ACE grants) — | the estate is never static |
+| **proposals** | are always real: an edge that lies on zero enumerated paths cannot be proposed |  |
+| **collateral is ranked** | : coverage ties break toward *attacker-only* edges — | each candidate receipts `benign_usage`, the number of sampled non-owned principals whose own jewel paths cross it (25 sampled of the estate's pool, deterministic stride; the sampled estimate is labeled, never passed off as an exact count). An edge that carries someone else's access story loses the tie; receipts say by how much. *(NoiseHound re-ranks attack paths by detection cost — SEVER is the remediation-side flip: rank the CUT by the disruption it would cause.)* |
+| **plans are sequences, not one edge** | : `GET /api/plan` proposes a greedy k=3 cut sequence, every step projected on an isolated `GRAPH | COPY` of the live estate — re-enumerated and re-measured after each cut, never simulated from a frozen path set. The live graph is never touched by a proposal, and the plan stops early the moment its copy measures zero (no invented third step). |
+| **execution re-measures every step and stops at the first drift** | : a plan step whose live re-query diverges from its projection halts the rest — | later steps were computed on a surface that no longer exists, and stale projections never execute. `drift_stopped_at_step` is a status, not a failure to hide. |
+| **the gate** | passes only on the exact value `True` — | schema, handler and tests all pin it independently |
+| **verdicts are measured claims** | : `collapsed` only when a re-query returns 0, `degraded` only when paths survive, `no_effect` for honest no-ops — | a cut can never *increase* reachability |
+| **receipts** | are append-only, cross-process locked, and self-repairing after a crashed writer |  |
+| **case memory** | persists the gate state itself, so the human decision survives process death |  |
 
 ## 4. Data flow architecture
 
 ```mermaid
-flowchart TD
-  A["collector JSON files - users, groups, computers, domains, OUs, GPOs, CAs, Entra"] --> P1["pass 1 - nodes, keyed by objectid"]
-  P1 --> P2["pass 2 - memberships, ACE rights, delegation, trusts"]
-  P2 --> D["normalized node and edge records"]
-  D --> Q{"principal referenced but never collected?"}
-  Q -->|"yes"| U["materialize an unresolved node - flagged, never invented data"]
-  Q -->|"no"| K["keep the collected record"]
-  U --> H["deterministic 3x-identical edge hashes - prop variants stay distinct"]
-  K --> H
-  H --> NB["node batches grouped by label - UNWIND $rows, MERGE on objectid"]
-  H --> EB["edge batches grouped by rel type - props_key keeps variants distinct"]
-  NB --> G["FalkorDB tenant graph"]
+flowchart LR
+  subgraph ING["1 · ingestion"]
+    A["collector JSON files — users, groups, computers, domains, OUs, GPOs, CAs, Entra"]
+    P1["pass 1 — nodes, keyed by objectid"]
+    P2["pass 2 — memberships, ACE rights, delegation, trusts"]
+    A --> P1 --> P2
+  end
+  subgraph NORM["2 · normalization"]
+    D["normalized node and edge records"]
+    Q{"principal referenced but never collected?"}
+    U["materialize an unresolved node — flagged, never invented data"]
+    K["keep the collected record"]
+    H["deterministic 3x-identical edge hashes — prop variants stay distinct"]
+    D --> Q
+    Q -->|"yes"| U --> H
+    Q -->|"no"| K --> H
+  end
+  subgraph LOAD["3 · load"]
+    NB["node batches grouped by label — UNWIND $rows, MERGE on objectid"]
+    EB["edge batches grouped by rel type — props_key keeps variants distinct"]
+    H --> NB
+    H --> EB
+  end
+  subgraph ENGINE["4 · the live estate"]
+    G["FalkorDB tenant graph"]
+    IX["range index on objectid for each indexed label"]
+    FS["findings stream — deterministic breach-timeline replay"]
+    MU["mark_owned and live ACE grant mutations"]
+    FS --> MU
+    MU --> G
+    G --> IX
+  end
+  subgraph ACT["5 · interdiction"]
+    CUTS["gated cuts and re-queries"]
+    LED["append-only receipts ledger — JSON, ms timings"]
+    CUTS --> LED
+  end
+  P2 --> D
+  NB --> G
   EB --> G
-  G --> IX["range index on objectid for each indexed label"]
-  FS["findings stream - deterministic breach-timeline replay"] --> MU["mark_owned and live ACE grant mutations"]
-  MU --> G
-  G --> CUTS["gated cuts and re-queries"]
-  CUTS --> LED["append-only receipts ledger - JSON, ms timings"]
+  G --> CUTS
 ```
 
 Two-pass parsing with unresolved-principal materialization (never invent data the
