@@ -1,0 +1,54 @@
+{
+ "beat": "audit7/perf-scoring — Plan k-cut sequence on the CLOUD engine (production console, develop code = BEFORE)",
+ "url": "https://sever-console.onrender.com/api/plan",
+ "cloud_engine": "FalkorDB Cloud free tier, ap-south-1 (r-6jissuruar...f2e0a955bb84.cloud:59719)",
+ "estate": {
+  "reachability": 1,
+  "nodes": 1480,
+  "edges": 12449
+ },
+ "before_develop_code": {
+  "warmup_ms": 13533,
+  "runs_ms": [13505, 13454, 13549, 13442, 13533],
+  "median_ms": 13505,
+  "p95_ms": 13549,
+  "min_ms": 13442,
+  "owner_reported_ms": "13-14s (matches: the owner-reported repro is this exact endpoint)"
+ },
+ "cost_decomposition_measured_on_production": {
+  "api_state": {
+   "note": "port.reachability() = 2 arm queries + 8 cheap queries",
+   "runs_ms": [997, 847],
+   "median_ms": 929
+  },
+  "api_proposal": {
+   "note": "benign sample + edge_frequency = ~185 cheap queries, ZERO arm queries",
+   "runs_ms": [12021, 12006, 11976, 11799],
+   "median_ms": 11991
+  },
+  "derived_per_query_costs": {
+   "cheap_query_ms": 64.8,
+   "arm_query_ms": 205.2,
+   "closure_check": "old plan = 4 arms + 197 cheap = 4*205 + 197*64.8 = 13.59s vs measured 13.51s (within 1%)"
+  },
+  "finding": "the production plan is ROUND-TRIP-bound, not arm-bound: ~197 engine round-trips at ~65ms (Render singapore -> cloud ap-south-1) carry ~12.8s of the 13.5s; the two-arm reachability queries carry only ~0.8s total. The fix lever is the round-trip count."
+ },
+ "after_predictions_derived": {
+  "branch_standalone_sever/core/scoring.py": {
+   "predicted_plan_ms": 12600,
+   "method": "0 arm queries (eliminated), 195 cheap queries x 64.8ms + copy; query counts measured on the ryzen engine (docs/receipts/perf_plan_equivalence.json)"
+  },
+  "branch_plus_batched_seam_override_in_falkor_port": {
+   "predicted_plan_ms": 1100,
+   "method": "11 cheap queries x 64.8ms + GRAPH.COPY + HTTP; the 201->11 round-trip cut and identical receipts are measured on the ryzen engine (docs/receipts/perf_plan_equivalence.json + tests/test_perf_equivalence.py::BatchedFalkorPort)"
+  },
+  "label": "PREDICTED — see cloud_after_blocker"
+ },
+ "cloud_after_blocker": {
+  "status": "not directly measurable in this session",
+  "reason": "running the branch's code against the FalkorDB Cloud engine requires the cloud engine credentials (SEVER_FALKOR_PASSWORD); reading the credentials file was denied in this session, so no cloud-after run was performed. Every input to the predictions above is measured: production endpoint latencies (this file) and the branch's query-count/wall receipts on the local engine (perf_plan_equivalence.json).",
+  "repro_when_creds_available": "SEVER_FALKOR_HOST=<cloud host> SEVER_FALKOR_PORT=59719 SEVER_FALKOR_USER=falkordb SEVER_FALKOR_PASSWORD=... SEVER_FALKOR_GRAPH=sever_demo SEVER_SAMPLE_DIR=<data/ad_sample> python -m pytest tests/test_perf_equivalence.py -q  # then: py -3.11 measure_cloud_plan.py against a console booted from this branch"
+ },
+ "repro_before": "py -3.11 measure_cloud_plan.py  # times GET /api/plan on the production console, read-only (plans run on a dropped scratch copy)",
+ "honesty": "before = MEASURED on production (5 runs); per-query costs = MEASURED via two read-only endpoints; after = PREDICTED from those measurements plus the branch's measured local query counts — never presented as a measured cloud run."
+}

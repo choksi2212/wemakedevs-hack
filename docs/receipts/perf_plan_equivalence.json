@@ -1,0 +1,140 @@
+{
+ "beat": "audit7/perf-scoring \u2014 Plan k-cut sequence hot path",
+ "estate": "ad_sample estate, hero owned (1480 nodes / 12450 edges, 5 jewels)",
+ "engine": {
+  "host": "127.0.0.1",
+  "modules": "[['name', 'graph', 'ver', 60000, 'path', '/var/lib/falkordb/bin/falkordb.so', 'args', ['MAX_QUEUED_QUERIES', '25', 'TIMEOUT', '1000', 'RESULTSET_SIZE', '10000']]]"
+ },
+ "k": 3,
+ "old_two_arm_plan": {
+  "wall": {
+   "runs_ms": [
+    220.8,
+    220.6,
+    225.5
+   ],
+   "median_ms": 220.8,
+   "p95_ms": 229.3,
+   "p99_ms": 225.5
+  },
+  "queries": {
+   "total_queries": 201,
+   "total_ms": 170.1,
+   "by_kind": {
+    "arm_reachability": {
+     "n": 4,
+     "total_ms": 3.9
+    },
+    "canonical_probe": {
+     "n": 130,
+     "total_ms": 117.7
+    },
+    "count": {
+     "n": 2,
+     "total_ms": 1.4
+    },
+    "crown_jewels": {
+     "n": 58,
+     "total_ms": 40.6
+    },
+    "cut": {
+     "n": 1,
+     "total_ms": 1.3
+    },
+    "owned_ids": {
+     "n": 5,
+     "total_ms": 4.3
+    },
+    "user_objectids": {
+     "n": 1,
+     "total_ms": 1.0
+    }
+   }
+  }
+ },
+ "new_per_pair_plan": {
+  "wall": {
+   "runs_ms": [
+    217.6,
+    221.2,
+    216.5
+   ],
+   "median_ms": 217.6,
+   "p95_ms": 224.2,
+   "p99_ms": 221.2
+  },
+  "queries": {
+   "total_queries": 195,
+   "total_ms": 166.0,
+   "by_kind": {
+    "canonical_probe": {
+     "n": 135,
+     "total_ms": 122.5
+    },
+    "crown_jewels": {
+     "n": 56,
+     "total_ms": 39.3
+    },
+    "cut": {
+     "n": 1,
+     "total_ms": 1.3
+    },
+    "owned_ids": {
+     "n": 2,
+     "total_ms": 1.9
+    },
+    "user_objectids": {
+     "n": 1,
+     "total_ms": 1.0
+    }
+   }
+  }
+ },
+ "new_batched_seam_plan": {
+  "wall": {
+   "runs_ms": [
+    108.4,
+    109.4,
+    108.0
+   ],
+   "median_ms": 108.4,
+   "p95_ms": 110.2,
+   "p99_ms": 109.4
+  },
+  "queries_3x": {
+   "total_queries": 33,
+   "total_ms": 178.4,
+   "by_kind": {
+    "batched_pairs": {
+     "n": 9,
+     "total_ms": 155.2
+    },
+    "crown_jewels": {
+     "n": 12,
+     "total_ms": 9.7
+    },
+    "cut": {
+     "n": 3,
+     "total_ms": 4.6
+    },
+    "owned_ids": {
+     "n": 6,
+     "total_ms": 5.8
+    },
+    "user_objectids": {
+     "n": 3,
+     "total_ms": 3.1
+    }
+   }
+  },
+  "queries": {
+   "total_queries": 11
+  }
+ },
+ "targets": {
+  "k3_plan_local_ms_max": 1500,
+  "roundtrip_cut_vs_old_min_x": 3
+ },
+ "profile_arm_query": "['Distinct | Records produced: 1, Execution time: 0.002566 ms', '    Project | Records produced: 5, Execution time: 0.002614 ms', '        Filter | Records produced: 5, Execution time: 0.002416 ms', '            Project | Records produced: 5, Execution time: 0.306916 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.004269 ms', '                    Filter | Records produced: 1, Execution time: 0.089696 ms', '                        All Node Scan | (o) | Records produced: 1480, Execution time: 0.004328 ms', '                    Filter | Records produced: 5, Execution time: 0.090576 ms', '                        Node By Label Scan | (t:Group) | Records produced: 219, Execution time: 0.010239 ms']",
+ "profile_batched_pairs_query": "['Project | Records produced: 5, Execution time: 0.001582 ms', '    Filter | Records produced: 5, Execution time: 0.002655 ms', '        Project | Records produced: 5, Execution time: 0.261909 ms', '            Apply | Records produced: 5, Execution time: 0.027684 ms', '                Unwind | Records produced: 5, Execution time: 0.003918 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.030812 ms', '                    Filter | Records produced: 5, Execution time: 0.593283 ms', '                        All Node Scan | (o) | Records produced: 7400, Execution time: 0.056037 ms', '                            Argument | Records produced: 0, Execution time: 0.000000 ms', '                    Filter | Records produced: 5, Execution time: 0.882678 ms', '                        All Node Scan | (t) | Records produced: 7400, Execution time: 0.056220 ms', '                            Argument | Records produced: 0, Execution time: 0.000000 ms']"
+}
