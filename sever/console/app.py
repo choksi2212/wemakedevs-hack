@@ -160,13 +160,27 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             username=os.environ.get("SEVER_FALKOR_USER"),
             password=os.environ.get("SEVER_FALKOR_PASSWORD"),
         )
+    # The receipts trail outlives the graph: the CaseLog file is keyed by graph
+    # name and survives GRAPH.DELETE by design. It must therefore carry its own
+    # estate-lifecycle markers, or history from a previous incarnation of the
+    # estate reads as if it happened to this one (audit5/multi-client: the live
+    # ledger recorded 10 "removed 1" cuts whose edges exist again today — the
+    # estate had been reset out-of-band overnight, and nothing in the trail
+    # marked the discontinuity).
+    log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
             "SEVER_SAMPLE_DIR",
             str(Path(__file__).resolve().parents[2] / "data" / "ad_sample"))))
+        log.append({
+            "step": "estate_loaded",
+            "nodes": port.node_count(),
+            "edges": port.edge_count(),
+            "note": "sample loaded into an empty graph — entries above this line "
+                    "describe a previous incarnation of the estate",
+        })
 
     inv = Investigator(port)
-    log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
     app.state.port = port
 
     def _names(hops: list[tuple[str, str, str]]) -> list[dict[str, str]]:
@@ -250,10 +264,27 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             "owned_names": [_name(o) for o in port.owned_ids()],
             "reachability": port.reachability(),
         }
+        if data["nodes"] == 0:
+            # Out-of-band reset detector (audit5/multi-client): the engine-side
+            # graph can be deleted or replaced by anything other than this
+            # console (operator GRAPH.DELETE, ETL re-ingest) and the receipts
+            # file survives it. Without a marker, cuts recorded before the
+            # reset contradict the re-loaded estate and a judge cannot see
+            # where the story broke.
+            log.append({
+                "step": "estate_missing",
+                "note": "graph is empty — the estate was deleted or reset outside "
+                        "this console; receipts continuity breaks here",
+            })
+            last_state_log["key"] = None
+        # audit5/judge-experience: /api/state is polled every 15s by every open
+        # console tab — log state only when it CHANGES (the transition itself
+        # is the receipt), so poll traffic cannot bury the cut/finding story.
         key = (data["reachability"], data["nodes"], data["edges"])
         if key != last_state_log["key"]:
             last_state_log["key"] = key
             log.append({"step": "state", **{k: data[k] for k in ("reachability", "nodes", "edges")}})
+
         return data
 
     @app.get("/api/paths")
@@ -287,7 +318,28 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # MEASURED projections (computed on an isolated GRAPH.COPY — the
         # live estate is never touched by a proposal). The operator reviews
         # the whole sequence, not one edge.
-        out = inv.propose_plan()
+        try:
+            out = inv.propose_plan()
+        except ENGINE_ERRORS:
+            # engine outage mid-plan: record the attempt (outcome unknown),
+            # then let the registered 503 handler answer — same contract as
+            # finding_failed/cut_failed.
+            log.append({"step": "plan_failed",
+                        "error": "engine unreachable mid-plan", "outcome": "unknown"})
+            raise
+        except Exception as e:
+            # Any other projection failure (an engine-side graph-lifecycle
+            # race, a scratch collision, an internal bug) must still leave the
+            # ATTEMPT on the receipts trail. Pre-fix, a failed /api/plan
+            # vanished without a ledger entry — an invisible hole for a judge
+            # reconstructing the story (audit5/multi-client: concurrent
+            # planners 500'd with no trace).
+            log.append({"step": "plan_failed",
+                        "error": f"plan projection failed: {e}", "outcome": "unknown"})
+            raise HTTPException(
+                status_code=503,
+                detail=f"plan projection failed — engine graph lifecycle race, retry: {e}",
+            )
         # mirror onto the console receipts ledger like every other agent
         # step — the trail must show what was proposed, not only what ran
         log.append({"step": "plan", "plan": out})

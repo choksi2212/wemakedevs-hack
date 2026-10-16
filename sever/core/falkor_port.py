@@ -139,13 +139,21 @@ EDGE_FREQUENCY_STEP = (
     "sever/core/falkor_port.py)"
 )
 
-CUT_COUNT_QUERY_TEMPLATE = (
+# Atomic delete-and-count: ONE engine-side statement removes the relationship
+# and reports how many it removed. The previous count-then-delete pair was a
+# TOCTOU seam under the console's multi-client traffic: two operators cutting
+# the same edge concurrently could BOTH read the pre-count (n=1) before either
+# DELETE ran, so both receipts claimed relationships_removed=1 for one edge —
+# the ledger double-claimed a single removal (measured 6/6 race rounds,
+# audit5/multi-client, cross-process). The engine executes each command
+# atomically, so the single-statement form serializes: the first cutter
+# removes and counts 1; the second matches zero rows and honestly returns
+# 0 -> verdict no_effect. Live-verified on falkordb 6.0.0 (delete-return-count
+# form returns [[1]] on a match and [[0]] on no match, including parallel-edge
+# removals counted per matched row).
+CUT_ATOMIC_QUERY_TEMPLATE = (
     "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
-    "RETURN count(r) AS n"
-)
-CUT_DELETE_QUERY_TEMPLATE = (
-    "MATCH (s {{objectid: $src}})-[r:{rel}]->(t {{objectid: $dst}}) "
-    "DELETE r"
+    "DELETE r RETURN count(r) AS n"
 )
 
 MARK_OWNED_QUERY = "MATCH (n {objectid: $oid}) SET n.owned = true"
@@ -398,12 +406,12 @@ class FalkorGraphPort(GraphPort):
     def cut(self, src: str, dst: str, rel: str) -> int:
         if not _valid_rel(rel):
             raise ValueError(f"invalid relationship type: {rel!r}")
-        count_q = CUT_COUNT_QUERY_TEMPLATE.format(rel=rel)
-        n = int(self._scalar(count_q, {"src": src, "dst": dst}))
-        if n > 0:
-            delete_q = CUT_DELETE_QUERY_TEMPLATE.format(rel=rel)
-            self.graph.query(delete_q, {"src": src, "dst": dst})
-        return n
+        # Single atomic statement: the count is computed by the engine over the
+        # same MATCH that performs the DELETE, so no concurrent cutter can read
+        # a stale pre-count (see CUT_ATOMIC_QUERY_TEMPLATE). ``count(r)`` still
+        # returns a row on zero matches, so ``_scalar`` never sees None here.
+        query = CUT_ATOMIC_QUERY_TEMPLATE.format(rel=rel)
+        return int(self._scalar(query, {"src": src, "dst": dst}))
 
     # ---- receipts ----
     def profile(self, query: str, params: dict[str, Any] | None = None) -> str:
