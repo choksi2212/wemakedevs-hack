@@ -1,17 +1,33 @@
+# Destructive OWN-instance api-matrix runbook (audit5/api-matrix).
+# Boots two consoles (A :8305, B :8306) from a checkout of this repo, runs
+# own_matrix.py against a LOCAL engine, then cleans up the disposable graph
+# key sever_audit5_apimatrix and its ledgers.
+#
+# Machine-agnostic: every path derives from -Wt / -SampleDir / -Py or the
+# environment — no host-specific defaults. Requires the engine up first
+# (docker compose up -d, README section 9) and a python with the console
+# extras installed (pip install -e ".[console]"). Results land in <Wt>\out
+# (gitignored) as audit5_own_results.jsonl.
+param(
+    [string]$Wt = (Join-Path $PSScriptRoot '..\..\'),
+    [string]$SampleDir = $(if ($env:SEVER_SAMPLE_DIR) { $env:SEVER_SAMPLE_DIR } else { Join-Path $PSScriptRoot '..\..\data\ad_sample' }),
+    [string]$Py = (Get-Command python -ErrorAction SilentlyContinue).Source
+)
 Set-StrictMode -Off
 $ErrorActionPreference = 'Continue'
-$wt = 'N:\wemakedev\wemakedevs-hack-audit5wt'
-$py = 'N:\wemakedev\venv\Scripts\python.exe'
-$home2 = 'C:\Users\niklaus'
 
-if (-not (Test-Path "$wt\sever\console\app.py")) { throw 'worktree missing' }
-if (-not (Test-Path 'N:\wemakedev\data\ad_sample')) { throw 'sample dir missing' }
+if (-not $Py) { throw 'python not on PATH - install the console extras (README section 9) or pass -Py <python.exe>' }
+$Wt = (Resolve-Path $Wt).Path
+if (-not (Test-Path "$Wt\sever\console\app.py")) { throw 'worktree missing' }
+if (-not (Test-Path $SampleDir)) { throw 'sample dir missing' }
+New-Item -ItemType Directory -Force "$Wt\out" | Out-Null
+Set-Location "$Wt\out"
 
 "=== env ==="
 $env:SEVER_FALKOR_HOST = '127.0.0.1'
 $env:SEVER_FALKOR_PORT = '6379'
 $env:SEVER_FALKOR_GRAPH = 'sever_audit5_apimatrix'
-$env:SEVER_SAMPLE_DIR = 'N:\wemakedev\data\ad_sample'
+$env:SEVER_SAMPLE_DIR = $SampleDir
 $env:SEVER_FALKOR_SOCKET_TIMEOUT = '3'
 $env:SEVER_FALKOR_CONNECT_TIMEOUT = '3'
 Remove-Item Env:\SEVER_DOCS -ErrorAction SilentlyContinue
@@ -55,22 +71,22 @@ print("GRAPHS:", [k.decode() if isinstance(k, bytes) else k for k in keys])
 $verify | Set-Content -Encoding ASCII "$env:TEMP\audit5_verify.py"
 
 "=== clean slate ==="
-& $py "$env:TEMP\audit5_clean.py"
-Remove-Item "$wt\out\cases\sever_audit5_apimatrix*" -Force -ErrorAction SilentlyContinue
-Remove-Item "$home2\audit5_own_results.jsonl*" -Force -ErrorAction SilentlyContinue
+& $Py "$env:TEMP\audit5_clean.py"
+Remove-Item "$Wt\out\cases\sever_audit5_apimatrix*" -Force -ErrorAction SilentlyContinue
+Remove-Item "$Wt\out\audit5_own_results.jsonl*" -Force -ErrorAction SilentlyContinue
 
 "=== boot console A (8305) ==="
-$p1 = Start-Process -FilePath $py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8305' -WorkingDirectory $wt -PassThru -WindowStyle Hidden -RedirectStandardError "$wt\uvicorn_a.err.log" -RedirectStandardOutput "$wt\uvicorn_a.out.log"
-& $py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8305
+$p1 = Start-Process -FilePath $Py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8305' -WorkingDirectory $Wt -PassThru -WindowStyle Hidden -RedirectStandardError "$Wt\uvicorn_a.err.log" -RedirectStandardOutput "$Wt\uvicorn_a.out.log"
+& $Py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8305
 if ($LASTEXITCODE -ne 0) { throw 'console A not ready' }
 
 "=== boot console B (8306) ==="
-$p2 = Start-Process -FilePath $py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8306' -WorkingDirectory $wt -PassThru -WindowStyle Hidden -RedirectStandardError "$wt\uvicorn_b.err.log" -RedirectStandardOutput "$wt\uvicorn_b.out.log"
-& $py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8306
+$p2 = Start-Process -FilePath $Py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8306' -WorkingDirectory $Wt -PassThru -WindowStyle Hidden -RedirectStandardError "$Wt\uvicorn_b.err.log" -RedirectStandardOutput "$Wt\uvicorn_b.out.log"
+& $Py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8306
 if ($LASTEXITCODE -ne 0) { throw 'console B not ready' }
 
 "=== run destructive matrix ==="
-& $py "$home2\audit5_own_matrix.py"
+& $Py "$PSScriptRoot\own_matrix.py"
 $mx = $LASTEXITCODE
 "matrix exit code: $mx"
 
@@ -80,15 +96,15 @@ Stop-Process -Id $p2.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
 
 "=== cleanup graph + ledger ==="
-& $py "$env:TEMP\audit5_clean.py"
-Remove-Item "$wt\out\cases\sever_audit5_apimatrix*" -Force -ErrorAction SilentlyContinue
-Remove-Item "$wt\uvicorn_a.err.log", "$wt\uvicorn_a.out.log", "$wt\uvicorn_b.err.log", "$wt\uvicorn_b.out.log" -Force -ErrorAction SilentlyContinue
+& $Py "$env:TEMP\audit5_clean.py"
+Remove-Item "$Wt\out\cases\sever_audit5_apimatrix*" -Force -ErrorAction SilentlyContinue
+Remove-Item "$Wt\uvicorn_a.err.log", "$Wt\uvicorn_a.out.log", "$Wt\uvicorn_b.err.log", "$Wt\uvicorn_b.out.log" -Force -ErrorAction SilentlyContinue
 
 "=== engine health after run ==="
-& $py "$env:TEMP\audit5_verify.py"
+& $Py "$env:TEMP\audit5_verify.py"
 
 "=== matrix summary ==="
-if (Test-Path "$home2\audit5_own_results.jsonl.summary.json") {
-  Get-Content "$home2\audit5_own_results.jsonl.summary.json" | Select-Object -First 60
-} else { "NO SUMMARY FILE - run failed early"; Get-Content "$wt\uvicorn_a.err.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 }
+if (Test-Path "$Wt\out\audit5_own_results.jsonl.summary.json") {
+  Get-Content "$Wt\out\audit5_own_results.jsonl.summary.json" | Select-Object -First 60
+} else { "NO SUMMARY FILE - run failed early"; Get-Content "$Wt\uvicorn_a.err.log" -ErrorAction SilentlyContinue | Select-Object -Last 30 }
 "=== DONE ==="

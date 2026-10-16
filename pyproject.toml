@@ -3,6 +3,7 @@ name = "sever"
 version = "0.1.0"
 description = "SEVER — attack-path interdiction agent for identity graphs on FalkorDB"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = [
     "falkordb>=1.8.0",

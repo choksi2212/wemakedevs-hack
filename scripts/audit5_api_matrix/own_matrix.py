@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""audit5/api-matrix OWN-INSTANCE destructive conformance (ryzen local).
+"""audit5/api-matrix OWN-INSTANCE destructive conformance (local self-hosted engine).
 
 Runs against http://127.0.0.1:8305 (+ :8306 for the cross-process ledger
 phase) — consoles booted from the audit5/api-matrix worktree, graph key
@@ -30,7 +30,7 @@ B = "http://127.0.0.1:8306"
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 GMSA = "S-1-5-21-2697957641-2271029196-387917394-2102"
 GHOST = "S-1-5-21-2697957641-2271029196-387917394-9999"
-OUT = r"C:\Users\niklaus\audit5_own_results.jsonl"
+OUT = sys.argv[1] if len(sys.argv) > 1 else "audit5_own_results.jsonl"
 results: list[dict] = []
 
 
