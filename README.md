@@ -14,7 +14,7 @@ collateral-ranked cut **plans** → **human gate** → live re-query → before/
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
   <img src="https://img.shields.io/badge/engine-FalkorDB%206.0.0-8B5CF6?style=flat-square" alt="falkordb"/>
   <img src="https://img.shields.io/badge/console-FastAPI-10B981?style=flat-square" alt="fastapi"/>
-  <img src="https://img.shields.io/badge/tests-454%20collected%20%C2%B7%200%20failed-059669?style=flat-square" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-563%20collected%20%C2%B7%200%20failed-059669?style=flat-square" alt="tests"/>
   <img src="https://img.shields.io/badge/license-MIT-64748B?style=flat-square" alt="mit"/>
 </p>
 
@@ -258,7 +258,7 @@ The loop's honesty rules — every one pinned by live tests:
 | **findings** | mutate the graph (`mark_owned`, live ACE grants) — | the estate is never static |
 | **proposals** | are always real: an edge that lies on zero enumerated paths cannot be proposed |  |
 | **collateral is ranked** | : coverage ties break toward *attacker-only* edges — | each candidate receipts `benign_usage`, the number of sampled non-owned principals whose own jewel paths cross it (25 sampled of the estate's pool, deterministic stride; the sampled estimate is labeled, never passed off as an exact count). An edge that carries someone else's access story loses the tie; receipts say by how much. *(NoiseHound re-ranks attack paths by detection cost — SEVER is the remediation-side flip: rank the CUT by the disruption it would cause.)* |
-| **plans are sequences, not one edge** | : `GET /api/plan` proposes a greedy k=3 cut sequence, every step projected on an isolated `GRAPH | COPY` of the live estate — re-enumerated and re-measured after each cut, never simulated from a frozen path set. The live graph is never touched by a proposal, and the plan stops early the moment its copy measures zero (no invented third step). |
+| **plans are sequences, not one edge** | : `GET /api/plan` proposes a greedy k=3 cut sequence, every step projected on an isolated `GRAPH \| COPY` of the live estate — re-enumerated and re-measured after each cut, never simulated from a frozen path set. The live graph is never touched by a proposal, and the plan stops early the moment its copy measures zero (no invented third step). |
 | **execution re-measures every step and stops at the first drift** | : a plan step whose live re-query diverges from its projection halts the rest — | later steps were computed on a surface that no longer exists, and stale projections never execute. `drift_stopped_at_step` is a status, not a failure to hide. |
 | **the gate** | passes only on the exact value `True` — | schema, handler and tests all pin it independently |
 | **verdicts are measured claims** | : `collapsed` only when a re-query returns 0, `degraded` only when paths survive, `no_effect` for honest no-ops — | a cut can never *increase* reachability |
@@ -610,7 +610,7 @@ tie-break — execution to measured collapse, and the drift-stop honesty rule.
 
 Live DB-free run at the develop tip (2026-10-16, no docker on the audit host —
 [`docs/receipts/test_suite_2026-10-16.json`](docs/receipts/test_suite_2026-10-16.json)):
-**454 collected — 278 passed + 176 engine-skips, 0 failures**. With the engine up,
+**563 collected — 391 passed + 172 engine-skips, 0 failures**. With the engine up,
 the engine suites run as well — the engine-up full green count is not recorded
 in-repo, which is why the badge says "collected", not "green".
 
@@ -621,9 +621,12 @@ in-repo, which is why the badge says "collected", not "green".
   are a labeled deterministic breach-timeline replay. No real organization's data.
   Per-tenant identities are synthetic injective remaps.
 - **AI-assisted development** (rule 11): this project was built with AI assistance
-  under human direction — architecture decisions, graph model, traversal semantics,
-  acceptance criteria and every merge were reviewed by the author, who can defend
-  each component. Commit history is fully in-window.
+  under human direction — **Hermes Agent** (Nous Research) drove implementation
+  across ~50 audited sub-agent fleets under the author's explicit gates, and
+  **glm-5.3** (via Vultr Inference) narrates findings offline-capably at runtime.
+  Architecture decisions, graph model, traversal semantics, acceptance criteria
+  and every merge were reviewed by the author, who can defend each component.
+  Commit history is fully in-window.
 - **Tracks**: Agents That Act on Connected Data (primary) · Agent Memory and
   Coordination (case memory via FalkorDBSaver).
 
