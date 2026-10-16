@@ -402,9 +402,18 @@
       // partial failure: state rendered, some sections did not — say exactly
       // that, keep the degraded chip (NOT "unreachable": state just arrived).
       engineDegraded();
-      banner('<span class="res">partial data — ' + esc(stale.join(' · ')) +
-             ' — those sections show last known state</span>', 'partial');
-      setText('updated-at', 'state updated ' + at + ' · some sections stale');
+      const b = $('banner');
+      if (!b.dataset.flag && b.classList.contains('show')) {
+        // an action receipt (no flag) is showing — it carries information that
+        // must persist (bannerClearIf's own contract: never clobber an action
+        // receipt with a state marker). The partial condition stays visible
+        // through the degraded chip and the stale timestamp instead.
+        setText('updated-at', 'state updated ' + at + ' · some sections stale');
+      } else {
+        banner('<span class="res">partial data — ' + esc(stale.join(' · ')) +
+               ' — those sections show last known state</span>', 'partial');
+        setText('updated-at', 'state updated ' + at + ' · some sections stale');
+      }
     }
   }
 
