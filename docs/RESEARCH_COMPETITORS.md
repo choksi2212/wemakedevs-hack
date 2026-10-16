@@ -89,7 +89,7 @@ the graph, and hands you a measured receipt. BloodHound format is SEVER's **inpu
 Budgeted arc removal is well-studied: bi-level defender–attacker interdiction with limited budget
 (https://sciencedirect.com/science/article/pii/S0305054816301113); minimum-cost hardening via initial
 conditions (NP-hard min critical set; polynomial minimal set) (https://sciencedirect.com/science/article/pii/S0140366406002271);
-dominating-set-as-set-cover hardening (https://link.springer.com/article/10.1007/978-3-319-22915-7_32);
+dominating-set-as-set-cover hardening (https://link.springer.com/chapter/10.1007/978-3-319-22915-7_32);
 Force Path Cut = Weighted Set Cover (https://arxiv.org/html/2104.03761v1); minimal cut sets optimal only
 in the limit (https://link.springer.com/chapter/10.1007/978-3-030-04834-1_5). Hale et al. build
 generators/analysis, not interdiction products (https://dl.acm.org/doi/fullHtml/10.1145/3491257).
