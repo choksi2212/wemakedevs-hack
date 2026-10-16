@@ -187,7 +187,10 @@ def _engineered_swap_click(page, console_url) -> dict:
     that the pin was never about (the natural tick has its own dedicated
     test below). One held manual swap = the deterministic scenario."""
     r: dict = {}
-    page.evaluate("setAuto(false)")
+    # pause via the real user-facing toggle (the script's functions are not
+    # global); guard on aria-pressed so the 3 attempts never toggle back on
+    if page.get_attribute("#refresh-toggle", "aria-pressed") == "true":
+        page.click("#refresh-toggle")
     _ensure_proposal(console_url)
     page.click("#btn-refresh")
     page.wait_for_selector("#proposal button.approve", timeout=20000)
