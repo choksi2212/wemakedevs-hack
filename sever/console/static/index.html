@@ -313,13 +313,26 @@
   /* audit6/ui-polish: each completed refresh tick dips the timestamp once */
   .hint.tick { animation: tick-dip var(--motion) ease; }
   @keyframes tick-dip { from { opacity: .45; } }
-  /* audit6/ui-polish: quiet in-progress affordance for multi-second engine
-     waits (cut / plan / finding re-score) — a 6px dot in the banner, static
-     under prefers-reduced-motion, otherwise one 150ms opacity beat per ~1.2s.
-     Decorative (aria-hidden); the banner text alone carries the state. */
-  .pulse-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--focus); margin-right: 8px; vertical-align: 1px; }
-  .pulse-dot.beat { animation: pulse-beat var(--motion) ease-in-out; }
-  @keyframes pulse-beat { from { opacity: .35; } }
+  /* audit7/perf-ui: the honest wait affordance for multi-second engine waits
+     (plan / cut / grant / finding re-score). audit6's 6px dot took one 150ms
+     opacity beat per ~1.2s — imperceptible: on the free-tier cloud engine
+     (10-14x slower than local) the 'planning…' banner sat visually static for
+     13-14s and read as a frozen tab (owner-reported). The replacement is
+     perceivable AND honest: a 3px indeterminate bar (transform-only loop —
+     the same motion grammar as the armed-gate pulse) beside LIVE elapsed
+     seconds, so the banner visibly changes every second the engine does not;
+     at 10s+ a note sets expectations ('~15s on the free-tier engine'). Bar
+     and counter are decorative (aria-hidden) — the stage copy and the note
+     carry the state for assistive tech. prefers-reduced-motion freezes the
+     bar to a static filled track; the counting seconds are text, not motion,
+     so they keep counting. */
+  .wait-strip { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+  .waitbar { flex: 0 0 128px; height: 3px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; position: relative; }
+  .waitbar i { position: absolute; top: 0; left: 0; height: 100%; width: 40%; border-radius: 2px; background: var(--focus); animation: wait-slide 1.1s ease-in-out infinite; }
+  @keyframes wait-slide { from { transform: translateX(-110%); } to { transform: translateX(280%); } }
+  .wait-elapsed { font-family: var(--mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .wait-note { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+  @media (prefers-reduced-motion: reduce) { .waitbar i { animation: none; width: 100%; opacity: .45; } }
   @media (max-width: 600px) {
     /* audit6/ui-polish: no horizontal scroll, no clipped receipts at phone
        width — ledger lines wrap instead of ellipsizing, the gate row breathes */
@@ -644,25 +657,34 @@
     if (!ok(body)) throw new Error('malformed ' + what + ' (engine stall?)');
     return body;
   }
-  // audit6/ui-polish: quiet in-progress affordance for multi-second engine
-  // waits (cut / plan / finding re-score) — a 6px dot leads the in-flight
-  // banner line, and unless the operator prefers reduced motion it takes one
-  // 150ms opacity beat per ~1.2s. No spinners anywhere; the dot is decorative
-  // (aria-hidden) — the banner text alone carries the state for assistive tech.
-  const pulseDot = document.createElement('span');
-  pulseDot.className = 'pulse-dot';
-  pulseDot.setAttribute('aria-hidden', 'true');
-  let pulseTimer = null;
-  function setBusy(on) {
-    if (pulseTimer) { clearInterval(pulseTimer); pulseTimer = null; }
-    if (pulseDot.parentNode) pulseDot.parentNode.removeChild(pulseDot);
-    if (!on) return;
-    $('banner').prepend(pulseDot);
-    if (!REDUCED) pulseTimer = setInterval(() => {
-      pulseDot.classList.remove('beat'); void pulseDot.offsetWidth; pulseDot.classList.add('beat');
-    }, 1200);
+  // audit7/perf-ui: the honest wait banner. Every multi-second engine wait
+  // (plan / cut / grant / finding re-score) now shows LIVE elapsed time: the
+  // stage copy renders once at press, then a 1s interval re-ticks a dedicated
+  // elapsed span (a textContent update — never a markup rebuild), and at 10s+
+  // an expectation note appears ('this can take ~15s on the free-tier engine')
+  // so a slow cloud engine reads as slow, never as broken. Any banner render
+  // — receipt or failure, resolve or reject — clears the timer, so the count
+  // can never outlive its flight. The ticking counter and the bar are
+  // decorative (aria-hidden); the stage copy and the note carry the state for
+  // assistive tech. Reduced motion still counts: text is not motion.
+  let waitTimer = null;
+  function beginWait(stage) {
+    banner('<span class="res">' + esc(stage) + '…</span>' +
+           '<span class="wait-strip"><span class="waitbar" aria-hidden="true"><i></i></span>' +
+           '<span class="wait-elapsed" aria-hidden="true">0s elapsed</span>' +
+           '<span class="wait-note"></span></span>');
+    const el = $('banner').querySelector('.wait-elapsed');
+    const note = $('banner').querySelector('.wait-note');
+    const t0 = performance.now();
+    waitTimer = setInterval(() => {
+      const secs = Math.floor((performance.now() - t0) / 1000);
+      if (el) el.textContent = secs + 's elapsed';
+      if (note && secs >= 10 && !note.textContent)
+        note.textContent = '(this can take ~15s on the free-tier engine)';
+    }, 1000);
   }
-  function banner(html, flag, busy) {
+  function banner(html, flag) {
+    if (waitTimer) { clearInterval(waitTimer); waitTimer = null; }
     const b = $('banner');
     b.innerHTML = html;
     b.classList.add('show');
@@ -671,7 +693,6 @@
     // audit6/ui-polish: reduced motion scrolls instantly, not smoothly.
     if (b.scrollIntoView) b.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'nearest' });
     if (flag) b.dataset.flag = flag; else delete b.dataset.flag;
-    setBusy(!!busy);
   }
   function bannerClearIf(flag) {
     // a state-marker banner (engine down / partial data) is transient: it is
@@ -741,6 +762,45 @@
     if (current) { const li = $(current); if (li) li.setAttribute('aria-current', 'step'); }
   }
 
+  // audit7/perf-ui: lazy paths rendering — a wide estate can carry dozens of
+  // long hop chains; capping the initial paint keeps the paths card cheap to
+  // load and cheap to re-render, with an honest 'show all' affordance for the
+  // rest (the ribbon and step copy still count every live path, so the cap
+  // never lies about coverage). Expansion is sticky until the paths signature
+  // actually changes — the auto-refresh never re-collapses what the operator
+  // opened on identical data; genuinely fresh data re-collapses.
+  const PATH_CAP = 8;
+  function renderPaths(paths, s) {
+    const all = paths.paths;
+    const shown = state.pathsExpanded ? all : all.slice(0, PATH_CAP);
+    $('paths').innerHTML = shown.length
+      ? shown.map((p) => {
+          const h0 = p.hops[0];
+          return '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> <span class="tail">→ crown jewel</span></div>' +
+          '<div class="hops">' +
+          (h0 ? '<span class="hop"><span class="node mut" title="' + esc(h0.src_id && h0.src_id !== h0.src ? h0.src + ' (' + h0.src_id + ')' : h0.src) + '">' + esc(short(h0.src)) + '</span></span>' : '') +
+          p.hops.map((h, i) =>
+            '<span class="hop"><span class="rel">-[' + esc(h.rel) + ']-></span>' +
+            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id && h.dst_id !== h.dst ? h.dst + ' (' + h.dst_id + ')' : h.dst) + '">' + esc(short(h.dst)) + '</span></span>'
+          ).join('') +
+          '</div></div>';
+        }).join('') +
+        (all.length > shown.length
+          ? '<div class="actions"><button class="btn" id="btn-paths-showall" type="button" aria-label="Show every attack path">show all ' + esc(all.length) + ' paths</button></div>'
+          : '')
+      // audit5/judge-experience: distinguish "nothing owned" (demo not
+      // started) from "owned but fully contained" (surface collapsed) — the
+      // old single message lied in the second case.
+      : (s.owned && s.owned.length
+          ? '<div class="empty">Owned principals are contained — every path to every crown jewel has been cut. The estate stays collapsed until the sample estate is reset (a fresh deploy restores it).</div>'
+          : '<div class="empty">No owned principals — simulate a breach to begin.</div>');
+    const more = $('btn-paths-showall');
+    if (more) more.addEventListener('click', () => {
+      state.pathsExpanded = true;
+      renderPaths(paths, s);
+    });
+  }
+
   async function refresh() {
     // latest-wins: a slow, stale refresh must never overwrite a newer
     // refresh's render (double-click spam colliding with auto-refresh).
@@ -755,10 +815,12 @@
         '/api/state response');
     } catch (e) {
       engineDown();
-      // the estate read did not answer: flip the header's estate chip to its
-      // stale (amber) state and mark the updated-at line — the panel below is
-      // last-known and must never read as fresh.
-      $('estate-chip').className = 'chip paused';
+      // the estate readout did not answer: flip the hero's estate readout to
+      // its stale (amber) state and mark the updated-at line — the panel below
+      // is last-known and must never read as fresh.
+      // (audit7/perf-ui: conditional write — same-value class writes still
+      // invalidate style on every failing tick.)
+      if ($('estate-chip').className !== 'chip paused') $('estate-chip').className = 'chip paused';
       // audit6 merge: the estate readout lives in the hero now (ui-ia) — the
       // last-known/unavailable line goes to the hero's estate detail, never
       // to the removed header-chip label.
@@ -788,19 +850,26 @@
     setText('stat-owned', s.owned.length.toLocaleString());
     const at = new Date().toLocaleTimeString();
     state.lastAt = at;
-    setText('updated-at', 'state updated ' + at);
+    // audit7/perf-ui: one conditional write — the old setText+tickText pair
+    // wrote the same string twice, so the tick-dip never fired and the second
+    // write was pure thrash; tickText alone writes-if-changed and dips.
     tickText('updated-at', 'state updated ' + at);
+    // audit7/perf-ui: batched conditional writes — derive everything first,
+    // write once per field, only on change (an idle estate tick writes one
+    // text node: this timestamp).
     const r = $('reach');
-    r.textContent = s.reachability;
-    r.className = 'value ' + (s.nodes === 0 ? '' : (s.reachability > 0 ? 'danger' : 'ok'));  // audit6/ui-telemetry honesty: zero on an EMPTY estate is missing, not contained
-    $('estate-detail').textContent = 'owned: ' + ((s.owned_names && s.owned_names.length) ? s.owned_names.map(short).join(', ') : (s.owned.length ? s.owned.map(short).join(', ') : 'none'));
+    const rTxt = String(s.reachability);
+    const rCls = 'value ' + (s.nodes === 0 ? '' : (s.reachability > 0 ? 'danger' : 'ok'));  // audit6/ui-telemetry honesty: zero on an EMPTY estate is missing, not contained
+    if (r.textContent !== rTxt) r.textContent = rTxt;
+    if (r.className !== rCls) r.className = rCls;
+    setText('estate-detail', 'owned: ' + ((s.owned_names && s.owned_names.length) ? s.owned_names.map(short).join(', ') : (s.owned.length ? s.owned.map(short).join(', ') : 'none')));
     // audit6/ui-ia: the one-word verdict the hero leads with — dormant (no
     // owned principals), exposed (attack paths live), contained (owned but
     // every path cut). textContent + classList only: no markup sinks.
     const verdict = s.owned.length ? (s.reachability > 0 ? 'exposed' : 'contained') : 'dormant';
     setText('threat-word', verdict);
     const heroEl = $('hero');
-    if (heroEl) heroEl.className = 'hero ' + verdict;
+    if (heroEl && heroEl.className !== 'hero ' + verdict) heroEl.className = 'hero ' + verdict;
     state.ownedCount = s.owned.length;
 
     // each secondary section fails independently: state above is fresh, a
@@ -818,28 +887,20 @@
         if (h.src_id && h.src && h.src_id !== h.src) idNames[h.src_id] = h.src;
         if (h.dst_id && h.dst && h.dst_id !== h.dst) idNames[h.dst_id] = h.dst;
       }));
-      // audit6/ui-flow: each path renders as ONE flowing kill chain — a
-      // red-tinted attacker chip first, small mono rel arrows between, a
-      // green-tinted crown-jewel chip last; hover any chip for its raw
-      // objectid. The chain reads as prose: A -[rel]-> B -[rel]-> JEWEL.
-      $('paths').innerHTML = paths.paths.length
-      ? paths.paths.map((p) => {
-          const h0 = p.hops[0];
-          return '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> <span class="tail">→ crown jewel</span></div>' +
-          '<div class="hops">' +
-          (h0 ? '<span class="hop"><span class="node mut" title="' + esc(h0.src_id && h0.src_id !== h0.src ? h0.src + ' (' + h0.src_id + ')' : h0.src) + '">' + esc(short(h0.src)) + '</span></span>' : '') +
-          p.hops.map((h, i) =>
-            '<span class="hop"><span class="rel">-[' + esc(h.rel) + ']-></span>' +
-            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id && h.dst_id !== h.dst ? h.dst + ' (' + h.dst_id + ')' : h.dst) + '">' + esc(short(h.dst)) + '</span></span>'
-          ).join('') +
-          '</div></div>';
-        }).join('')
-      // audit5/judge-experience: distinguish "nothing owned" (demo not
-      // started) from "owned but fully contained" (surface collapsed) — the
-      // old single message lied in the second case.
-      : (s.owned && s.owned.length
-          ? '<div class="empty">Owned principals are contained — every path to every crown jewel has been cut. The estate stays collapsed until the sample estate is reset (a fresh deploy restores it).</div>'
-          : '<div class="empty">No owned principals — simulate a breach to begin.</div>');
+      // audit7/perf-ui: incremental paths render — the 15s auto-refresh used
+      // to rebuild every path-block (parse + layout) even when the estate had
+      // not changed. A cheap JSON signature of exactly the rendered payload
+      // (plus the owned-count input of the empty-state branch) skips the
+      // rebuild when the data is identical; any real change (finding, cut,
+      // grant, re-rank) alters it. Stored only after the latest-wins gen
+      // check above, so a stale in-flight refresh can never pin an old
+      // signature.
+      const pathsSig = JSON.stringify(paths) + '|' + s.owned.length;
+      if (pathsSig !== state.pathsSig) {
+        state.pathsSig = pathsSig;
+        state.pathsExpanded = false;   // fresh data re-collapses the lazy cap
+        renderPaths(paths, s);
+      }
 
     } catch (e) { stale.push('attack paths (' + e.message + ')'); }
     try {
@@ -853,6 +914,16 @@
         if (c.src_name && c.src_name !== c.src) idNames[c.src] = c.src_name;
         if (c.dst_name && c.dst_name !== c.dst) idNames[c.dst] = c.dst_name;
       });
+      // audit7/perf-ui: incremental proposal render — identical ranked data
+      // skips the whole card rebuild (parse + layout + listener re-attach +
+      // gate re-arm), so the 15s tick on an idle estate touches nothing here
+      // and a pending armed gate is preserved byte-for-byte rather than
+      // re-created. A changed signature rebuilds exactly as before: APPROVE
+      // listeners re-attach and any pending gate re-arms through renderGate's
+      // ≤1-armed-gate sweep.
+      const propSig = JSON.stringify(prop);
+      if (propSig !== state.propSig) {
+        state.propSig = propSig;
       // audit6/ui-flow: the ranked-cut card. Endpoint names carry the raw
       // objectid on hover, and the button keeps data-src/data-dst/data-rel —
       // the cut API is addressed by objectid, never by display name
@@ -889,6 +960,7 @@
     // keep an armed gate armed across re-renders (auto-refresh must not wipe
     // a pending CONFIRM); if the edge is no longer proposed, disarm quietly.
     if (state.pending && !renderGate(state.pending, false)) { state.pending = null; removeEscape(); }
+      }
 
     } catch (e) { stale.push('interdiction proposal (' + e.message + ')'); }
     // receipts is a pure file route — it never touches the engine, so its
@@ -904,11 +976,21 @@
     } catch (e) { recErr = e; }
     if (gen !== state.gen) return;
     if (recErr) {
+      // audit7/perf-ui: the degraded lane repaints the card, so the next
+      // successful read must always repaint too — drop the stored signature
+      // or an identical ledger would leave the degraded line on screen.
+      state.recSig = null;
       $('receipts').innerHTML =
         '<div class="entry ledger-down"><span class="badge sys">ledger</span>' +
         '<span class="line">ledger unavailable — ' + esc(recErr.message) +
         ' — estate data above may still be current; the case file could not be read</span></div>';
     } else {
+    // audit7/perf-ui: incremental ledger render — the 15s tick rebuilt all
+    // 40 rows (parse + layout) even with a byte-identical window; the JSON
+    // signature skips it, and a real append (any new receipt) alters it.
+    const recSig = JSON.stringify(rec);
+    if (recSig !== state.recSig) {
+      state.recSig = recSig;
     $('receipts').innerHTML = rec.slice(-40).reverse().map((e) => {
       const step = e.step || 'state';
       const badgeFor = (s) => s === 'cut' || s === 'cut_failed' ? 'cut'
@@ -991,6 +1073,7 @@
     if (topSig && topSig !== state.ledgerSeen && !REDUCED) topEntry.classList.add('arrival');
     state.ledgerSeen = topSig;
     }
+    }
     if (gen !== state.gen) return;
     bannerClearIf('partial');
     if (stale.length) {
@@ -1051,7 +1134,7 @@
     state.pending = null;
     removeEscape();
     cf.disabled = cn.disabled = true;
-    banner('<span class="res">human gate: executing approved cut…</span>', undefined, true);
+    beginWait('human gate: executing approved cut');
     api('/api/cut', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: OPERATOR}),
@@ -1160,15 +1243,27 @@
     // audit6/ui-flow: a fresh plan invalidates any prior execution's
     // per-step verdicts — the card starts from a clean projection state.
     state.planResult = null;
-    banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>');
-    banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>', undefined, true);
+    // audit7/perf-ui: the live-elapsed honest wait — on the free-tier cloud
+    // engine this GET sat with a visually static banner for 13-14s and read
+    // as a frozen console (owner-reported); now every second ticks the
+    // elapsed counter and 10s+ sets the ~15s expectation.
+    beginWait('planning a k=3 cut sequence — measuring projections on an isolated copy');
     try {
       state.plan = need(await api('/api/plan'), (b) => b && typeof b === 'object'
         && (typeof b.note === 'string'
             || (Array.isArray(b.steps) && b.steps.every((x) => x && x.cut
                 && typeof x.cut.src === 'string' && typeof x.cut.rel === 'string'
-                && typeof x.cut.dst === 'string'))),
-        '/api/plan response');
+                && typeof x.cut.dst === 'string'))), '/api/plan response');
+      // audit7/perf-ui: the wait ends in a receipt, not silence — pre-fix
+      // the 'planning…' line outlived the plan (the card appeared below
+      // while the banner still said 'planning', the exact stale read the
+      // honest-wait work exists to remove). Unflagged action receipt: it
+      // persists per the banner contract.
+      const steps = (state.plan.steps) || [];
+      banner('<span class="technique">PLAN READY</span>' +
+             '<span class="res">' + (steps.length
+               ? 'k=' + esc(state.plan.k) + ' · ' + steps.length + ' step sequence ranked · projections measured on an isolated copy — review and approve it in the remediation plan card'
+               : esc(state.plan.note || 'nothing to plan — the estate surface is already collapsed')) + '</span>');
       renderPlan();
     } catch (e) {
       banner('<span class="res">plan failed: ' + esc(e.message) + '</span>');
@@ -1263,7 +1358,7 @@
     const cn = document.getElementById('btn-plan-cancel');
     if (cf) cf.disabled = true;
     if (cn) cn.disabled = true;
-    banner('<span class="res">human gate: executing approved plan step-by-step — re-measuring each step live…</span>', undefined, true);
+    beginWait('human gate: executing approved plan step-by-step — re-measuring each step live');
     try {
       const r = need(await api('/api/plan/execute', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1306,7 +1401,7 @@
   $('btn-plan').addEventListener('click', makePlan);
 
   async function fire(kind) {
-    banner('<span class="res">simulated finding ' + kind + ' — re-scoring all attack paths…</span>', undefined, true);
+    beginWait('simulated finding ' + kind + ' — re-scoring all attack paths');
     const body = kind === 'ace_granted'
       ? {kind, subject: HERO, target: GMSA, rel: 'GENERIC_ALL'}
       : {kind, subject: HERO};
