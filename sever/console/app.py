@@ -74,6 +74,16 @@ reachability's own internal re-reads), GET /api/proposal 185, GET /api/plan
   folded dialect — the probe returns None and every handler answers through
   the original port-method path, so the resilience contracts (503 lanes,
   honest ledgers) are exercised on the same code they pinned.
+- F900 (production, audit8/fix-code): the reach/paths/benign/projection arm
+  folds above are the port's cross-product WITH-shortestPath forms, so they
+  inherit the port's engine-version probe via ``_arms_ok`` — on engines
+  < falkordb 6.0.0 (the managed Cloud 4.22.0 the deployment runs on) those
+  forms undercount or return nothing, and production served reach 0 / paths
+  [] with an owned principal while the plan endpoint's per-pair path was
+  still correct. Old engines (and any port without the probe attribute —
+  every engine-free fake) answer through the original port-method path,
+  exactly as production did pre-fleet-7; modern engines keep the folds,
+  byte-identical, equivalence-pinned.
 """
 from __future__ import annotations
 
@@ -259,6 +269,28 @@ def _estate_probe(port: GraphPort) -> tuple[int, int, list[str], list[str]] | No
         return None
     except Exception:
         return None
+
+
+def _arms_ok(port: GraphPort) -> bool:
+    """May the console's cross-product ARM folds run on this port?
+
+    audit8/fix-code, F900 (production): the console's folded arms
+    (_arm_reach / _arm_pair_paths / _benign_pair_paths) are the SAME
+    cross-product WITH-shortestPath forms the port gates on the engine
+    version — on engines < falkordb 6.0.0 (the deployed managed Cloud
+    4.22.0) those forms undercount or return nothing, which is exactly how
+    production served reach 0 / paths [] with an owned principal. The
+    console therefore applies the port's own probe result:
+    ``FalkorGraphPort._modern_engine`` (probed once via MODULE LIST).
+    Ports WITHOUT the attribute — every engine-free fake port of the
+    resilience suite, injected stubs — are conservatively False and answer
+    through the original port-method path, which is the path they already
+    take (their probe answers nothing) and the path their contracts pin.
+    On a modern engine nothing changes: the folds stay active and the
+    equivalence suite (tests/test_console_perf_folds.py) keeps proving
+    fold == port methods.
+    """
+    return bool(getattr(port, "_modern_engine", False))
 
 
 def _arm_reach(port: GraphPort, owned: list[str], jewels: list[str],
@@ -577,9 +609,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # cold (probe + two arms) and 1 warm (the probe IS the cache check).
         # The fold refuses itself and falls back to the original path on any
         # dialect mismatch; an engine outage propagates to the 503 handler
-        # exactly as before.
+        # exactly as before. F900: on engines < 6.0.0 the arms undercount
+        # (production served reach 0 with an owned principal) — those
+        # engines answer through the port methods, exactly pre-fleet-7.
         probe = _estate_probe(port)
-        if probe is None:
+        if probe is None or not _arms_ok(port):
             data = _state_data_slow()
         else:
             nodes, edges, owned, jewels = probe
@@ -632,9 +666,12 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # batched arms — the response's (principal, jewel) order is
         # re-assembled to the port's enumeration order (owned sorted, then
         # jewels sorted), so the UI's render order is byte-identical.
+        # F900: the arms are cross-product forms — on engines < 6.0.0 they
+        # undercount (production served paths [] with an owned principal),
+        # so those engines keep the per-pair port loop, exactly pre-fleet-7.
         probe = _estate_probe(port)
         pairs = None
-        if probe is not None:
+        if probe is not None and _arms_ok(port):
             try:
                 pairs = _arm_pair_paths(port, inv.hop_cap)
             except _FoldUnsupported:
@@ -669,9 +706,12 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # arms + two frequency arms — the same ranking inputs
         # (rank_cut_candidates is the port's own scoring function), the same
         # deterministic sample, the same fields.
+        # F900: the folded arms are cross-product forms — on engines < 6.0.0
+        # they undercount, so those engines answer through inv.propose
+        # (port.edge_frequency's per-pair legacy loop), exactly pre-fleet-7.
         probe = _estate_probe(port)
         out: list[dict[str, Any]]
-        if probe is None:
+        if probe is None or not _arms_ok(port):
             out = inv.propose(limit=5)
         else:
             _nodes, _edges, owned, _jewels = probe
@@ -713,10 +753,13 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         same early-stop honesty. Returns None when the port does not speak
         the folded dialect (the caller then runs inv.propose_plan, the
         original loop); engine outages and projection failures propagate to
-        the handler's ledgered 503 lanes unchanged."""
+        the handler's ledgered 503 lanes unchanged. F900: on engines
+        < 6.0.0 the arm forms undercount, so the folded plan refuses
+        itself there and the caller's inv.propose_plan (scoring's per-pair
+        enumeration — the form production proved on the Cloud) answers."""
         hop_cap = inv.hop_cap
         probe = _estate_probe(port)
-        if probe is None:
+        if probe is None or not _arms_ok(port):
             return None
         _nodes, _edges, owned, jewels = probe
         base_reach = _arm_reach(port, owned, jewels, hop_cap)

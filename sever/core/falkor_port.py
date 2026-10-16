@@ -33,12 +33,15 @@ WAN hop + free-tier CPU; redundant queries are pure latency):
   on older engines (the managed Cloud 4.22.0) those cross forms compute
   shortestPath for a single row of a multi-row binding and UNDERCOUNT —
   live-verified: the shipped all-owned reachability arm returned ZERO
-  reachable ids for 2 owned principals where the per-pair probe sees one
-  (a live-prod correctness bug this change also fixes: reachability now
-  uses the per-owned arm form there, verified correct against the per-pair
-  reference), and every cross form of the paths fold collapsed 5 reachable
-  pairs to 1. Older engines therefore keep the legacy per-pair path queries
-  and get the per-owned arm form — correctness beats round-trips.
+  reachable ids for 2 owned principals where the per-pair probe sees one,
+  and every cross form of the paths fold collapsed 5 reachable pairs to 1.
+  F900 (production, 2026-10-17): the per-owned arm form audit7 substituted
+  there failed the same way in production — the deployed Cloud answered
+  reach 0 / paths [] with an owned principal while ryzen 6.0.0 was green —
+  so every pre-6.0.0 engine now keeps the LEGACY PER-PAIR forms for
+  reachability and paths (existence probe / canonical loop, both endpoints
+  $param-bound): the exact queries production ran for days pre-fleet-7.
+  Correctness beats round-trips.
 - Correctness of the per-request snapshot cache (the honest-cache contract):
   the estate only changes via (a) THIS port's own mutations — every one
   (load/mark_owned/add_edge/cut/drop/scratch_copy) explicitly invalidates;
@@ -117,9 +120,16 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 # tests/test_live_semantics.py.
 REACHABILITY_METHOD = (
     "two-arm all-pairs shortestPath existence (REACHABILITY_ARM_TEMPLATES) "
-    "with the traversal relationship filter and hop cap of paths_to_jewels; "
-    "an owned principal that is itself a crown jewel counts as reached "
-    "(0-hop breach)"
+    "with the traversal relationship filter and hop cap of paths_to_jewels "
+    "on engines >= 6.0.0; the per-pair existence form "
+    "(REACHABILITY_QUERY_TEMPLATE, both endpoints $param-bound) on older "
+    "engines — the cross-product arm forms are not evaluated correctly "
+    "there (F900, production: the deployed Cloud 4.22.0 answered the "
+    "all-owned arms with zero reachable ids and the per-owned arms with "
+    "nothing at all, while the per-pair probe sees the breach — so every "
+    "pre-6.0.0 engine takes the per-pair loop that production ran for "
+    "days); an owned principal that is itself a crown jewel counts as "
+    "reached (0-hop breach) on both paths"
 )
 
 # The two reachability arms: shortestPath is evaluated per (owned, jewel) row
@@ -165,18 +175,24 @@ REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
     ),
 )
 
-# audit7/perf-client correctness fix (live-prod): on engines older than
-# _MODERN_FALKORDB_VER the ALL-OWNED arm above undercounts — measured on the
-# managed Cloud 4.22.0 with two owned principals (one reaching, one not):
-# the arm returned ZERO reachable ids while the per-pair existence probe
-# (REACHABILITY_QUERY_TEMPLATE — both endpoints $param-bound in one MATCH,
-# the one form that engine evaluates correctly) sees the reacher. The same
-# arm shape with the principal $param-bound (one pair of queries per owned
-# principal) IS evaluated correctly there (live-verified: mixed-reach and
-# no-reach principals both classify exactly as the per-pair reference does).
-# reachability() selects per-owned arms on those engines; the arm texts
-# otherwise mirror the all-owned forms above exactly (same predicates, same
-# hop-cap slot).
+# audit7/perf-client correctness attempt, SUPERSEDED by F900 (production,
+# 2026-10-17): the intent was right — the ALL-OWNED arm above undercounts on
+# engines older than _MODERN_FALKORDB_VER (live-measured on the managed
+# Cloud 4.22.0 with two owned principals: the arm returned ZERO reachable
+# ids while the per-pair existence probe sees the reacher) — but the
+# $oid-bound per-owned form below did NOT hold in production either: the
+# deployed Cloud console (dep-db94uvek, develop b6dae5a) answered
+# /api/state with reach 0 and /api/paths with [] while an owned principal
+# existed, and ryzen 6.0.0 stayed green — on that engine family this arm
+# form returns nothing for the estate shape. reachability() therefore no
+# longer selects these arms on old engines: every pre-6.0.0 engine takes
+# the legacy per-pair existence loop (REACHABILITY_QUERY_TEMPLATE — both
+# endpoints $param-bound, the one form production ran for days pre-
+# fleet-7 and both audits agree is evaluated correctly there). The
+# templates stay verbatim: tests pin their shape and their parity with
+# the per-pair reference ON MODERN ENGINES (where they evaluate correctly).
+# Correctness beats round-trips — the only engine form trusted below
+# 6.0.0 is the one production has already proven.
 PER_OWNED_REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
     (
         "MATCH (o {{objectid: $oid}}), (t:Group) "
@@ -358,11 +374,13 @@ _ARM_POOL_MAX = 8
 # ONE row of a multi-row (o x t) binding — live-verified: the all-owned
 # reachability arm over 2 owned principals (one of which reaches) returned
 # ZERO rows where the per-pair probe sees one, and every cross-form of the
-# paths fold collapsed 5 reachable pairs to 1. On engines below this
-# version the port therefore uses the per-owned arm form (correct there,
-# live-verified) and keeps paths/edge-frequency on the legacy per-pair
-# queries — correctness beats round-trips, and the per-port engine version
-# is probed once (MODULE LIST) so the choice is deterministic per engine.
+# paths fold collapsed 5 reachable pairs to 1. F900 (production): the
+# $oid-bound per-owned arm form audit7 tried there failed identically on
+# the deployed console (reach 0 / paths [] with an owned principal), so
+# engines below this version now run reachability AND paths on the legacy
+# per-pair forms only — correctness beats round-trips, and the per-port
+# engine version is probed once (MODULE LIST) so the choice is
+# deterministic per engine.
 _MODERN_FALKORDB_VER = 60000
 
 
@@ -902,23 +920,36 @@ class FalkorGraphPort(GraphPort):
             ]
             snap = self._estate_snapshot()  # overlaps the arms in flight
         else:
-            # Older engines (live-verified on the managed Cloud 4.22.0)
-            # evaluate the cross-product arm for a single row and UNDERCOUNT
-            # with 2+ owned principals (measured: 2 owned -> 0 reachable where
-            # the per-pair probe sees 1) — the same arm with the principal
-            # $param-bound is evaluated correctly there. Correctness beats
-            # round-trips: 2 queries per owned principal.
+            # F900 (production): engines below _MODERN_FALKORDB_VER do not
+            # evaluate the cross-product arm forms correctly for this estate
+            # shape — the deployed Cloud 4.22.0 answered the all-owned arms
+            # with zero reachable ids AND the $oid-bound per-owned arms with
+            # nothing at all, while ryzen 6.0.0 was green on the same code.
+            # The legacy PER-PAIR existence loop is the only form production
+            # has proven on that engine family (pre-fleet-7, reach 0->1
+            # verified repeatedly): one probe per (owned, jewel) pair, both
+            # endpoints $param-bound, counting the principal at the first
+            # hit. Correctness beats round-trips.
             snap = self._estate_snapshot()
-            owned = snap["owned"] if snap is not None else self.owned_ids()
-            futures = [
-                pool.submit(
-                    self._arm_reached_ids,
-                    arm.format(pattern=pattern),
-                    {"oid": principal},
-                )
-                for principal in owned
-                for arm in PER_OWNED_REACHABILITY_ARM_TEMPLATES
-            ]
+            if snap is not None:
+                owned = snap["owned"]
+                jewels = snap["ad_jewels"] + snap["az_jewels"]
+            else:
+                owned = self.owned_ids()
+                jewels = self.crown_jewels()
+            probe = REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern)
+            reached: set[str] = set()
+            for principal in sorted(owned):
+                for jewel in sorted(jewels):
+                    hit = self._scalar(
+                        probe, {"oid": principal, "target": jewel}, timeout_ms=60000
+                    )
+                    if hit:
+                        reached.add(principal)
+                        break
+            jewel_set = set(jewels)
+            reached.update(o for o in owned if o in jewel_set)
+            return len(reached)
         reached: set[str] = set()
         for fut in futures:
             reached.update(fut.result())
