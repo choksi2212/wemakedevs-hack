@@ -3,99 +3,224 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
+<!-- favicon: a minimal severed-S cut from the same geometry as the pending
+     docs/assets/logo_v4.svg (halo dropped, tuned for 16px), embedded as a
+     data URI so it needs no route and no extra file. When the owner approves
+     the final mark, swap this href for the served SVG. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2096%2096'%3E%3Crect%20x='3'%20y='3'%20width='90'%20height='90'%20rx='18'%20fill='%2311141A'%20stroke='%232A3140'%20stroke-width='3'/%3E%3Cpath%20d='M%2034%2039.2%20L%2037%2040.2'%20fill='none'%20stroke='%23E5484D'%20stroke-width='9'%20stroke-linecap='butt'/%3E%3Cpath%20d='M%2062%2056.8%20L%2059%2055.8'%20fill='none'%20stroke='%23E5484D'%20stroke-width='9'%20stroke-linecap='butt'/%3E%3Cpath%20d='M%2070%2022%20C%2070%2011,%2025%2011,%2025%2027%20C%2025%2035,%2029%2037.7,%2034%2039.2'%20fill='none'%20stroke='%23E8EAED'%20stroke-width='9'%20stroke-linecap='round'/%3E%3Cpath%20d='M%2025%2074%20C%2025%2085,%2071%2085,%2071%2069%20C%2071%2061,%2067%2058.3,%2062%2056.8'%20fill='none'%20stroke='%23E8EAED'%20stroke-width='9'%20stroke-linecap='round'/%3E%3Ccircle%20cx='70'%20cy='22'%20r='10'%20fill='%2346A758'/%3E%3Ccircle%20cx='25'%20cy='74'%20r='10'%20fill='%23E5484D'/%3E%3C/svg%3E">
 <title>SEVER — interdiction console</title>
 <style>
+  /* ==================================================================
+     SEVER console — design system (audit6/ui-design-system)
+     One visual grammar for the whole page. Dark security-operations
+     aesthetic: flat surfaces separated by hairlines — elevation is a
+     surface step plus a border, NEVER a drop shadow. No gradients, no
+     glass, no glow. Data is monospace; narrative is humanist sans.
+     Every rule below consumes only the tokens defined here.
+     ================================================================== */
   :root {
     color-scheme: dark;
-    --bg: #0A0C10;
-    --surface: #11141A;
-    --surface-2: #151922;
-    --border: #1E232C;
-    --border-strong: #2A3140;
-    --text: #E6EAF0;
-    --text-2: #9BA3AF;
-    --text-3: #7E8898;
+
+    /* surfaces — the elevation ladder (page < cards < controls < hover) */
+    --bg: #0A0C10;           /* page ground               */
+    --surface: #11141A;      /* cards, header, footer     */
+    --surface-2: #151922;    /* controls, inset fills     */
+    --surface-3: #1B2130;    /* hover skin                */
+
+    /* hairlines — the only "elevation" device */
+    --border: #1E232C;         /* resting edge             */
+    --border-strong: #2A3140;  /* interactive edge         */
+    --border-hover: #3A4459;   /* hovered interactive edge */
+
+    /* text ramp — AA-verified on every surface it appears on */
+    --text: #E6EAF0;         /* primary data + narrative   */
+    --text-2: #9BA3AF;       /* secondary                  */
+    --text-3: #7E8898;      /* hints, labels, quiet data  */
+
+    /* state colors — the fixed product palette (do not re-tint) */
     --danger: #E5484D;
-    --danger-dim: #B3363B;
+    --danger-dim: #B3363B;       /* border tone for danger states */
+    --danger-strong: #F26D6D;    /* danger text on tinted fills   */
+    --danger-bg: #2B1518;        /* tinted fill (the armed gate)  */
+    --danger-bg-strong: #351A1E; /* hovered tinted fill           */
     --success: #46A758;
+    --success-strong: #7ED08C;   /* success text on dark fills     */
+    --success-bg: #14231A;       /* tinted fill (approve hover)   */
     --warn: #D4993F;
+    --warn-dim: #4A5A2E;         /* border tone for warn states   */
     --focus: #7BA2C9;
+
+    /* lane semantics — chips and banner share one state language */
+    --state-live: var(--success);
+    --state-degraded: var(--warn);
+    --state-down: var(--danger);
+
+    /* type scale — 10/11/12/13 data-first, plus the hero metric.
+       mono = data, IDs, Cypher · sans = narrative.
+       weights: 400 data · 500 controls · 600 emphasis · 700 wordmark */
+    --fs-xs: 10px;    /* micro: badges, timestamps, hop counters  */
+    --fs-s: 11px;     /* small: labels, chips, hints, quiet data */
+    --fs-m: 12px;     /* data body: rows, hops, buttons, marks  */
+    --fs-r: 13px;     /* narrative body                          */
+    --fs-hero: 40px;  /* the reachability number                 */
+    --lh-tight: 1.1; --lh-data: 1.5; --lh-copy: 1.65;
     --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", monospace;
     --sans: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+
+    /* spacing scale (4px base) and corner scale */
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px;
+    --r-xs: 3px;  /* badges, micro elements                 */
+    --r-s: 4px;   /* controls: buttons, chips, banner       */
+    --r-m: 6px;   /* containers: cards                      */
+
+    --t-fast: 120ms; /* the only motion: hover/focus skin changes */
   }
+
+  /* base */
   * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.45; min-height: 100vh; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: var(--fs-r); line-height: var(--lh-data); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  b { font-weight: 600; }
   button { font: inherit; cursor: pointer; }
-  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
-  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
-  .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: 14px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--focus) 28%, transparent); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* header + wordmark/logo lockup */
+  header { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: var(--fs-m); }
   .wordmark b { color: var(--danger); font-weight: 700; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; background: var(--bg); }
-  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
-  .chip.paused .dot { background: var(--warn); }
-  .chip.down .dot { background: var(--danger); }
-  .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+  /* logo lockup: the header slot for the pending severed-S mark
+     (docs/assets/logo_v4.svg). The markup keeps the slot commented out
+     until the owner approves; this rule is the only wiring and stays
+     inert while the slot is empty. */
+  .logo { display: block; width: 24px; height: 24px; flex: 0 0 auto; }
   .spacer { flex: 1; }
-  .tagline { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+  .tagline { font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); }
   .tagline b { color: var(--text-2); font-weight: 600; }
-  main { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; padding: 16px 20px; max-width: 1440px; margin: 0 auto; }
+
+  /* chips — one status language across the whole console:
+     live (green dot) / .paused = degraded (amber dot, olive edge) /
+     .down = unreachable (danger edge + text). The simulated-estate chip
+     is the honesty marker: dashed edge, amber text. */
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: var(--fs-s); color: var(--text-2); border: 1px solid var(--border); border-radius: var(--r-s); padding: 3px 8px; background: var(--bg); white-space: nowrap; }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--state-live); flex: 0 0 auto; }
+  .chip.paused .dot { background: var(--state-degraded); }
+  .chip.paused { border-color: var(--warn-dim); }
+  .chip.down .dot { background: var(--state-down); }
+  .chip.down { border-color: var(--danger-dim); color: var(--danger); }
+  #sim-chip { border-style: dashed; color: var(--warn); }
+  .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+  .chip-btn:hover { color: var(--text); }
+
+  /* layout — two dense columns, one gutter rhythm */
+  main { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); max-width: 1440px; margin: 0 auto; }
   @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-  .card + .card { margin-top: 16px; }
-  .card-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-  .card-head h2 { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
-  .card-head .hint { font-size: 11px; color: var(--text-3); }
-  .card-body { padding: 16px; }
-  .metric-row { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
-  .metric .label { font-size: 11px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
-  .metric .value { font-family: var(--mono); font-size: 40px; font-weight: 600; line-height: 1.05; }
+
+  /* cards / panels */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-m); overflow: hidden; }
+  .card + .card { margin-top: var(--sp-4); }
+  .card-head { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
+  .card-head h2 { font-size: var(--fs-s); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
+  .card-head .hint { font-size: var(--fs-s); color: var(--text-3); margin-left: auto; text-align: right; }
+  .card-body { padding: var(--sp-4); }
+
+  /* the metric — the one number the console exists to move */
+  .metric-row { display: flex; align-items: flex-end; gap: var(--sp-5); flex-wrap: wrap; }
+  .metric .label { font-size: var(--fs-s); color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
+  .metric .value { font-family: var(--mono); font-size: var(--fs-hero); font-weight: 600; line-height: var(--lh-tight); font-variant-numeric: tabular-nums; }
   .metric .value.danger { color: var(--danger); }
   .metric .value.ok { color: var(--success); }
-  .metric .sub { font-size: 11px; color: var(--text-3); font-family: var(--mono); margin-top: 4px; }
-  .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 4px; padding: 8px 12px; font-size: 12.5px; transition: background 150ms ease, border-color 150ms ease; }
-  .btn:hover { background: #1B2130; }
-  .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
-  .btn.approve { border-color: var(--success); color: #7ED08C; font-weight: 600; }
-  .btn.approve:hover { background: #14231A; }
-  .btn.confirm { border-color: var(--success); background: #14231A; }
-  .btn.cancel { border-color: var(--border); color: var(--text-2); }
+  .metric .sub { font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); margin-top: var(--sp-1); overflow-wrap: anywhere; }
+
+  /* 90-second onboarding strip — the judge briefing panel */
+  .onboard { margin-top: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-s); background: var(--bg); font-size: var(--fs-m); color: var(--text-3); line-height: var(--lh-copy); }
+  .onboard b { color: var(--text-2); font-weight: 600; }
+
+  /* buttons — one system: default / .approve (registers intent) /
+     .confirm (the armed, irreversible act: danger-loaded) / .cancel
+     (ghost) / [disabled]. Never a shadow, never a gradient. */
+  .btn { display: inline-flex; align-items: center; gap: var(--sp-2); background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-s); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-m); font-weight: 500; transition: background var(--t-fast) ease, border-color var(--t-fast) ease, color var(--t-fast) ease; }
+  .btn:not([disabled]):hover { background: var(--surface-3); border-color: var(--border-hover); }
+  .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; flex: 0 0 auto; }
+  .btn.approve { border-color: var(--success); color: var(--success-strong); font-weight: 600; }
+  .btn.approve:not([disabled]):hover { background: var(--success-bg); border-color: var(--success-strong); }
+  .btn.confirm { border-color: var(--danger); background: var(--danger-bg); color: var(--danger-strong); font-weight: 600; }
+  .btn.confirm:not([disabled]):hover { background: var(--danger-bg-strong); border-color: var(--danger-strong); }
+  .btn.cancel { background: transparent; border-color: var(--border); color: var(--text-2); }
+  .btn.cancel:not([disabled]):hover { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
   .btn[disabled] { opacity: .45; cursor: not-allowed; }
-  .banner { margin-top: 14px; padding: 10px 12px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); font-size: 12.5px; color: var(--text-2); display: none; }
+
+  .actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); flex-wrap: wrap; }
+
+  /* banner — two lanes, one component. Action receipts carry no
+     data-flag and persist (neutral strong edge). State markers are
+     transient and edge-coded by lane: partial data = amber edge,
+     engine down = danger edge. */
+  .banner { margin-top: var(--sp-3); padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: var(--r-s); background: var(--bg); font-size: var(--fs-r); color: var(--text-2); line-height: var(--lh-copy); display: none; }
   .banner.show { display: block; }
-  .banner .technique { color: var(--warn); font-family: var(--mono); font-size: 11px; display: block; margin-bottom: 4px; }
-  .banner .res { color: var(--text); font-family: var(--mono); font-size: 11.5px; display: block; margin-top: 4px; }
-  .path-block { margin: 14px 0; }
-  .path-block + .path-block { border-top: 1px solid var(--border); padding-top: 14px; }
-  .path-head { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+  .banner b { color: var(--text); font-weight: 600; }
+  .banner .technique { display: block; margin-bottom: var(--sp-1); color: var(--warn); font-family: var(--mono); font-size: var(--fs-s); font-weight: 600; letter-spacing: .04em; }
+  .banner .res { display: block; margin-top: var(--sp-1); color: var(--text); font-family: var(--mono); font-size: var(--fs-m); }
+  .banner[data-flag="partial"] { border-left-color: var(--state-degraded); }
+  .banner[data-flag="down"] { border-color: var(--danger-dim); border-left-color: var(--state-down); }
+
+  /* attack paths — numbered hop chains down the rail */
+  .path-block { margin: var(--sp-3) 0; }
+  .path-block:last-child { margin-bottom: 0; }
+  .path-block + .path-block { border-top: 1px solid var(--border); padding-top: var(--sp-3); }
+  .path-head { font-size: var(--fs-m); color: var(--text-2); font-family: var(--mono); }
   .path-head b { color: var(--text); font-weight: 600; }
-  .hops { margin-top: 6px; border-left: 2px solid var(--border-strong); }
-  .hop { display: flex; gap: 10px; align-items: baseline; padding: 4px 0 4px 12px; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; }
+  .hops { margin-top: var(--sp-2); border-left: 2px solid var(--border-strong); counter-reset: hop; }
+  .hop { display: flex; gap: var(--sp-2); align-items: baseline; padding: var(--sp-1) 0 var(--sp-1) var(--sp-3); font-family: var(--mono); font-size: var(--fs-m); flex-wrap: wrap; }
+  .hop::before { counter-increment: hop; content: counter(hop); flex: 0 0 auto; min-width: 14px; font-size: var(--fs-xs); color: var(--text-3); }
   .hop .node { color: var(--text); }
-  .hop .node.mut { color: var(--warn); }
-  .hop .rel { color: var(--text-3); font-size: 11px; }
-  .hop .jewel { color: var(--danger); }
-  .empty { color: var(--text-3); font-size: 12.5px; padding: 8px 0; }
-  .prop-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .hop .node.mut { color: var(--warn); }      /* the compromised entry node   */
+  .hop .node.jewel { color: var(--danger); }  /* the crown jewel, now at risk  */
+  .hop .rel { color: var(--text-3); font-size: var(--fs-s); }
+
+  .empty { color: var(--text-3); font-size: var(--fs-m); padding: var(--sp-2) 0; }
+
+  /* proposal + plan rows — one row system. Proposal rows are ranked;
+     the CSS counter renders the rank. Plan rows carry their own step
+     number inside the row text, so no counter there. */
+  .prop-row { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--border); }
   .prop-row:last-child { border-bottom: none; }
-  .prop-main { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; }
+  .prop-row:hover { background: var(--surface-2); }
+  .prop-main { flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--fs-m); color: var(--text); font-variant-numeric: tabular-nums; }
   .prop-main .rel { color: var(--warn); }
-  .prop-main .quiet { color: var(--text-3); font-size: 11px; margin-left: 8px; }
-  .prop-cta { display: flex; gap: 8px; }
-  .ledger { max-height: 300px; overflow-y: auto; }
-  .entry { display: flex; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
+  .prop-main .quiet { color: var(--text-3); font-size: var(--fs-s); margin-left: var(--sp-2); }
+  .prop-cta { display: flex; gap: var(--sp-2); flex-shrink: 0; }
+  #proposal { counter-reset: rank; }
+  #proposal .prop-row::before { counter-increment: rank; content: counter(rank); flex: 0 0 auto; min-width: var(--sp-4); font-size: var(--fs-xs); color: var(--text-3); text-align: right; }
+
+  /* receipts ledger — append-only forensics */
+  .ledger { max-height: 300px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  .ledger::-webkit-scrollbar { width: 10px; }
+  .ledger::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-s); border: 2px solid var(--surface); }
+  .ledger::-webkit-scrollbar-track { background: transparent; }
+  .entry { display: flex; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--border); font-size: var(--fs-m); align-items: baseline; }
   .entry:last-child { border-bottom: none; }
-  .badge { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; border: 1px solid var(--border-strong); color: var(--text-2); border-radius: 3px; padding: 1px 6px; flex-shrink: 0; text-transform: uppercase; }
+  .badge { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: .08em; border: 1px solid var(--border-strong); color: var(--text-2); border-radius: var(--r-xs); padding: 1px 6px; flex-shrink: 0; text-transform: uppercase; }
   .badge.cut { border-color: var(--danger-dim); color: var(--danger); }
-  .badge.finding { border-color: #4A5A2E; color: var(--warn); }
-  .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
-  footer { padding: 12px 20px; font-size: 11px; color: var(--text-3); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: 16px; }
+  .badge.finding { border-color: var(--warn-dim); color: var(--warn); }
+  .entry .line { color: var(--text-2); font-family: var(--mono); font-size: var(--fs-m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-variant-numeric: tabular-nums; }
+  .entry .ts { color: var(--text-3); font-family: var(--mono); font-size: var(--fs-xs); flex-shrink: 0; margin-left: auto; }
+
+  /* footer */
+  footer { padding: var(--sp-3) var(--sp-5); font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: var(--sp-4); }
 </style>
 </head>
 <body>
 <header>
+  <!-- LOGO SLOT (design-system prep, audit6/ui-design-system): the severed-S
+       mark (docs/assets/logo_v4.svg) is PENDING the owner's review, so the
+       slot ships empty and inert. To integrate once approved: make the SVG
+       servable (the console serves only "/" today, so add a route or inline
+       the file), then uncomment the img line below; the .logo rule in the
+       style block is the only other wiring. To revert: delete this comment
+       block.
+       <img class="logo" src="docs/assets/logo_v4.svg" alt="" width="24" height="24">
+       -->
   <span class="wordmark">SE<b>VER</b></span>
   <span class="chip" id="sim-chip" title="Simulated identity estate &mdash; findings are a labeled breach-timeline replay. All data public/synthetic.">SIMULATED ESTATE &middot; REPLAY</span>
   <span class="chip" id="engine-chip" role="status" aria-live="polite"><span class="dot"></span><span id="engine-label">engine</span></span>
@@ -121,13 +246,13 @@
              must be able to run breach → paths → gate → cut → receipt without
              the README. Also states the simulation + the BloodHound delta in
              plain language. -->
-        <div style="font-size:11px;color:var(--text-3);line-height:1.7;margin-top:12px">
-          <b style="color:var(--text-2)">Demo arc (~90s, no README needed):</b>
-          1) <b style="color:var(--text-2)">Simulate breach finding</b> — an identity is marked compromised and its attack paths to the crown jewels light up below.
-          2) Read the ranked <b style="color:var(--text-2)">interdiction proposal</b> — which single edge, if removed, kills the most attack paths; benign-usage collateral breaks ties.
-          3) <b style="color:var(--text-2)">APPROVE CUT</b> then <b style="color:var(--text-2)">CONFIRM CUT</b> — the two-step human gate: nothing is ever severed without an explicit confirm.
-          4) Read the <b style="color:var(--text-2)">receipt</b> — the engine is re-queried live and reachability is re-measured before vs after.<br>
-          BloodHound shows you these paths; SEVER removes the edge and <b style="color:var(--text-2)">proves the collapse with a measured receipt</b>.
+        <div class="onboard">
+          <b>Demo arc (~90s, no README needed):</b>
+          1) <b>Simulate breach finding</b> — an identity is marked compromised and its attack paths to the crown jewels light up below.
+          2) Read the ranked <b>interdiction proposal</b> — which single edge, if removed, kills the most attack paths; benign-usage collateral breaks ties.
+          3) <b>APPROVE CUT</b> then <b>CONFIRM CUT</b> — the two-step human gate: nothing is ever severed without an explicit confirm.
+          4) Read the <b>receipt</b> — the engine is re-queried live and reachability is re-measured before vs after.<br>
+          BloodHound shows you these paths; SEVER removes the edge and <b>proves the collapse with a measured receipt</b>.
           Everything here runs on public BloodHound CE sample data as a labeled simulated replay — no real organization.
         </div>
         <div class="actions">
@@ -147,7 +272,7 @@
   <section>
     <div class="card">
       <div class="card-head"><h2>Interdiction proposal</h2><span class="hint">edges ranked by path coverage · benign usage breaks ties</span></div>
-      <div id="proposal"><div class="empty" style="padding:12px 16px">Nothing to propose.</div></div>
+      <div id="proposal"><div class="empty">Nothing to propose.</div></div>
     </div>
     <div class="card" id="plan-card" style="display:none">
       <div class="card-head"><h2>Remediation plan</h2><span class="hint">k-cut sequence · projections measured on an isolated copy</span></div>
@@ -155,7 +280,7 @@
     </div>
     <div class="card">
       <div class="card-head"><h2>Receipts</h2><span class="hint">append-only case ledger</span></div>
-      <div class="ledger" id="receipts"><div class="entry"><span class="line" style="color:var(--text-3)">—</span></div></div>
+      <div class="ledger" id="receipts"><div class="entry"><span class="line">—</span></div></div>
     </div>
   </section>
 </main>
