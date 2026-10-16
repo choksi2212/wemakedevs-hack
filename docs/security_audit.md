@@ -6,6 +6,30 @@ review of every string-interpolation seam into Cypher, pydantic schema review,
 docker-compose exposure review, DOM-sink review of the console UI. Every
 verdict below is backed by a regression test in this branch.
 
+> **TL;DR** — Secrets: **clean** across all refs (zero real hits, no `.env` ever
+> committed). Cypher injection: every interpolation seam inventoried (§2 table),
+> three real gaps closed on this branch (batch-rel gate, regex anchor, charset);
+> the one interpolated slot left (`{rel}`) is regex-validated before reaching the
+> query string. Request schemas hardened at the HTTP layer (§3). Console XSS fixed
+> at the DOM boundary (§5). One accepted-surface list documented by design, and the
+> live deployment's plaintext engine leg flagged honestly (§4b — diagram below).
+> Tests: **52 passed, 38 skipped (engine-gated), 1 pre-existing failure**.
+
+## 0. Transport topology — where the plaintext leg is
+
+```mermaid
+flowchart LR
+    B["Operator / judge browser"] -->|"TLS - Render terminates HTTPS"| R["Render console<br/>sever-console.onrender.com, Singapore"]
+    R -->|"PLAINTEXT RESP over the public internet<br/>free-tier FalkorDB Cloud ships no TLS"| F["FalkorDB Cloud<br/>ap-south-1 Mumbai, free tier<br/>ACL-denied for the app user: CONFIG, ACL, KEYS, DEBUG, XLEN, XRANGE, SAVE"]
+```
+
+What crosses the plaintext leg: the `AUTH` handshake, every Cypher query, and all
+graph data — read-limiting ACLs (measured live in
+[`receipts/audit5_cloud_instance.json`](receipts/audit5_cloud_instance.json))
+constrain what a stolen credential can *do*, but do not encrypt it. Self-hosted
+deployments close the gap by pointing `SEVER_FALKOR_HOST` at localhost or a
+private network.
+
 ## 1. Secrets — CLEAN
 
 - Full-history scan (all refs, `git log -p --all`), 12 pattern families:

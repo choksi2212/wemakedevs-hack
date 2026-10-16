@@ -3,6 +3,13 @@
 Date 2026-10-16. Question: **has SEVER already been built or published?** Sources: arXiv,
 ACM DL, Springer, ScienceDirect, dblp, vendor archives.
 
+> **TL;DR** — **No published work builds SEVER's loop.** Every *component* has
+> precedent (greedy max-coverage ranking, Stackelberg AD-graph interdiction,
+> human-approval gates, graph-DB substrates) — the closed loop on a live multi-tenant
+> graph DB with per-cut receipts is unclaimed. Novelty is **systems integration**, not
+> the heuristic. The citable paragraph is **Precise novelty statement** below; the
+> cheap addable ideas are at the end.
+
 ## Verdict
 
 **No published work builds SEVER's loop.** Every *component* has precedent — greedy

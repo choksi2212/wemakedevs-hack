@@ -3,6 +3,13 @@
 Branch `audit4/falkordb-ecosystem` from `origin/main` @ `7a30ede` · researched 2026-10-16.
 External claims carry their URL; SEVER claims carry the repo receipt that proves them.
 
+> **TL;DR** — FalkorDB's own marketing asks SEVER's exact question (*"What's the
+> path from this leaked token to a production database?"*) and headlines Agent
+> Memory + Cloud Security: SEVER is that story shipped — 300 isolated tenant graphs
+> receipted at 4.67ms median, FalkorDBSaver used as real security-agent case memory,
+> engine quirks mapped and published. No visible 2026 entrant is in identity
+> interdiction. §5 is the judge talking points, in their own voice.
+
 ## 0. The event, live-verified today (real browser DOM, not SEO cache)
 
 - **Graph Hacks: Context for AI Agents**, WeMakeDevs × FalkorDB, online **Oct 15–18, 2026**, **$20,000** total — https://www.wemakedevs.org/hackathons/falkordb/schedule, https://luma.com/graph-hacks

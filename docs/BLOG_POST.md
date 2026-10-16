@@ -4,6 +4,44 @@
 attack-path tool refuses to do: act — with a human gate and receipts for
 every millisecond.*
 
+> **TL;DR** — Attack-path tooling stops at advice: map, rank, file a ticket, watch it
+> rot. I built the missing half — **SEVER**: a human-gated cut on the live identity
+> graph, re-queried and receipted (first cut honestly **DEGRADED** at 2.34ms; the
+> re-ranked cut **COLLAPSED 1 → 0 in 2.28ms**). Same database runs cross-process case
+> memory (fresh-process resume, 2.47ms), a hybrid cloud/on-prem bridge cut (3.0ms),
+> and 300 tenant graphs flat at a 4.67ms median. Post map below; the receipts are
+> the story.
+
+## Post map — how this piece flows
+
+```mermaid
+flowchart LR
+    H["Hook: the advice rots"] --> T["Thesis: verified interdiction is the unsolved part"]
+    T --> A["The architecture, honestly"]
+    A --> R["What the receipts say - DEGRADED kept on purpose"]
+    R --> L["FalkorDB 6.0.0 lessons, verbatim"]
+    L --> P["The point: graph does the math, human swings the axe"]
+```
+
+## Advice-only vs closed-loop interdiction
+
+The one picture the post argues:
+
+```mermaid
+flowchart TD
+    M["Run BloodHound, get the attack-path graph"] --> O["Advice-only tools"]
+    M --> S["SEVER - the closed loop"]
+    O --> O1["Rank choke points and remediation guidance"]
+    O1 --> O2["Export a report, file a ticket"]
+    O2 --> O3["A human executes a fix someday"]
+    O3 --> O4["No tool proves the exposure died - posture trending at best"]
+    S --> S1["Rank the single best edge on the live graph"]
+    S1 --> S2["HUMAN GATE - APPROVE, then CONFIRM"]
+    S2 --> S3["The cut executes on the live graph"]
+    S3 --> S4["Re-query: 1 to 1 DEGRADED, 2.34ms - the honest verdict"]
+    S4 --> S5["Re-rank, cut again: 1 to 0 COLLAPSED, 2.28ms - receipted"]
+```
+
 Every identity-security engineer knows the workflow: run BloodHound, get a
 beautiful graph of attack paths to Domain Admin, export a report, put it in a
 ticket... and watch it rot. The tools that map your attack surface are
