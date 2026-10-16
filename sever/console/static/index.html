@@ -150,6 +150,12 @@
   #sim-chip { border-style: dashed; color: var(--warn); }
   .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .chip-btn:hover { color: var(--text); }
+  /* fleet8/F205 (a11y, WCAG 2.2 2.5.8): the refresh toggle painted at 71x17px
+     is the smallest pointer target on the page — below the 24px minimum.
+     Transparent vertical padding grows the HIT BOX to 25px while the negative
+     margins hand the layout height straight back, so the chip row keeps its
+     exact visual rhythm (the chip itself never grows). */
+  .chip-btn { padding: 4px 0; margin: -4px 0; }
 
   /* layout — two dense columns, one gutter rhythm */
   main { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); max-width: 1440px; margin: 0 auto; }
@@ -552,7 +558,7 @@
     </section>
     <div class="card" id="plan-card" style="display:none">
       <header class="sec-head">
-        <h2 id="plan-card-title"><span class="sec-n" aria-hidden="true">3</span> Remediation plan</h2>
+        <h2 id="plan-card-title"><span class="sec-n" aria-hidden="true">3b</span> Remediation plan</h2>
         <p class="sec-caption">k-cut sequence &mdash; projections measured on an isolated copy; execution re-measures each step live and stops at the first drift.</p>
       </header>
       <div class="card-body" id="plan-body"></div>
@@ -752,8 +758,8 @@
       cut ? 'done' : (breached && propCount > 0 ? 'live' : 'pending'),
       cut ? 'done — the gate held on every cut'
         : propCount > 0 ? propCount + ' candidate edge' + (propCount === 1 ? '' : 's') + ' ranked in section 3'
-        : breached ? 'surface collapsed — a fresh deploy restores the demo'
-                    : 'waiting for a breach');
+        : breached ? 'surface collapsed — grant a new ACE (section 1) to open fresh exposure'
+                   : 'waiting for a breach');
     setStep('step-receipt', 'step-state-receipt',
       cut ? 'done' : 'pending',
       cut ? 'measured before vs after in section 4' : 'waiting for the first cut');
@@ -776,7 +782,12 @@
     $('paths').innerHTML = shown.length
       ? shown.map((p) => {
           const h0 = p.hops[0];
-          return '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> <span class="tail">→ crown jewel</span></div>' +
+          // fleet8/F204: card headers must distinguish the cards — head each
+          // with the actual destination jewel from the chain tail, esc-wrapped
+          // at the sink as everywhere else; a degenerate empty chain falls
+          // back to the generic tail.
+          const jewel = p.hops.length ? p.hops[p.hops.length - 1].dst : 'crown jewel';
+          return '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> <span class="tail">→ ' + esc(jewel) + '</span></div>' +
           '<div class="hops">' +
           (h0 ? '<span class="hop"><span class="node mut" title="' + esc(h0.src_id && h0.src_id !== h0.src ? h0.src + ' (' + h0.src_id + ')' : h0.src) + '">' + esc(short(h0.src)) + '</span></span>' : '') +
           p.hops.map((h, i) =>
@@ -932,6 +943,20 @@
       // the benign note is quiet reassurance: green when the edge is
       // attacker-only, amber when legitimate flows cross it.
       const maxOn = prop.reduce((m, c) => Math.max(m, c.paths_on || 0), 0);
+      // fleet8/F202: the proposal empty state must be STATE-AWARE — a dormant
+      // estate (no owned principal) was told "every attack path is already
+      // severed", which is false there (nothing was ever severed: no attack
+      // paths exist because no principal is owned), and a contained estate was
+      // told a fresh deploy is needed when the working next move is the ACE
+      // grant. Both copies now route the judge to the live next action.
+      // Built BEFORE the sink as a plain string so the markup-assignment
+      // statement keeps the dom-escape contract shape (no un-escaped operand
+      // adjacent to structural literals).
+      const propEmpty = '<div class="empty" style="padding:12px 16px">' +
+        (s.owned && s.owned.length
+          ? 'A previous operator\u2019s cuts contain this breach — every attack path is already severed. Grant a new ACE (live mutation) in section 1 to open fresh exposure, or wait for an estate reset.'
+          : 'No owned principals — simulate a breach finding in section 1 to begin.') +
+        '</div>';
       $('proposal').innerHTML = prop.length
       ? prop.map((c) => {
           const pct = maxOn > 0 ? Math.max(4, Math.round(100 * c.paths_on / maxOn)) : 0;
@@ -954,7 +979,7 @@
           '</div>' +
           '<div class="prop-cta"><button class="btn approve" data-src="' + esc(c.src) + '" data-dst="' + esc(c.dst) + '" data-rel="' + esc(c.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button></div></div>';
         }).join('')
-      : '<div class="empty" style="padding:12px 16px">Nothing to propose — every attack path is already severed (reachability 0). A fresh deploy of the sample estate restores the demo.</div>';
+      : propEmpty;
     document.querySelectorAll('#proposal button.approve').forEach((b) =>
       b.addEventListener('click', () => armGate(b.dataset.src, b.dataset.dst, b.dataset.rel)));
     // keep an armed gate armed across re-renders (auto-refresh must not wipe
