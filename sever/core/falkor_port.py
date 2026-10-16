@@ -121,15 +121,15 @@ OWNED_QUERY = "MATCH (n {owned: true}) RETURN n.objectid AS objectid"
 REACHABILITY_METHOD = (
     "two-arm all-pairs shortestPath existence (REACHABILITY_ARM_TEMPLATES) "
     "with the traversal relationship filter and hop cap of paths_to_jewels "
-    "on engines >= 6.0.0; the per-pair existence form "
-    "(REACHABILITY_QUERY_TEMPLATE, both endpoints $param-bound) on older "
-    "engines — the cross-product arm forms are not evaluated correctly "
-    "there (F900, production: the deployed Cloud 4.22.0 answered the "
-    "all-owned arms with zero reachable ids and the per-owned arms with "
-    "nothing at all, while the per-pair probe sees the breach — so every "
-    "pre-6.0.0 engine takes the per-pair loop that production ran for "
-    "days); an owned principal that is itself a crown jewel counts as "
-    "reached (0-hop breach) on both paths"
+    "— issued CONCURRENTLY on engines the constructor-time MODULE LIST "
+    "probe vouches for (falkordb >= 6.0.0, fail-safe: any probe failure "
+    "means the old dialect), and SEQUENTIALLY in the exact pre-fleet-7 "
+    "form on every other engine (F900, production: the deployed Cloud "
+    "answered the fleet-7 per-owned arm form with nothing at all — "
+    "reach 0 with an owned principal, twice — while the pre-fleet-7 "
+    "two-arm form ran green on that estate for days); an owned principal "
+    "that is itself a crown jewel counts as reached (0-hop breach) on "
+    "both paths"
 )
 
 # The two reachability arms: shortestPath is evaluated per (owned, jewel) row
@@ -396,13 +396,36 @@ def _arm_pool() -> ThreadPoolExecutor:
 def _is_engine_form_error(exc: BaseException) -> bool:
     """True only when the ENGINE REJECTED THE QUERY FORM (a response error),
     never for a timeout/connection problem — a slow-but-working engine must
-    never silently downgrade the port to more round-trips."""
+    never silently downgrade the port to more round-trips.
+
+    F900 reopen (audit8/fix-code): the managed Cloud rejects the batched
+    cross-product dialect with CYPHER PARSER errors ("Invalid input 'S' ...
+    expected an integer, '{', a parameter or ']'", "errMsg: ...") that do not
+    always surface as redis ResponseError through every gateway — and when
+    such a rejection escaped classification, paths_to_jewels RAISED instead
+    of latching the honest capability fallback. A parser/parameter error is
+    a FORM error by definition (the query text is the form), so classify by
+    the engine's own parse-error markers as well. Conservative by design:
+    a false positive only costs the fold (the legacy per-pair forms answer
+    identically everywhere); a false negative re-raises loudly."""
     try:
         from redis.exceptions import ResponseError
 
-        return isinstance(exc, ResponseError)
+        if isinstance(exc, ResponseError):
+            return True
     except ImportError:  # pragma: no cover — falkordb always ships redis-py
-        return False
+        pass
+    msg = str(exc)
+    return any(
+        marker in msg
+        for marker in (
+            "Invalid input",          # Cypher parser rejection (live-captured on the Cloud)
+            "errMsg",                 # FalkorDB error envelope carried as a plain message
+            "Failed to parse",        # command/parameter parse rejection
+            "unknown command",        # e.g. a CYPHER header the engine does not speak
+            "SyntaxError",            # engine-reported Cypher syntax class
+        )
+    )
 
 
 class _CountingClient:
@@ -512,6 +535,7 @@ class FalkorGraphPort(GraphPort):
         self._snapshot_ttl = (
             float(os.environ.get("SEVER_FALKOR_SNAPSHOT_TTL_MS", "2000")) / 1000.0
         )
+        _constructed_live_client = False  # set when THIS ctor built the real client
         if client is not None:
             graph = client
         else:
@@ -552,7 +576,24 @@ class FalkorGraphPort(GraphPort):
                 socket_keepalive_options=(keepalive_options or None),
             )
             graph = fdb.select_graph(graph_name)
+            _constructed_live_client = True
+            # F900 reopen (audit8/fix-code): resolve the engine dialect at
+            # FIRST ENGINE CONTACT, in the constructor. The constructor is
+            # already a mandatory engine round-trip (the falkordb client's
+            # eager Is_Sentinel INFO probe just proved the engine answers),
+            # so a MODULE LIST here is paid at boot — never inside a
+            # measured request sequence (the ryzen round-trip receipts pin
+            # caught exactly that misplacement) — and a FAILED probe (cold
+            # engine, gateway hiccup) fails safe: 0 = the old dialect, whose
+            # canonical per-pair / two-arm forms run on BOTH engine
+            # families. Leaving the probe to lazy first-use instead let the
+            # deployed console arm the cross-product folds before the
+            # engine could vouch for them (prod answered reach 0 / paths []
+            # with an owned principal, twice). Injected stubs skip this by
+            # construction and keep their lazy, stub-pinned probe semantics.
         self._raw_graph = graph
+        if _constructed_live_client:
+            self._probe_engine_version()
         # The engine traffic proxy: counts queries, invalidates the snapshot
         # cache on observed writes. Everything else delegates verbatim, so
         # ``port.graph`` keeps every attribute the wire-shape tests and
@@ -900,56 +941,37 @@ class FalkorGraphPort(GraphPort):
         return len(reached)
 
     def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
-        if not self._fold_active:
+        # Old-engine dialect (F900, production reopen): restore the EXACT
+        # pre-fleet-7 form on engines the version probe does not vouch for.
+        # The two-arm all-pairs form (_reachability_legacy) is what production
+        # ran on the deployed Cloud estate for days pre-fleet-7 (reach 0->1
+        # verified repeatedly) — the fleet-7 $oid-bound per-owned arms that
+        # replaced it answered nothing on that engine family (prod deploys
+        # answered reach 0 with an owned principal, twice), and audit5
+        # measured the cross-form undercount with 2+ owned principals on the
+        # same engine. paths_to_jewels keeps the per-pair canonical loop there
+        # (pre-fleet-7 form, live-proven raw against the Cloud in the F900
+        # reopen). The version probe is consulted once per port
+        # (constructor-time MODULE LIST, fail-safe to the old dialect), so
+        # the branch is deterministic per engine. Folds off (stubs, TTL=0,
+        # a latched fold refusal) take the same two-arm legacy form every
+        # audit has pinned.
+        if not (self._fold_active and self._modern_engine):
             return self._reachability_legacy(hop_cap)
         # The arms are INDEPENDENT read queries — issue them concurrently over
         # the connection pool (one wall-clock instead of many) and overlap the
         # snapshot fetch with them. The arms are NEVER cached, so an
         # interdiction by ANY operator is visible in the headline metric on
         # the very next call. The first arm exception propagates as-is — no
-        # retry, no masking.
+        # retry, no masking. falkordb 6.x (verified): the all-owned two-arm
+        # form — 2 queries for any number of owned principals.
         pattern = cypher_traversal_pattern(hop_cap)
         pool = _arm_pool()
-        futures: list[Any] = []
-        if self._modern_engine:
-            # falkordb 6.x (verified): the all-owned two-arm form — 2 queries
-            # for any number of owned principals.
-            futures = [
-                pool.submit(self._arm_reached_ids, arm.format(pattern=pattern))
-                for arm in REACHABILITY_ARM_TEMPLATES
-            ]
-            snap = self._estate_snapshot()  # overlaps the arms in flight
-        else:
-            # F900 (production): engines below _MODERN_FALKORDB_VER do not
-            # evaluate the cross-product arm forms correctly for this estate
-            # shape — the deployed Cloud 4.22.0 answered the all-owned arms
-            # with zero reachable ids AND the $oid-bound per-owned arms with
-            # nothing at all, while ryzen 6.0.0 was green on the same code.
-            # The legacy PER-PAIR existence loop is the only form production
-            # has proven on that engine family (pre-fleet-7, reach 0->1
-            # verified repeatedly): one probe per (owned, jewel) pair, both
-            # endpoints $param-bound, counting the principal at the first
-            # hit. Correctness beats round-trips.
-            snap = self._estate_snapshot()
-            if snap is not None:
-                owned = snap["owned"]
-                jewels = snap["ad_jewels"] + snap["az_jewels"]
-            else:
-                owned = self.owned_ids()
-                jewels = self.crown_jewels()
-            probe = REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern)
-            reached: set[str] = set()
-            for principal in sorted(owned):
-                for jewel in sorted(jewels):
-                    hit = self._scalar(
-                        probe, {"oid": principal, "target": jewel}, timeout_ms=60000
-                    )
-                    if hit:
-                        reached.add(principal)
-                        break
-            jewel_set = set(jewels)
-            reached.update(o for o in owned if o in jewel_set)
-            return len(reached)
+        futures: list[Any] = [
+            pool.submit(self._arm_reached_ids, arm.format(pattern=pattern))
+            for arm in REACHABILITY_ARM_TEMPLATES
+        ]
+        snap = self._estate_snapshot()  # overlaps the arms in flight
         reached: set[str] = set()
         for fut in futures:
             reached.update(fut.result())
