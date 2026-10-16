@@ -1,0 +1,1234 @@
+{
+ "meta": {
+  "base": "https://sever-console.onrender.com",
+  "part": "B",
+  "started_utc": "2026-10-16T01:56:03Z",
+  "viewport": "1440x900",
+  "headless": true
+ },
+ "timings": {
+  "load_page_s": 53.26
+ },
+ "steps": [
+  {
+   "step": "B0_loaded",
+   "t_utc": "01:57:00Z",
+   "state": {
+    "reach": 1,
+    "edges": 12448
+   }
+  },
+  {
+   "step": "collapse_cut_1",
+   "t_utc": "01:57:22Z",
+   "label": "B0_collapse",
+   "row": "\u20267394-512 -[GENERIC_WRITE]-> \u20267394-519on 2 path-edge occurrences \u00b7 benign 5 of 25 sampled APPROVE CUT",
+   "banner": "INTERDICTION RECEIPT\nremoved 1 relationship(s) \u00b7 reachability 1 \u2192 1 \u00b7 re-query 126.93ms \u00b7 verdict degraded",
+   "dt_s": 9.4
+  },
+  {
+   "step": "collapse_cut_2",
+   "t_utc": "01:58:43Z",
+   "label": "B0_collapse",
+   "row": "\u20267394-512 -[WRITE_DACL]-> \u2026394-2113on 2 path-edge occurrences \u00b7 benign 5 of 25 sampled APPROVE CUT",
+   "banner": "INTERDICTION RECEIPT\nremoved 1 relationship(s) \u00b7 reachability 1 \u2192 1 \u00b7 re-query 124.25ms \u00b7 verdict degraded",
+   "dt_s": 21.77
+  },
+  {
+   "step": "collapse_cut_3",
+   "t_utc": "02:00:06Z",
+   "label": "B0_collapse",
+   "row": "\u20267394-512 -[WRITE_DACL]-> \u20267394-519on 2 path-edge occurrences \u00b7 benign 5 of 25 sampled APPROVE CUT",
+   "banner": "INTERDICTION RECEIPT\nremoved 1 relationship(s) \u00b7 reachability 1 \u2192 1 \u00b7 re-query 125.1ms \u00b7 verdict degraded",
+   "dt_s": 22.47
+  },
+  {
+   "step": "collapse_cut_4",
+   "t_utc": "02:01:08Z",
+   "label": "B0_collapse",
+   "row": "\u20267394-512 -[WRITE_OWNER]-> \u2026394-2113on 2 path-edge occurrences \u00b7 benign 5 of 25 sampled APPROVE CUT",
+   "banner": "INTERDICTION RECEIPT\nremoved 1 relationship(s) \u00b7 reachability 1 \u2192 1 \u00b7 re-query 124.09ms \u00b7 verdict degraded",
+   "dt_s": 1.47
+  },
+  {
+   "step": "collapse_cut_failed_5",
+   "t_utc": "02:02:08Z",
+   "label": "B0_collapse",
+   "banner": "cut failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid"
+  },
+  {
+   "step": "collapse_cut_5",
+   "t_utc": "02:02:13Z",
+   "label": "B0_collapse",
+   "row": "\u20267394-512 -[OWNS]-> \u2026394-2113on 2 path-edge occurrences \u00b7 benign 5 of 25 sampled APPROVE CUT",
+   "banner": "cut failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid",
+   "dt_s": 0.13
+  },
+  {
+   "step": "collapse_cut_6",
+   "t_utc": "02:03:31Z",
+   "label": "B0_collapse",
+   "row": "\u20267394-512 -[OWNS]-> \u2026394-2113on 2 path-edge occurrences \u00b7 benign 5 of 25 sampled APPROVE CUT",
+   "banner": "INTERDICTION RECEIPT\nremoved 1 relationship(s) \u00b7 reachability 1 \u2192 1 \u00b7 re-query 124.56ms \u00b7 verdict degraded",
+   "dt_s": 17.9
+  }
+ ],
+ "console_errors": [
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "B0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  }
+ ],
+ "console_warnings": [],
+ "page_errors": [],
+ "request_failures": [],
+ "api_calls": [
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:56:11Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:56:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:56:41Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:56:57Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:00Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:12Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:13Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:15Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/cut",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:21Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:23Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:24Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:37Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:37Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:57:40Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:57:42Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:57:42Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:07Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:09Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:23Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:58:41Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:43Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/cut",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:43Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:58:43Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:57Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:58:58Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:10Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:11Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:13Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:14Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:28Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:29Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:30Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:43Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:45Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:46Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:49Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:59:49Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/cut",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:00:36Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:36Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:36Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:41Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:00:56Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:01:06Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/cut",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:08Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:08Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:10Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:22Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:01:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:01:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:45Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:01:49Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/cut",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:08Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:02:15Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:15Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:28Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:28Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:02:32Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:32Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:32Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:02:52Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:55Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:02:56Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:12Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:13Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:14Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:28Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/cut",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:03:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:33Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:33Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:03:33Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:03:33Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:03:52Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:03:55Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:03:56Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:04:12Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:04:13Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:04:26Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:04:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "02:04:31Z"
+  },
+  {
+   "label": "B0_load",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "02:04:31Z"
+  },
+  {
+   "url": "/api/proposal",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:04:31Z"
+  },
+  {
+   "url": "/api/proposal",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:04:37Z"
+  },
+  {
+   "url": "/api/proposal",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:04:43Z"
+  },
+  {
+   "url": "/api/cut",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:05:46Z"
+  },
+  {
+   "url": "/api/cut",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:05:52Z"
+  },
+  {
+   "url": "/api/cut",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:05:59Z"
+  },
+  {
+   "url": "/api/cut",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:06:05Z"
+  },
+  {
+   "url": "/api/cut",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:07:33Z"
+  },
+  {
+   "url": "/api/state",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:07:55Z"
+  },
+  {
+   "url": "/api/state",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:08:01Z"
+  },
+  {
+   "url": "/api/proposal",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:08:55Z"
+  },
+  {
+   "url": "/api/proposal",
+   "status": "driver-retry",
+   "error": "HTTPError: HTTP Error 502: Bad Gateway",
+   "t_utc": "02:10:18Z"
+  }
+ ],
+ "defects": [
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:56:11Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:56:26Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:56:41Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:57:18Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:57:42Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:57:42Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:58:40Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:58:41Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:58:43Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:06Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:26Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:31Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:36Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:36Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:41Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:00:56Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:01:06Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:01:26Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:01:26Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:08Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:15Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:28Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:28Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:31Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:32Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:32Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:55Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:02:56Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:03:31Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:03:33Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:03:33Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:03:55Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:03:56Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "B0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "02:04:31Z"
+  }
+ ],
+ "observations": [
+  {
+   "obs": "estate not collapsed at part B start; collapsing via gate first",
+   "detail": "reach=1",
+   "t_utc": "01:57:00Z"
+  },
+  {
+   "obs": "UI-gate collapse starved by the 502 storm; finishing setup via API cuts",
+   "detail": "reach=1",
+   "t_utc": "02:04:31Z"
+  }
+ ]
+}

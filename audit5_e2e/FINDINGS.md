@@ -64,6 +64,66 @@ and estate metrics all match `docs/DEMO_SCRIPT.md` beats 1-6.
    fix held: zero uncaught JS page errors, no "Unexpected end of JSON
    input" anywhere across all runs.
 
+## Live-probe proofs (route-intercepted, LIVE a2688f3 UI — audit5_e2e/live_probe.py)
+
+- **P1 (defect 4, live-proven):** plan card prints the literal
+  `benign null` for benign_usage=None — DOM text captured + shot
+  `resultsA/liveprobe_shots/live_benign_null_plan_card.png`.
+- **P2 (defect 3, live-proven):** with /api/receipts returning 502 HTML and
+  /api/state answering, the engine chip reads `engine unreachable`
+  (class `chip down`) while the estate chip shows live data
+  (`1,480 nodes · …`) and the receipts card freezes at its initial `—` —
+  shot `live_chip_misattribution.png`.
+- **P3:** after the failure clears, the ledger renders again
+  (`live_receipts_recovered.png`) — degradation is recoverable, not sticky.
+
+## Plan-card shapes (all rendered + executed through the real UI gates)
+
+- 3-step plan on the LIVE estate (`shots/11_plan1_card.png`): #1
+  READ_GMSAPASSWORD kills 5 · benign 0; #2/#3 GENERIC_WRITE kills 2 ·
+  benign 5; all projected 1 (degraded) — no invented collapse.
+- **Drift-stopped, live** (`shots/13_plan_execute_r1.png`): mid-plan ACE
+  grant (authorized mutation, F-789ec3e0) → CONFIRM PLAN →
+  `PLAN RECEIPT · drift stopped at step · executed 1 step(s) ·
+  reachability → 2 · projection drift — later steps NOT executed, re-plan
+  needed` — honest stop, later steps never executed.
+- 1/2/3-step + empty + completed, deterministic, same console code on a
+  private ryzen instance against the local engine (shape farm:
+  `audit5_e2e/shapes_verify.py`, `resultsA/shape_shots/`): n direct
+  hero→jewel grants ⇒ exactly n step rows; CONFIRM PLAN ⇒
+  `completed · every step matched its live re-measure` ×4; empty card on
+  the collapsed surface shows
+  `surface already collapsed (0 breach paths) — nothing to plan` with NO
+  APPROVE PLAN button; receipts ledger renders plan + plan execute lines
+  (10 of 24 entries).
+
+## Additional observations (recorded, no code change)
+
+- After a failed /api/paths fetch the Attack paths card keeps its initial
+  "No owned principals — simulate a breach to begin." placeholder while
+  the reach metric shows 1 and the chip is down — a stale-empty state that
+  reads as definitive (seen in live_benign_null_plan_card.png context).
+  Per-card degradation for engine routes deserves its own pass; the
+  receipts lane (pure file route) is fixed here.
+- After CONFIRM CUT / CONFIRM PLAN the gate buttons stay disabled until
+  the next re-render (15s tick or new plan) — safe by drift-stop/
+  idempotence, mildly awkward with auto-refresh paused.
+- The receipts worker-kill cycle recurred during the audit window: the
+  container recycled with a wiped ledger again at ~06:28Z and the fresh
+  ledger was back at 1.9 KB hours later — the unbounded growth
+  (every /api/state poll appends) re-arms the bomb until the tail bound
+  ships.
+
+## Timing evidence (live; Playwright-measured, click to UI effect)
+
+In-flight banners appear instantly on every action (0.02-0.04s) — every
+wait IS communicated. Healthy-window effects: gate renders 0.03s, plan card
+~1-6s, drift execute 6.7s, cut receipt re-query 124-133ms. Under the
+concurrent-audit 502 storms: breach/grant banners 14.9-36.5s (retry
+ladders), plan card 41.2s, single-cut receipt 1.5-20.4s, one 22.7s
+/api/state, reload-mid-flow up to 177s to repopulate, 200-empty bodies on
+GET / (blank page). Full tables in audit5_e2e/resultsA/*.json.
+
 ## Tests
 
 - `tests/test_console_resilience.py` (+2, DB-free): receipts tail bounded

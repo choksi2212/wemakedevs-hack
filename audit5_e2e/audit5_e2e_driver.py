@@ -287,6 +287,41 @@ def confirm_plan(page, timeout=150000):
     return time.time() - t0, banner_text(page)
 
 
+def api_collapse(max_cuts=12):
+    """SETUP-only fallback: drive reachability to 0 via direct /api/cut calls
+    (authorized mutations) when the storm starves the UI gate. The audit's
+    shape evidence still renders + executes through the real UI gates."""
+    for i in range(max_cuts):
+        try:
+            st, prop = _http("/api/proposal")
+        except Exception:  # noqa: BLE001
+            time.sleep(6)
+            continue
+        if not prop:
+            try:
+                if api_state()["reachability"] == 0:
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
+            return False
+        top = prop[0]
+        try:
+            _http("/api/cut", {"src": top["src"], "dst": top["dst"], "rel": top["rel"],
+                               "approved": True, "approved_by": "audit5-live-e2e (setup)"})
+        except Exception:  # noqa: BLE001
+            time.sleep(6)
+            continue
+        try:
+            if api_state()["reachability"] == 0:
+                return True
+        except Exception:  # noqa: BLE001
+            time.sleep(4)
+    try:
+        return api_state()["reachability"] == 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def collapse_loop(page, max_cuts=6, label="collapse"):
     """Drive reachability to 0 through the REAL single-cut gate, verdict by verdict."""
     n = 0
@@ -677,6 +712,9 @@ def part_b(page):
         observe("estate not collapsed at part B start; collapsing via gate first", "reach=%s" % st["reachability"])
         page.click("#btn-refresh", timeout=15000)
         fr = collapse_loop(page, label="B0_collapse")
+        if fr != "0":
+            observe("UI-gate collapse starved by the 502 storm; finishing setup via API cuts", "reach=%s" % fr)
+            fr = "0" if api_collapse() else fr
         step("B0_collapsed", final_reach=fr)
         if fr != "0":
             defect("could not collapse estate before shape farming", "reach=%s" % fr)
@@ -695,9 +733,12 @@ def part_b(page):
             for attempt in range(1, 4):
                 page.click("#btn-plan", timeout=15000)
                 try:
+                    # exact row count: race-proof against the stale card
+                    # (a failed re-plan leaves the previous plan rendered)
                     page.wait_for_function(
-                        "() => getComputedStyle(document.getElementById('plan-card')).display !== 'none'"
-                        " && document.getElementById('plan-body').innerText.length > 10", timeout=150000)
+                        "(n) => getComputedStyle(document.getElementById('plan-card')).display !== 'none'"
+                        " && document.querySelectorAll('#plan-body .prop-row').length === n",
+                        arg=n, timeout=150000)
                     break
                 except Exception:  # noqa: BLE001
                     bt = banner_text(page)
@@ -712,6 +753,8 @@ def part_b(page):
                         % (name, len(rows), n), "")
                 page.click("#btn-refresh", timeout=15000)
                 collapse_loop(page, label="B1_recollapse_%s" % name)
+                if reach_value(page)["text"] != "0":
+                    api_collapse()
                 for j in farm_jewels[:n]:
                     inject_grant(j)
                 continue
@@ -735,12 +778,15 @@ def part_b(page):
     # ---- B4 empty plan ----
     cur["label"] = "B4_empty_plan"
     page.click("#btn-plan", timeout=15000)
-    try:
-        page.wait_for_function(
-            "() => getComputedStyle(document.getElementById('plan-card')).display !== 'none'"
-            " && document.getElementById('plan-body').innerText.length > 10", timeout=150000)
-    except Exception:  # noqa: BLE001
-        pass
+    for attempt in range(1, 4):
+        try:
+            page.wait_for_function(
+                "() => getComputedStyle(document.getElementById('plan-card')).display !== 'none'"
+                " && document.getElementById('plan-body').innerText.includes('nothing to plan')",
+                timeout=150000)
+            break
+        except Exception:  # noqa: BLE001
+            time.sleep(10)
     rows = plan_rows(page)
     empty_note = plan_body_text(page)[:300]
     approve_present = page.locator("#btn-plan-approve").count()
@@ -780,7 +826,7 @@ def part_b(page):
         try:
             page.wait_for_function(
                 "() => getComputedStyle(document.getElementById('plan-card')).display !== 'none'"
-                " && document.getElementById('plan-body').innerText.length > 10", timeout=60000)
+                " && document.querySelectorAll('#plan-body .prop-row').length === 2", timeout=60000)
         except Exception:  # noqa: BLE001
             pass
         body_txt = plan_body_text(page)

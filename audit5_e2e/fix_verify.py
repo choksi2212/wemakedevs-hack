@@ -17,6 +17,12 @@ Run from the synced FIXED worktree dir on the ryzen, ONE ssh session:
 """
 from __future__ import annotations
 
+import sys as _sys
+try:
+    _sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import json
 import os
 import subprocess
