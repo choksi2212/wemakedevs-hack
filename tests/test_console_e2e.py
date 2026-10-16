@@ -180,8 +180,14 @@ def _ensure_proposal(console_url) -> None:
 def _engineered_swap_click(page, console_url) -> dict:
     """Arm the gate, hold the refresh's proposal response, mouse-down on the
     old CONFIRM, release the response mid-press (DOM swap), mouse-up on the
-    replacement, and check the cut actually executed."""
+    replacement, and check the cut actually executed.
+
+    The 15s auto-refresh tick is PAUSED for this sequence: under full-suite
+    load the tick fires mid-press and adds a second, unsynchronized re-render
+    that the pin was never about (the natural tick has its own dedicated
+    test below). One held manual swap = the deterministic scenario."""
     r: dict = {}
+    page.evaluate("setAuto(false)")
     _ensure_proposal(console_url)
     page.click("#btn-refresh")
     page.wait_for_selector("#proposal button.approve", timeout=20000)
