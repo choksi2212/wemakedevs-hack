@@ -1,0 +1,597 @@
+{
+ "beat": "audit7/perf-client \u2014 engine client layer round-trip receipts",
+ "change": "sever/core/falkor_port.py: ESTATE_SNAPSHOT_QUERY fold (11 -> 2-3 state RTs), concurrent reachability arms, PATHS_BATCH/EDGE_FREQ batch folds (falkordb 6.x), scratch_copy pipelined delete+copy+first-measure, traffic-proxy instrumentation (rt_receipt), TTL-bounded snapshot cache with explicit invalidation",
+ "method": "identical driver run against the base tree (eda149d) and the branch tree on both engines; same sample estate, same accessor sequences per endpoint; equivalence = every returned value dict identical (state/paths/proposal/plan/cut); round-trips counted by the port's own instrumentation (after) and a driver-side traffic wrapper (before)",
+ "engines": {
+  "local_ryzen": "self-hosted falkordb 6.0.0 (module 'graph' ver 60000), 1480n/12450e sample, 127.0.0.1:6379",
+  "cloud": "managed FalkorDB Cloud free tier (module 'graph' ver 42200 = 4.22.0), ap-south-1, own key sever_audit7_client_cloud (sever_demo read-only)"
+ },
+ "ryzen_local_engine": {
+  "before": {
+   "label": "before_ryzen",
+   "estate": {
+    "nodes": 1480,
+    "edges": 12450,
+    "owned": [
+     "S-1-5-21-2697957641-2271029196-387917394-2110"
+    ],
+    "jewels": [
+     "S-1-5-21-2697957641-2271029196-387917394-512",
+     "S-1-5-21-2697957641-2271029196-387917394-519",
+     "S-1-5-21-2845847946-3451170323-4261139666-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-519"
+    ]
+   },
+   "endpoints": {
+    "state": {
+     "median_ms": 7.9,
+     "median_roundtrips": 11,
+     "runs": [
+      {
+       "ms": 8.1,
+       "roundtrips": 11
+      },
+      {
+       "ms": 7.9,
+       "roundtrips": 11
+      },
+      {
+       "ms": 7.6,
+       "roundtrips": 11
+      }
+     ]
+    },
+    "paths": {
+     "median_ms": 9.05,
+     "median_roundtrips": 9.0,
+     "runs": [
+      {
+       "ms": 9.0,
+       "roundtrips": 9
+      },
+      {
+       "ms": 9.1,
+       "roundtrips": 9
+      }
+     ]
+    },
+    "proposal": {
+     "median_ms": 154.3,
+     "median_roundtrips": 185,
+     "runs": [
+      {
+       "ms": 154.3,
+       "roundtrips": 185
+      }
+     ]
+    },
+    "plan": {
+     "median_ms": 215.3,
+     "median_roundtrips": 207,
+     "runs": [
+      {
+       "ms": 215.3,
+       "roundtrips": 207
+      }
+     ]
+    },
+    "cut": {
+     "median_ms": 16.5,
+     "median_roundtrips": 22,
+     "runs": [
+      {
+       "ms": 16.5,
+       "roundtrips": 22
+      }
+     ]
+    }
+   },
+   "equivalence": {
+    "state": {
+     "nodes": 1480,
+     "edges": 12450,
+     "jewels": [
+      "S-1-5-21-2697957641-2271029196-387917394-512",
+      "S-1-5-21-2697957641-2271029196-387917394-519",
+      "S-1-5-21-2845847946-3451170323-4261139666-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-519"
+     ],
+     "owned": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "owned_reread": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "reachability": 1
+    },
+    "paths": {
+     "owned": 1,
+     "paths": [
+      4,
+      5,
+      6,
+      7,
+      7
+     ]
+    },
+    "proposal": {
+     "top": [
+      "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "MEMBER_OF",
+      "S-1-5-21-2697957641-2271029196-387917394-2102",
+      5
+     ],
+     "benign_sampled": 25,
+     "benign_pool": 98
+    },
+    "plan": {
+     "steps": 1,
+     "completes_at": 1,
+     "base_reach": 1
+    },
+    "cut": {
+     "verdict": "collapsed",
+     "removed": 1,
+     "before": 1,
+     "after": 0
+    }
+   },
+   "profile": {
+    "legacy_jewels_group": "['Sort | Records produced: 5, Execution time: 0.003398 ms', '    Project | Records produced: 5, Execution time: 0.002164 ms', '        Filter | Records produced: 5, Execution time: 0.039246 ms', '            Node By Label Scan | (g:Group) | Records produced: 219, Execution time: 0.005892 ms']",
+    "legacy_owned": "['Project | Records produced: 1, Execution time: 0.001212 ms', '    Filter | Records produced: 1, Execution time: 0.025169 ms', '        All Node Scan | (n) | Records produced: 1480, Execution time: 0.003767 ms']",
+    "arm_group": "['Distinct | Records produced: 1, Execution time: 0.002023 ms', '    Project | Records produced: 5, Execution time: 0.001594 ms', '        Filter | Records produced: 5, Execution time: 0.002374 ms', '            Project | Records produced: 5, Execution time: 0.278061 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.003648 ms', '                    Filter | Records p"
+   }
+  },
+  "after": {
+   "label": "after_ryzen_final",
+   "estate": {
+    "nodes": 1480,
+    "edges": 12450,
+    "owned": [
+     "S-1-5-21-2697957641-2271029196-387917394-2110"
+    ],
+    "jewels": [
+     "S-1-5-21-2697957641-2271029196-387917394-512",
+     "S-1-5-21-2697957641-2271029196-387917394-519",
+     "S-1-5-21-2845847946-3451170323-4261139666-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-519"
+    ]
+   },
+   "endpoints": {
+    "state": {
+     "median_ms": 1.2,
+     "median_roundtrips": 2,
+     "runs": [
+      {
+       "ms": 1.3,
+       "roundtrips": 2
+      },
+      {
+       "ms": 1.2,
+       "roundtrips": 2
+      },
+      {
+       "ms": 1.2,
+       "roundtrips": 2
+      }
+     ]
+    },
+    "paths": {
+     "median_ms": 3.5999999999999996,
+     "median_roundtrips": 1.0,
+     "runs": [
+      {
+       "ms": 3.4,
+       "roundtrips": 1
+      },
+      {
+       "ms": 3.8,
+       "roundtrips": 1
+      }
+     ]
+    },
+    "proposal": {
+     "median_ms": 37.1,
+     "median_roundtrips": 27,
+     "runs": [
+      {
+       "ms": 37.1,
+       "roundtrips": 27
+      }
+     ]
+    },
+    "plan": {
+     "median_ms": 162.6,
+     "median_roundtrips": 3,
+     "runs": [
+      {
+       "ms": 162.6,
+       "roundtrips": 3
+      }
+     ]
+    },
+    "cut": {
+     "median_ms": 28.0,
+     "median_roundtrips": 8,
+     "runs": [
+      {
+       "ms": 28.0,
+       "roundtrips": 8
+      }
+     ]
+    }
+   },
+   "equivalence": {
+    "state": {
+     "nodes": 1480,
+     "edges": 12450,
+     "jewels": [
+      "S-1-5-21-2697957641-2271029196-387917394-512",
+      "S-1-5-21-2697957641-2271029196-387917394-519",
+      "S-1-5-21-2845847946-3451170323-4261139666-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-519"
+     ],
+     "owned": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "owned_reread": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "reachability": 1
+    },
+    "paths": {
+     "owned": 1,
+     "paths": [
+      4,
+      5,
+      6,
+      7,
+      7
+     ]
+    },
+    "proposal": {
+     "top": [
+      "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "MEMBER_OF",
+      "S-1-5-21-2697957641-2271029196-387917394-2102",
+      5
+     ],
+     "benign_sampled": 25,
+     "benign_pool": 98
+    },
+    "plan": {
+     "steps": 1,
+     "completes_at": 1,
+     "base_reach": 1
+    },
+    "cut": {
+     "verdict": "collapsed",
+     "removed": 1,
+     "before": 1,
+     "after": 0
+    }
+   },
+   "profile": {
+    "snapshot_combined": "['Aggregate | Records produced: 1, Execution time: 2.957114 ms', '    Optional | Records produced: 12450, Execution time: 0.019920 ms', '        Aggregate | Records produced: 1, Execution time: 0.351958 ms', '            Optional | Records produced: 1480, Execution time: 0.004330 ms', '                Aggregate | Records produced: 1, Execution time: 0.003978 ms', '                    Optional | Re",
+    "legacy_jewels_group": "['Sort | Records produced: 5, Execution time: 0.004128 ms', '    Project | Records produced: 5, Execution time: 0.001212 ms', '        Filter | Records produced: 5, Execution time: 0.037563 ms', '            Node By Label Scan | (g:Group) | Records produced: 219, Execution time: 0.005993 ms']",
+    "legacy_owned": "['Project | Records produced: 1, Execution time: 0.001362 ms', '    Filter | Records produced: 1, Execution time: 0.027154 ms', '        All Node Scan | (n) | Records produced: 1480, Execution time: 0.004318 ms']",
+    "arm_group": "['Distinct | Records produced: 1, Execution time: 0.002315 ms', '    Project | Records produced: 5, Execution time: 0.001884 ms', '        Filter | Records produced: 5, Execution time: 0.001592 ms', '            Project | Records produced: 5, Execution time: 0.240371 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.004480 ms', '                    Filter | Records p"
+   }
+  }
+ },
+ "cloud_engine": {
+  "before": {
+   "label": "before_cloud",
+   "estate": {
+    "nodes": 1480,
+    "edges": 12450,
+    "owned": [
+     "S-1-5-21-2697957641-2271029196-387917394-2110"
+    ],
+    "jewels": [
+     "S-1-5-21-2697957641-2271029196-387917394-512",
+     "S-1-5-21-2697957641-2271029196-387917394-519",
+     "S-1-5-21-2845847946-3451170323-4261139666-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-519"
+    ]
+   },
+   "endpoints": {
+    "state": {
+     "median_ms": 204.6,
+     "median_roundtrips": 11,
+     "runs": [
+      {
+       "ms": 204.6,
+       "roundtrips": 11
+      },
+      {
+       "ms": 204.0,
+       "roundtrips": 11
+      },
+      {
+       "ms": 209.4,
+       "roundtrips": 11
+      }
+     ]
+    },
+    "paths": {
+     "median_ms": 194.60000000000002,
+     "median_roundtrips": 9.0,
+     "runs": [
+      {
+       "ms": 187.4,
+       "roundtrips": 9
+      },
+      {
+       "ms": 201.8,
+       "roundtrips": 9
+      }
+     ]
+    },
+    "proposal": {
+     "median_ms": 3790.0,
+     "median_roundtrips": 185,
+     "runs": [
+      {
+       "ms": 3790.0,
+       "roundtrips": 185
+      }
+     ]
+    },
+    "plan": {
+     "median_ms": 4187.1,
+     "median_roundtrips": 207,
+     "runs": [
+      {
+       "ms": 4187.1,
+       "roundtrips": 207
+      }
+     ]
+    },
+    "cut": {
+     "median_ms": 422.1,
+     "median_roundtrips": 22,
+     "runs": [
+      {
+       "ms": 422.1,
+       "roundtrips": 22
+      }
+     ]
+    }
+   },
+   "equivalence": {
+    "state": {
+     "nodes": 1480,
+     "edges": 12450,
+     "jewels": [
+      "S-1-5-21-2697957641-2271029196-387917394-512",
+      "S-1-5-21-2697957641-2271029196-387917394-519",
+      "S-1-5-21-2845847946-3451170323-4261139666-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-519"
+     ],
+     "owned": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "owned_reread": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "reachability": 1
+    },
+    "paths": {
+     "owned": 1,
+     "paths": [
+      4,
+      5,
+      6,
+      7,
+      7
+     ]
+    },
+    "proposal": {
+     "top": [
+      "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "MEMBER_OF",
+      "S-1-5-21-2697957641-2271029196-387917394-2102",
+      5
+     ],
+     "benign_sampled": 25,
+     "benign_pool": 98
+    },
+    "plan": {
+     "steps": 1,
+     "completes_at": 1,
+     "base_reach": 1
+    },
+    "cut": {
+     "verdict": "collapsed",
+     "removed": 1,
+     "before": 1,
+     "after": 0
+    }
+   },
+   "profile": {
+    "legacy_jewels_group": "['Results | Records produced: 5, Execution time: 0.001644 ms', '    Sort | Records produced: 5, Execution time: 0.001545 ms', '        Project | Records produced: 5, Execution time: 0.001149 ms', '            Filter | Records produced: 5, Execution time: 0.066910 ms', '                Node By Label Scan | (g:Group) | Records produced: 219, Execution time: 0.016648 ms']",
+    "legacy_owned": "['Results | Records produced: 1, Execution time: 0.000371 ms', '    Project | Records produced: 1, Execution time: 0.000594 ms', '        Filter | Records produced: 1, Execution time: 0.211454 ms', '            All Node Scan | (n) | Records produced: 1480, Execution time: 0.073120 ms']",
+    "arm_group": "['Results | Records produced: 1, Execution time: 0.000485 ms', '    Distinct | Records produced: 1, Execution time: 0.002080 ms', '        Project | Records produced: 1, Execution time: 0.001346 ms', '            Filter | Records produced: 1, Execution time: 0.002945 ms', '                Project | Records produced: 5, Execution time: 2.322845 ms', '                    Cartesian Product | Records "
+   }
+  },
+  "after": {
+   "label": "after_cloud_final",
+   "estate": {
+    "nodes": 1480,
+    "edges": 12450,
+    "owned": [
+     "S-1-5-21-2697957641-2271029196-387917394-2110"
+    ],
+    "jewels": [
+     "S-1-5-21-2697957641-2271029196-387917394-512",
+     "S-1-5-21-2697957641-2271029196-387917394-519",
+     "S-1-5-21-2845847946-3451170323-4261139666-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-512",
+     "S-1-5-21-3702535222-3822678775-2090119576-519"
+    ]
+   },
+   "endpoints": {
+    "state": {
+     "median_ms": 23.1,
+     "median_roundtrips": 2,
+     "runs": [
+      {
+       "ms": 23.4,
+       "roundtrips": 2
+      },
+      {
+       "ms": 23.1,
+       "roundtrips": 2
+      },
+      {
+       "ms": 23.0,
+       "roundtrips": 2
+      }
+     ]
+    },
+    "paths": {
+     "median_ms": 112.75,
+     "median_roundtrips": 5.0,
+     "runs": [
+      {
+       "ms": 115.3,
+       "roundtrips": 5
+      },
+      {
+       "ms": 110.2,
+       "roundtrips": 5
+      }
+     ]
+    },
+    "proposal": {
+     "median_ms": 2755.3,
+     "median_roundtrips": 132,
+     "runs": [
+      {
+       "ms": 2755.3,
+       "roundtrips": 132
+      }
+     ]
+    },
+    "plan": {
+     "median_ms": 3155.6,
+     "median_roundtrips": 3,
+     "runs": [
+      {
+       "ms": 3155.6,
+       "roundtrips": 3
+      }
+     ]
+    },
+    "cut": {
+     "median_ms": 275.6,
+     "median_roundtrips": 8,
+     "runs": [
+      {
+       "ms": 275.6,
+       "roundtrips": 8
+      }
+     ]
+    }
+   },
+   "equivalence": {
+    "state": {
+     "nodes": 1480,
+     "edges": 12450,
+     "jewels": [
+      "S-1-5-21-2697957641-2271029196-387917394-512",
+      "S-1-5-21-2697957641-2271029196-387917394-519",
+      "S-1-5-21-2845847946-3451170323-4261139666-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-512",
+      "S-1-5-21-3702535222-3822678775-2090119576-519"
+     ],
+     "owned": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "owned_reread": [
+      "S-1-5-21-2697957641-2271029196-387917394-2110"
+     ],
+     "reachability": 1
+    },
+    "paths": {
+     "owned": 1,
+     "paths": [
+      4,
+      5,
+      6,
+      7,
+      7
+     ]
+    },
+    "proposal": {
+     "top": [
+      "S-1-5-21-2697957641-2271029196-387917394-2101",
+      "MEMBER_OF",
+      "S-1-5-21-2697957641-2271029196-387917394-2102",
+      5
+     ],
+     "benign_sampled": 25,
+     "benign_pool": 98
+    },
+    "plan": {
+     "steps": 1,
+     "completes_at": 1,
+     "base_reach": 1
+    },
+    "cut": {
+     "verdict": "collapsed",
+     "removed": 1,
+     "before": 1,
+     "after": 0
+    }
+   },
+   "profile": {
+    "snapshot_combined": "['Results | Records produced: 1, Execution time: 0.000793 ms', '    Aggregate | Records produced: 1, Execution time: 6.539714 ms', '        Apply | Records produced: 12450, Execution time: 2.053177 ms', '            Aggregate | Records produced: 1, Execution time: 0.705635 ms', '                Apply | Records produced: 1480, Execution time: 0.195178 ms', '                    Aggregate | Records p",
+    "legacy_jewels_group": "['Results | Records produced: 5, Execution time: 0.001172 ms', '    Sort | Records produced: 5, Execution time: 0.001413 ms', '        Project | Records produced: 5, Execution time: 0.001103 ms', '            Filter | Records produced: 5, Execution time: 0.063858 ms', '                Node By Label Scan | (g:Group) | Records produced: 219, Execution time: 0.015597 ms']",
+    "legacy_owned": "['Results | Records produced: 1, Execution time: 0.000241 ms', '    Project | Records produced: 1, Execution time: 0.000733 ms', '        Filter | Records produced: 1, Execution time: 0.242080 ms', '            All Node Scan | (n) | Records produced: 1480, Execution time: 0.074070 ms']",
+    "arm_group": "['Results | Records produced: 1, Execution time: 0.000460 ms', '    Distinct | Records produced: 1, Execution time: 0.001829 ms', '        Project | Records produced: 1, Execution time: 0.001476 ms', '            Filter | Records produced: 1, Execution time: 0.002456 ms', '                Project | Records produced: 5, Execution time: 2.276580 ms', '                    Cartesian Product | Records "
+   }
+  }
+ },
+ "roundtrip_summary": {
+  "ryzen_6_0_0": {
+   "state": "11 -> 2 RTs (5.5x fewer), 7.9ms -> 1.2ms",
+   "paths": "9 -> 1 RTs (9x fewer)",
+   "proposal": "185 -> 27 RTs (6.9x fewer), 154ms -> 37ms",
+   "plan": "207 -> 3 RTs on the live-estate port (69x fewer; copy+first-measure rides ONE pipelined round-trip, projections run on the isolated copy port)",
+   "cut": "22 -> 8 RTs (2.8x fewer), 16.5ms -> 28ms wall (arms now run concurrently \u2014 thread-submit overhead dominates a LAN engine; the win is round-trips)"
+  },
+  "cloud_4_22_0": {
+   "state": "11 -> 2 RTs (5.5x fewer), 205ms -> 23ms (8.9x wall) \u2014 the 15s UI poll hot path",
+   "paths": "9 -> 5 RTs (legacy per-jewel loop kept \u2014 engine bug below)",
+   "proposal": "185 -> 132 RTs, 3790ms -> 2755ms",
+   "plan": "207 -> 3 RTs on the live-estate port, 4187ms -> 3156ms wall",
+   "cut": "22 -> 8 RTs, 422ms -> 276ms"
+  }
+ },
+ "engine_finding_4_22_0_cross_shortestpath_bug": {
+  "finding": "falkordb 4.22.0 computes WITH-clause shortestPath for only ONE row of a multi-row (o x t) binding",
+  "evidence": [
+   "all-owned reachability arm, 2 owned principals (one reaching): 0 rows returned; per-pair existence probe: 1 reachable \u2014 live-prod undercount of the headline metric the moment a second breach finding lands (measured on an isolated GRAPH.COPY of sever_demo, never on the live key)",
+   "paths cross-form: 5 reachable pairs collapsed to 1 row with the WHERE p IS NOT NULL filter; without the filter 5 rows return but 4 of 5 shortestPaths are NULL \u2014 the engine evaluates one pair only",
+   "hit-in-RETURN arm form: both owned principals returned hit=False for a pair the per-pair probe proves reachable"
+  ],
+  "product_fix": "reachability() on engines < falkordb 6.0.0 (MODULE LIST ver probed once per port) issues PER_OWNED_REACHABILITY_ARM_TEMPLATES \u2014 the same arms with the principal $param-bound (the form 4.22.0 evaluates correctly, live-verified against the per-pair reference on mixed-reach and no-reach principals); paths/edge-frequency keep the legacy per-pair queries there; correctness beats round-trips",
+  "scope": "the all-owned arm undercount affects the PRE-EXISTING code on the live deployment (not introduced by this branch); on falkordb 6.0.0 every form is equivalent \u2014 pinned by tests/test_perf_client_folds.py on the real engine"
+ },
+ "equivalence": {
+  "verdict": "IDENTICAL endpoint values before vs after on BOTH engines (state, paths, proposal, plan, cut dicts equal in the receipts above)",
+  "pins": "tests/test_perf_client_folds.py \u2014 folded accessors == independent legacy re-queries; paths == per-jewel oracle; edge_frequency == legacy double loop (insertion order too); interdict receipt == independent re-query; /api/state via TestClient == legacy-computed dict; state sequence <= 3 RTs (target pin); per-owned arms == per-pair reference on a mixed estate"
+ },
+ "honest_cache": {
+  "invalidation": "explicit on load/mark_owned/add_edge/cut/drop/scratch_copy; traffic proxy on write-clause queries and raw execute_command; TTL window SEVER_FALKOR_SNAPSHOT_TTL_MS (default 2000ms; 0 disables folds entirely)",
+  "never_cached": "reachability (the arms always re-measure), paths, mutation answers"
+ }
+}
