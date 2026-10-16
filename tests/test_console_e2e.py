@@ -80,7 +80,11 @@ def _api(path, body=None, base=None):
 
 
 def _cut_count(base=None) -> int:
-    st, rec = _api("/api/receipts", base=base)
+    # fleet-5 bounded /api/receipts to the newest-200 (worker-killer fix) —
+    # with this module's shared ledger accumulating cuts across runs, a
+    # tail-200 window froze the count (every new cut displaced an old one:
+    # the exact "99 > 99" signature). The cap is 5000 — count the full window.
+    st, rec = _api("/api/receipts?limit=5000", base=base)
     return sum(1 for e in rec if e.get("step") == "cut") if st == 200 else -1
 
 
@@ -215,6 +219,13 @@ def _engineered_swap_click(page, console_url) -> dict:
     page.wait_for_timeout(150)
     r["confirm_alive_after_swap"] = page.evaluate(
         "!!document.querySelector('#proposal .prop-cta .confirm')")
+    # the re-armed gate can land at a different row index than the pressed one
+    # (proposal ordering is recomputed; ties are not coordinate-stable), so
+    # re-locate the replacement CONFIRM and release the press ON it — the pin
+    # is "a press held across the swap executes exactly one cut", and the
+    # product's pairing contract fires on the gate the operator releases over
+    box2 = page.locator("#proposal .prop-cta .confirm").bounding_box()
+    page.mouse.move(box2["x"] + box2["width"] / 2, box2["y"] + box2["height"] / 2)
     page.mouse.up()
     for _ in range(25):
         if _cut_count(console_url) > before:
