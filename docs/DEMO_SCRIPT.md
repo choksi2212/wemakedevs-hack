@@ -92,7 +92,9 @@ every rung runs the real engine.
    matched its projection — or `drift stopped at step` if the estate mutated
    mid-plan, later steps NOT executed)
 6. Show the receipts ledger scrolling — every action, timestamped (plan +
-   plan execute lines included)
+   plan execute lines included). Post-boot actions only: the free-tier
+   filesystem resets the ledger on every deploy/restart, and state-probe
+   lines interleave — a short ledger is expected, not a bug
 7. Cut to the FalkorDB browser UI (:3000) for the raw graph, then the scale
    wall receipts (docs/receipts/scale_wall.json)
 

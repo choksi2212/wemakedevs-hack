@@ -184,7 +184,19 @@ self-hosted compose, the shipped Dockerfile, or the one-click
 Boot is fail-fast with self-healing: an empty graph auto-loads the estate
 on first boot (16.8s measured over the wire on FalkorDB Cloud —
 [`receipts_cloud_live.json`](docs/receipts/receipts_cloud_live.json)),
-an existing one boots without reloading.
+an existing one boots without reloading — the auto-load finishes **before**
+uvicorn binds its port, so Render's deploy window never races it.
+
+**Deployment-audit honesty (2026-10-16, [`docs/AUDIT_DEPLOY.md`](docs/AUDIT_DEPLOY.md)):**
+on the free plan the console's filesystem is **ephemeral — the receipts
+ledger (`out/cases/*.jsonl`) resets on every deploy, restart, and spin-up**;
+it scrolls post-boot actions, not history. The health check must use
+`/api/health` (one cheap engine query): `/api/state` runs five engine
+queries and can exceed Render's 5s health window under concurrent load,
+which before the split caused an instance-restart loop (three boots in
+21 minutes, each wiping the ledger) with intermittent 502s. The 10-minute
+keepalive has to actually be scheduled on the demo machine (Task Scheduler
+/ login item) — the repo does not start it.
 
 ## 7. Real incidents this shape catches
 

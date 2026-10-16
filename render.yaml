@@ -9,7 +9,14 @@ services:
     plan: free                 # spins down after ~15 min idle -> ~30-60s cold start on the
                                # next request; keep warm with a 10-min /api/state ping (README)
     region: singapore          # nearest Render region to ap-south-1 (Mumbai)
-    healthCheckPath: /api/state
+    # audit5/deploy-audit: Render's HTTP check must return 2xx within 5s.
+    # /api/state runs 5 engine queries and measured 6-24s on FalkorDB Cloud
+    # under concurrent load -> instance-restart loop + ephemeral-ledger wipes
+    # (3 boots in 21 min, live-verified 2026-10-16). /api/health is ONE
+    # cheap engine query and writes no receipt. NOTE: the running service's
+    # health path lives in the Render dashboard — deploy this code first,
+    # then flip the dashboard setting to /api/health.
+    healthCheckPath: /api/health
     autoDeploy: false           # demo stability > branch churn; deploy on demand
     envVars:
       - key: SEVER_FALKOR_HOST

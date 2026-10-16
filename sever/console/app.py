@@ -139,7 +139,15 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # UI banner showing a JSON-parse artifact instead of the cause
         # (audit3/console-logic, live-verified by killing the engine between
         # /api/finding and /api/cut).
-        return JSONResponse(status_code=503, content={"detail": f"engine unreachable: {exc}"})
+        # audit5/deploy-audit: the raw redis-py message embeds the engine's
+        # host:port ("Error connecting to r-....cloud:59719") — surfacing it
+        # on the public URL is infrastructure disclosure. Report the
+        # exception class only: the cause stays machine-readable
+        # (ConnectionError vs TimeoutError) and the banner still says why.
+        return JSONResponse(
+            status_code=503,
+            content={"detail": f"engine unreachable: {type(exc).__name__}"},
+        )
 
     for _exc_cls in ENGINE_ERRORS:
         app.add_exception_handler(_exc_cls, _engine_outage)
@@ -189,6 +197,26 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+
+    @app.get("/api/health")
+    async def health() -> dict[str, Any]:
+        # audit5/deploy-audit: Render's HTTP health check needs a 2xx within
+        # its 5-second window. /api/state runs five engine queries (incl. the
+        # full reachability traversal) and measured 6-24s against FalkorDB
+        # Cloud under concurrent load — as the health path it missed its
+        # window, Render restarted the instance every ~60s of that, and each
+        # restart wiped the ephemeral receipts ledger (three instance boots
+        # in 21 minutes, live-verified 2026-10-16). This probe touches the
+        # engine with ONE cheap query (a dead engine still 503s through the
+        # shared outage handler, so fail-fast semantics are unchanged) and
+        # never appends a receipt, so health-check traffic cannot drown the
+        # demo ledger in `state` noise.
+        return {
+            "status": "ok",
+            "backend": "falkordb",
+            "graph": port.graph_name,
+            "nodes": port.node_count(),
+        }
 
     @app.get("/api/state")
     async def state() -> dict[str, Any]:
