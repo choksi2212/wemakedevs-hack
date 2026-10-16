@@ -501,8 +501,8 @@ class TestPlanEquivalenceEngine:
             P2 = "S-1-5-21-pe-777-1002"
             for oid, label in ((JG, "Group"), (P1, "User"), (P2, "User")):
                 g.add_node(oid, label, {"name": oid})
-            g.add_edge(P1, "GENERIC_ALL", P2)
-            g.add_edge(P2, "MEMBER_OF", JG)
+            g.add_edge(P1, P2, "GENERIC_ALL")
+            g.add_edge(P2, JG, "MEMBER_OF")
             port.load(g)
             port.mark_owned(P1)
             port.mark_owned(JG)  # the owned JEWEL: 0-hop breach
