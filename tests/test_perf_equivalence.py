@@ -759,6 +759,10 @@ class TestPlanPerfEngine:
             batched_queries = log.summary()["total_queries"]
         log.reset(); old_plan(sample_port, k=3); old_q = log.summary()
         log.reset(); plan_cut_sequence(sample_port, k=3); new_q = log.summary()
+        log.reset()
+        for _ in range(3):
+            plan_cut_sequence(_batched_view(sample_port), k=3)
+        batched_q = log.summary()
 
         def stats(walls):
             return {
@@ -780,6 +784,7 @@ class TestPlanPerfEngine:
             "new_per_pair_plan": {"wall": stats(new_walls), "queries": new_q},
             "new_batched_seam_plan": {
                 "wall": stats(batched_walls),
+                "queries_3x": batched_q,
                 "queries": {"total_queries": batched_queries},
             },
             "targets": {
@@ -800,7 +805,7 @@ class TestPlanPerfEngine:
                 BATCHED_PAIRS_QUERY_TEMPLATE.format(
                     pattern=cypher_traversal_pattern(DEFAULT_HOP_CAP)
                 ),
-                None,
+                {"pairs": [{"o": HERO, "j": j} for j in sample_port.crown_jewels()]},
             )
         except Exception:
             pass
