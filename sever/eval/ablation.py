@@ -114,13 +114,30 @@ def main(out_path: str = "docs/receipts/ablation.json") -> int:
 
     load_dotenv()  # .env at the repo root, if present — real environment always wins
 
-    port = FalkorGraphPort(
-        host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-        port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        graph_name=os.environ.get("SEVER_EVAL_GRAPH", "sever_eval"),
-        username=os.environ.get("SEVER_FALKOR_USER"),
-        password=os.environ.get("SEVER_FALKOR_PASSWORD"),
-    )
+    # Quickstart guard (audit8/fix-code, F309): a judge who skipped
+    # `docker compose up -d` (README §9 step 2) used to get a raw redis
+    # traceback here. Fail-loud is right, but it must be one actionable
+    # line — the entry probe classifies "engine unreachable" (no listener,
+    # non-FalkorDB RESP server) before any receipt is attempted, prints
+    # the fix, and exits 2 (distinct from a measurement failure). The
+    # construction is INSIDE the guard: falkordb's client constructor
+    # eagerly sends an INFO round-trip (its Is_Sentinel probe), so a dead
+    # engine raises from the constructor, not just the first query.
+    try:
+        port = FalkorGraphPort(
+            host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
+            port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+            graph_name=os.environ.get("SEVER_EVAL_GRAPH", "sever_eval"),
+            username=os.environ.get("SEVER_FALKOR_USER"),
+            password=os.environ.get("SEVER_FALKOR_PASSWORD"),
+        )
+        port.node_count()
+    except Exception as exc:
+        print(
+            f"engine unreachable ({type(exc).__name__}) — "
+            "run `docker compose up -d` (README §9) first"
+        )
+        return 2
     if port.node_count() == 0:
         port.load(parse_ad_dir(os.environ.get(
             "SEVER_SAMPLE_DIR",
