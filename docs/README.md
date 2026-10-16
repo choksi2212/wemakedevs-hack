@@ -73,7 +73,11 @@ mindmap
 ## The receipts (`docs/receipts/`)
 
 The evidence layer. Numbers in the docs above cite these; the JSON on the branch is
-the source of truth.
+the source of truth. Receipts are captured artifacts — they are never edited, so
+they keep the internal codename **"ryzen"** for the self-hosted build host
+(FalkorDB 6.0.0 under `docker compose`); every "ryzen"-labeled number in a receipt
+means "measured on that self-hosted engine", in contrast to the FalkorDB Cloud
+free-tier receipts (ap-south-1, v4.22.0).
 
 | Receipt | Proves | Key numbers |
 |---|---|---|
@@ -87,7 +91,7 @@ the source of truth.
 | [`receipts/receipts_cloud_live.json`](receipts/receipts_cloud_live.json) | the hero arc on FalkorDB Cloud free tier (ap-south-1) | 16.75s over-the-wire auto-load; final reachability 0 |
 | [`receipts/audit5_cloud_instance.json`](receipts/audit5_cloud_instance.json) | live Cloud instance probe: modules, memory ceiling, ACL surface | engine v4.22.0; 100 MiB maxmemory; CONFIG/ACL/KEYS/DEBUG/SAVE denied |
 | [`receipts/audit3_mem/`](receipts/audit3_mem/) | memory-flow adversarial verification: interleaved-case isolation, kill-9 durability, `DEL` fail-closed, concurrent ledger | fresh-process resume verbatim: "triage was remembered from case memory" |
-| [`receipts/perf_audit7_client_roundtrips.json`](receipts/perf_audit7_client_roundtrips.json) | the audit7 client-layer fold receipts: identical driver run before/after on both engines | `/api/state` 11 → 2 round-trips; state median 7.9ms → 1.2ms (ryzen) |
+| [`receipts/perf_audit7_client_roundtrips.json`](receipts/perf_audit7_client_roundtrips.json) | the audit7 client-layer fold receipts: identical driver run before/after on both engines | `/api/state` 11 → 2 round-trips; state median 7.9ms → 1.2ms (self-hosted build host — receipt label "ryzen") |
 | [`receipts/perf_plan_equivalence.json`](receipts/perf_plan_equivalence.json) | plan hot-path equivalence on the self-hosted engine: old two-arm vs per-pair vs batched seam (identical plan output) | k=3 plan medians 220.8ms → 217.6ms → 108.4ms |
 | [`receipts/perf_cloud_before_develop.json`](receipts/perf_cloud_before_develop.json) | production console (develop code) `GET /api/plan` against the Cloud free-tier engine — the BEFORE of the cloud latency story | median 13,505ms over the wire (p95 13,549ms) |
 | [`receipts/perf_cloud_plan.json`](receipts/perf_cloud_plan.json) | the same cloud `/api/plan` endpoint: owner-reported 13-14s repro matched, plus derived after-predictions for the branch | before median 13.5s; predicted ~12.6s standalone scoring path |
