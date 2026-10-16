@@ -77,6 +77,25 @@
   }
 
   /* base */
+    --motion: 150ms;
+  }
+  /* Motion standard (audit6/ui-polish): every animation is 120-180ms and
+     animates ONLY transform/opacity — state changes read as crisp, never as
+     bounce/slide circus. prefers-reduced-motion collapses all of them to a
+     zero-duration jump (block at the bottom of this sheet) and the JS extras
+     (banner pulse beat, scrollIntoView smoothing, tick/arrival/flip classes)
+     check matchMedia first. */
+  /* WCAG audit (audit6/ui-polish) — every pair computed (WCAG relative
+     luminance), normal-text pairs >= 4.5, state indicators >= 3.0 (1.4.11):
+     text/bg 16.2, text/surface 15.3, text/surface-2 14.6,
+     text-2/bg 7.7, text-2/surface 7.3, text-2/surface-2 6.9,
+     text-3/bg 5.5, text-3/surface 5.2, danger/bg 5.0, danger/surface 4.7,
+     warn/bg 7.9, warn/surface 7.4, success/surface 6.1 (value.ok),
+     #7ED08C/surface-2 9.5, #7ED08C/#14231A 8.8. Indicators: chip dots
+     success/warn/danger on bg 6.5/7.9/5.0, :focus-visible ring on bg/surface
+     7.3/6.9, badge.cut border 3.1, approve/confirm border 5.8. Neutral .btn
+     borders (~1.35 on surface-2) carry no state: the visible label identifies
+     the control, so they fall under the 1.4.11 identification exception. */
   * { box-sizing: border-box; margin: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: var(--fs-r); line-height: var(--lh-data); min-height: 100vh; -webkit-font-smoothing: antialiased; }
   b { font-weight: 600; }
@@ -88,6 +107,8 @@
   /* header + wordmark/logo lockup */
   header { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
   .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: var(--fs-m); }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: 14px; }
   .wordmark b { color: var(--danger); font-weight: 700; }
   /* logo lockup: the header slot for the pending severed-S mark
      (docs/assets/logo_v4.svg). The markup keeps the slot commented out
@@ -107,6 +128,10 @@
   .chip.paused .dot { background: var(--warn); }
   .chip.down .dot { background: var(--danger); }
   .chip.idle .dot { background: var(--text-3); }
+  /* audit6/ui-polish: chip state flips (live/paused/down) — the state dot
+     fades in over 150ms when the class actually changes, never on re-render */
+  .chip.flip .dot { animation: chip-flip var(--motion) ease; }
+  @keyframes chip-flip { from { opacity: .3; } }
   .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .spacer { flex: 1; }
   .tagline { font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); }
@@ -208,6 +233,12 @@
   .hop .rel { color: var(--text-3); font-size: 10px; }
   .hop .jewel { border-color: #2E5138; background: #121D15; }
   .hop .jewel::before { background: var(--success); }
+  .hops { margin-top: 6px; border-left: 2px solid var(--border-strong); }
+  .hop { display: flex; gap: 10px; align-items: baseline; padding: 4px 0 4px 12px; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; overflow-wrap: anywhere; }
+  .hop .node { color: var(--text); }
+  .hop .node.mut { color: var(--warn); }
+  .hop .rel { color: var(--text-3); font-size: 11px; }
+  .hop .jewel { color: var(--danger); }
   .empty { color: var(--text-3); font-size: 12.5px; padding: 8px 0; }
   /* audit6/ui-flow — the ranked-cut card: endpoint names + rel badge, the
      paths_on coverage count as a prominence bar (full width = top-ranked
@@ -275,6 +306,35 @@
   .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
   .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; }
   .entry.ledger-down .line { color: var(--warn); }
+  /* audit6/ui-polish: a ledger entry that actually ARRIVED (count grew) eases
+     in from 2px above over 150ms — re-renders of unchanged entries stay still */
+  .entry.arrival { animation: arrive var(--motion) ease; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(-2px); } }
+  /* audit6/ui-polish: each completed refresh tick dips the timestamp once */
+  .hint.tick { animation: tick-dip var(--motion) ease; }
+  @keyframes tick-dip { from { opacity: .45; } }
+  /* audit6/ui-polish: quiet in-progress affordance for multi-second engine
+     waits (cut / plan / finding re-score) — a 6px dot in the banner, static
+     under prefers-reduced-motion, otherwise one 150ms opacity beat per ~1.2s.
+     Decorative (aria-hidden); the banner text alone carries the state. */
+  .pulse-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--focus); margin-right: 8px; vertical-align: 1px; }
+  .pulse-dot.beat { animation: pulse-beat var(--motion) ease-in-out; }
+  @keyframes pulse-beat { from { opacity: .35; } }
+  @media (max-width: 600px) {
+    /* audit6/ui-polish: no horizontal scroll, no clipped receipts at phone
+       width — ledger lines wrap instead of ellipsizing, the gate row breathes */
+    header { padding: 10px 12px; gap: 8px 10px; }
+    main { padding: 12px; gap: 12px; }
+    .card-body { padding: 14px 12px; }
+    .entry .line { white-space: normal; overflow-wrap: anywhere; }
+    .prop-cta { flex-wrap: wrap; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* audit6/ui-polish: operators who ask for less motion get zero motion —
+       every entrance/pulse lands instantly at its final state */
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    html { scroll-behavior: auto; }
+  }
   footer { padding: 12px 20px; font-size: 11px; color: var(--text-3); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: 16px; }
 
   /* ---- audit6/ui-ia: information-architecture layer ----
@@ -517,7 +577,9 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null, lastAt: null, estateFacts: null };
+  const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null, lastAt: null };
+  // audit6/ui-polish: honor prefers-reduced-motion everywhere (lost in the union, restored)
+  const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const short = (id) => id.length > 34 ? '\u2026' + id.slice(-8) : id;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // audit6/ui-flow: client-side id→name view for the PLAN card. Plan steps
@@ -582,14 +644,34 @@
     if (!ok(body)) throw new Error('malformed ' + what + ' (engine stall?)');
     return body;
   }
-  function banner(html, flag) {
+  // audit6/ui-polish: quiet in-progress affordance for multi-second engine
+  // waits (cut / plan / finding re-score) — a 6px dot leads the in-flight
+  // banner line, and unless the operator prefers reduced motion it takes one
+  // 150ms opacity beat per ~1.2s. No spinners anywhere; the dot is decorative
+  // (aria-hidden) — the banner text alone carries the state for assistive tech.
+  const pulseDot = document.createElement('span');
+  pulseDot.className = 'pulse-dot';
+  pulseDot.setAttribute('aria-hidden', 'true');
+  let pulseTimer = null;
+  function setBusy(on) {
+    if (pulseTimer) { clearInterval(pulseTimer); pulseTimer = null; }
+    if (pulseDot.parentNode) pulseDot.parentNode.removeChild(pulseDot);
+    if (!on) return;
+    $('banner').prepend(pulseDot);
+    if (!REDUCED) pulseTimer = setInterval(() => {
+      pulseDot.classList.remove('beat'); void pulseDot.offsetWidth; pulseDot.classList.add('beat');
+    }, 1200);
+  }
+  function banner(html, flag, busy) {
     const b = $('banner');
     b.innerHTML = html;
     b.classList.add('show');
     // audit5/judge-experience: on small screens the gate lives far below
     // the banner; pull the result back into view so the judge sees it.
-    if (b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // audit6/ui-polish: reduced motion scrolls instantly, not smoothly.
+    if (b.scrollIntoView) b.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'nearest' });
     if (flag) b.dataset.flag = flag; else delete b.dataset.flag;
+    setBusy(!!busy);
   }
   function bannerClearIf(flag) {
     // a state-marker banner (engine down / partial data) is transient: it is
@@ -603,14 +685,19 @@
   }
 
   const setText = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
+  // audit6/ui-polish: refresh-tick and chip-flip motion — a 150ms opacity dip
+  // exactly when the timestamp text or the chip STATE actually changes; a
+  // re-render that writes the same value stays perfectly still.
+  const tickText = (id, v) => { const el = $(id); if (el.textContent !== v) { el.textContent = v; if (!REDUCED) { el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); } } };
+  const setChip = (id, cls) => { const el = $(id); el.classList.remove('flip'); if (el.className !== cls) { el.className = cls; if (!REDUCED) { void el.offsetWidth; el.classList.add('flip'); } } };
   const engineDown = () => {
-    $('engine-chip').className = 'chip down';
+    setChip('engine-chip', 'chip down');
     setText('engine-label', 'engine unreachable');
   };
   const engineDegraded = () => {
     // state IS fresh (it rendered), only some sections failed: claiming
     // "engine unreachable" here would be a lie — the honest chip is degraded.
-    $('engine-chip').className = 'chip paused';
+    setChip('engine-chip', 'chip paused');
     setText('engine-label', 'engine degraded — partial data');
   };
 
@@ -672,8 +759,11 @@
       // stale (amber) state and mark the updated-at line — the panel below is
       // last-known and must never read as fresh.
       $('estate-chip').className = 'chip paused';
-      if (state.estateFacts) setText('estate-label', state.estateFacts + ' — last known');
-      else setText('estate-label', 'estate unavailable');
+      // audit6 merge: the estate readout lives in the hero now (ui-ia) — the
+      // last-known/unavailable line goes to the hero's estate detail, never
+      // to the removed header-chip label.
+      if (state.estateFacts) setText('estate-detail', state.estateFacts + ' — last known');
+      else setText('estate-detail', 'estate unavailable');
       setText('updated-at', state.lastAt
         ? 'state updated ' + state.lastAt + ' · refresh failed — showing last known data'
         : '— · refresh failed');
@@ -687,7 +777,7 @@
     }
     if (gen !== state.gen) return;
     bannerClearIf('down');
-    $('engine-chip').className = 'chip';
+    setChip('engine-chip', 'chip');
     setText('engine-label', 'falkordb · ' + (s.graph || ''));
     // audit6/ui-ia: the estate facts render as the hero's four glanceable
     // stats (nodes / edges / jewels / owned) inside the #estate-chip live
@@ -699,6 +789,7 @@
     const at = new Date().toLocaleTimeString();
     state.lastAt = at;
     setText('updated-at', 'state updated ' + at);
+    tickText('updated-at', 'state updated ' + at);
     const r = $('reach');
     r.textContent = s.reachability;
     r.className = 'value ' + (s.nodes === 0 ? '' : (s.reachability > 0 ? 'danger' : 'ok'));  // audit6/ui-telemetry honesty: zero on an EMPTY estate is missing, not contained
@@ -888,7 +979,17 @@
              (dnum ? '<span class="delta ' + dcls + '" title="measured reachability, before → after">' + esc(delta.before) + ' → ' + esc(delta.after) + '</span>' : '') +
              (op ? '<span class="op" title="operator — approved_by on the receipt">by ' + esc(op) + '</span>' : '') +
              '<span class="ts">' + esc(e.ts ? new Date(e.ts).toLocaleTimeString([], {hour12: false}) : '') + '</span></div>';
-    }).join('') || '<div class="entry"><span class="line">—</span></div>';
+    }).join('') || '<div class="entry"><span class="line" style="color:var(--text-3)">no receipts yet — every finding, cut and plan is appended here, newest first</span></div>';
+    // audit6/ui-polish: ledger arrival — pulse the top entry only when the
+    // NEWEST receipt actually changed (identity via its rendered title, not a
+    // length count — /api/receipts is bounded to the newest-200, so a
+    // long-lived ledger must still pulse on every new arrival; unchanged
+    // re-renders stay motionless).
+    const topEntry = $('receipts').firstElementChild;
+    const topLine = topEntry ? topEntry.querySelector('.line') : null;
+    const topSig = topLine ? (topLine.getAttribute('title') || '') : '';
+    if (topSig && topSig !== state.ledgerSeen && !REDUCED) topEntry.classList.add('arrival');
+    state.ledgerSeen = topSig;
     }
     if (gen !== state.gen) return;
     bannerClearIf('partial');
@@ -906,7 +1007,7 @@
       } else {
         banner('<span class="res">partial data — ' + esc(stale.join(' · ')) +
                ' — those sections show last known state</span>', 'partial');
-        setText('updated-at', 'state updated ' + at + ' · some sections stale');
+        tickText('updated-at', 'state updated ' + at + ' · some sections stale');
       }
     }
     updateRibbon();   // audit6/ui-ia: the arc ribbon reflects the live state after every refresh
@@ -939,6 +1040,7 @@
       const nb = cta.querySelector('.approve');
       nb.addEventListener('click', () => armGate(p.src, p.dst, p.rel));
       if (hadFocus) nb.focus();
+      nb.classList.add('restore');
     });
   }
   function executeConfirm(p, cf, cn) {
@@ -949,7 +1051,7 @@
     state.pending = null;
     removeEscape();
     cf.disabled = cn.disabled = true;
-    banner('<span class="res">human gate: executing approved cut…</span>');
+    banner('<span class="res">human gate: executing approved cut…</span>', undefined, true);
     api('/api/cut', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({src: p.src, dst: p.dst, rel: p.rel, approved: true, approved_by: OPERATOR}),
@@ -994,6 +1096,7 @@
       const nb = cta.querySelector('.approve');
       nb.addEventListener('click', () => armGate(p.src, p.dst, p.rel));
       if (hadFocus) nb.focus();
+      nb.classList.add('restore');
     });
     const btn = document.querySelector('#proposal button.approve[data-src="' + CSS.escape(p.src) + '"][data-dst="' + CSS.escape(p.dst) + '"][data-rel="' + CSS.escape(p.rel) + '"]');
     if (!btn) return false;
@@ -1058,6 +1161,7 @@
     // per-step verdicts — the card starts from a clean projection state.
     state.planResult = null;
     banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>');
+    banner('<span class="res">planning a k=3 cut sequence — measuring projections on an isolated copy…</span>', undefined, true);
     try {
       state.plan = need(await api('/api/plan'), (b) => b && typeof b === 'object'
         && (typeof b.note === 'string'
@@ -1159,7 +1263,7 @@
     const cn = document.getElementById('btn-plan-cancel');
     if (cf) cf.disabled = true;
     if (cn) cn.disabled = true;
-    banner('<span class="res">human gate: executing approved plan step-by-step — re-measuring each step live…</span>');
+    banner('<span class="res">human gate: executing approved plan step-by-step — re-measuring each step live…</span>', undefined, true);
     try {
       const r = need(await api('/api/plan/execute', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1202,7 +1306,7 @@
   $('btn-plan').addEventListener('click', makePlan);
 
   async function fire(kind) {
-    banner('<span class="res">simulated finding ' + kind + ' — re-scoring all attack paths…</span>');
+    banner('<span class="res">simulated finding ' + kind + ' — re-scoring all attack paths…</span>', undefined, true);
     const body = kind === 'ace_granted'
       ? {kind, subject: HERO, target: GMSA, rel: 'GENERIC_ALL'}
       : {kind, subject: HERO};
@@ -1238,7 +1342,7 @@
   let timer = null;
   function setAuto(on) {
     state.auto = on;
-    $('refresh-chip').className = 'chip' + (on ? '' : ' paused');
+    setChip('refresh-chip', 'chip' + (on ? '' : ' paused'));
     const t = $('refresh-toggle');
     t.textContent = on ? 'live · auto' : 'paused';
     t.setAttribute('aria-pressed', String(on));
