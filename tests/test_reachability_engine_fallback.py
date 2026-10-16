@@ -106,23 +106,24 @@ def test_console_state_and_paths_equal_under_forced_old_engine(forced_old, tmp_p
     """The console's /api/state and /api/paths must answer byte-identically
     with the arms gated off (old-engine fallback) and with the arms on —
     the F900 production scenario answered 0/[] where the slow path was
-    always right."""
+    always right. The gate is captured at build_app time (one engine, one
+    answer), so the two modes are exercised with two apps on the same
+    port."""
     import sever.console.app as appmod
 
     monkeypatch.chdir(tmp_path)  # CaseLog root lands in the tmp dir
     monkeypatch.setenv("SEVER_FALKOR_GRAPH", GRAPH)
-    app = appmod.build_app(port=forced_old)
     from fastapi.testclient import TestClient
 
-    tc = TestClient(app)
+    forced_old._engine_graph_ver = 42200  # Cloud family at build time
+    tc_old = TestClient(appmod.build_app(port=forced_old))
+    state_old = tc_old.get("/api/state").json()
+    paths_old = tc_old.get("/api/paths").json()
 
-    forced_old._engine_graph_ver = 42200
-    state_old = tc.get("/api/state").json()
-    paths_old = tc.get("/api/paths").json()
-
-    forced_old._engine_graph_ver = None
-    state_modern = tc.get("/api/state").json()
-    paths_modern = tc.get("/api/paths").json()
+    forced_old._engine_graph_ver = None  # re-probe -> modern at build time
+    tc_modern = TestClient(appmod.build_app(port=forced_old))
+    state_modern = tc_modern.get("/api/state").json()
+    paths_modern = tc_modern.get("/api/paths").json()
 
     assert state_old == state_modern, (
         "old-engine /api/state must equal the modern fold's answer — "

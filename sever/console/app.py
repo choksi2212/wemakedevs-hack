@@ -374,8 +374,11 @@ def _arms_ok(port: GraphPort) -> bool:
     resilience suite, injected stubs — are conservatively False and answer
     through the original port-method path, which is the path they already
     take (their probe answers nothing) and the path their contracts pin.
-    On a modern engine nothing changes: the folds stay active and the
-    equivalence suite (tests/test_console_perf_folds.py) keeps proving
+    build_app resolves this ONCE per app (see ``arms_fold_ok`` there) so
+    the MODULE LIST probe never lands inside a measured request sequence
+    (the round-trip receipts pin caught exactly that: cold /api/state
+    4 -> 5). On a modern engine nothing changes: the folds stay active and
+    the equivalence suite (tests/test_console_perf_folds.py) keeps proving
     fold == port methods.
     """
     return bool(getattr(port, "_modern_engine", False))
@@ -625,6 +628,15 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         })
 
     inv = Investigator(port)
+    # F900 follow-up (caught by test_round_trip_receipts on ryzen): resolve
+    # the arm-fold gate ONCE, here, at app construction. _arms_ok consults
+    # the port's MODULE LIST engine probe — one engine round-trip the first
+    # time — and doing that lazily inside a handler landed the probe in the
+    # first measured poll sequence (cold /api/state receipts pinned 4, saw
+    # 5). Captured at build time the probe is paid during rig setup /
+    # production boot — never inside a measured request sequence — and the
+    # gate is a plain bool for the app's life: one engine, one answer.
+    arms_fold_ok = _arms_ok(port)
     app.state.port = port
 
     # audit7/perf-api: the /api/state cache discipline. Every mutation
@@ -739,7 +751,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # (production served reach 0 with an owned principal) — those
         # engines answer through the port methods, exactly pre-fleet-7.
         probe = _estate_probe(port)
-        if probe is None or not _arms_ok(port):
+        if probe is None or not arms_fold_ok:
             data = _state_data_slow()
         else:
             nodes, edges, owned, jewels = probe
@@ -797,7 +809,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # so those engines keep the per-pair port loop, exactly pre-fleet-7.
         probe = _estate_probe(port)
         pairs = None
-        if probe is not None and _arms_ok(port):
+        if probe is not None and arms_fold_ok:
             try:
                 pairs = _arm_pair_paths(port, inv.hop_cap)
             except _FoldUnsupported:
@@ -837,7 +849,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # (port.edge_frequency's per-pair legacy loop), exactly pre-fleet-7.
         probe = _estate_probe(port)
         out: list[dict[str, Any]]
-        if probe is None or not _arms_ok(port):
+        if probe is None or not arms_fold_ok:
             out = inv.propose(limit=5)
         else:
             _nodes, _edges, owned, _jewels = probe
@@ -885,7 +897,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         enumeration — the form production proved on the Cloud) answers."""
         hop_cap = inv.hop_cap
         probe = _estate_probe(port)
-        if probe is None or not _arms_ok(port):
+        if probe is None or not arms_fold_ok:
             return None
         _nodes, _edges, owned, jewels = probe
         base_reach = _arm_reach(port, owned, jewels, hop_cap)
