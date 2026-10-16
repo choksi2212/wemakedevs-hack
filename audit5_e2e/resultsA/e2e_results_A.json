@@ -1,0 +1,1272 @@
+{
+ "meta": {
+  "base": "https://sever-console.onrender.com",
+  "part": "A",
+  "started_utc": "2026-10-16T01:09:40Z",
+  "viewport": "1440x900",
+  "headless": true,
+  "ended_utc": "2026-10-16T01:21:54Z"
+ },
+ "timings": {
+  "load_page_s": 36.99,
+  "breach_click_to_inflight_banner_s": 0.02,
+  "breach_click_to_result_banner_s": 36.52,
+  "breach_click_to_reach_metric_s": 0.0,
+  "grant_click_to_result_banner_s": 14.93,
+  "toggle_pause_render_s": 0.02,
+  "toggle_resume_render_s": 0.03,
+  "approve_cut_to_confirm_gate_s": 0.03,
+  "confirm_cut_to_receipt_banner_s": 20.38
+ },
+ "steps": [
+  {
+   "step": "A0_initial_load",
+   "t_utc": "01:10:37Z",
+   "nav_s": 36.99,
+   "state": {
+    "reach": 1,
+    "edges": 12451,
+    "nodes": 1480,
+    "owned": 2
+   },
+   "ui": {
+    "paths": 9,
+    "proposals": 0,
+    "receipts": 1,
+    "plan_visible": false,
+    "plan_steps": 0
+   },
+   "engine_chip": "falkordb \u00b7 sever_demo",
+   "estate_chip": "1,480 nodes \u00b7 12,451 edges \u00b7 5 jewels",
+   "title": "SEVER \u2014 interdiction console",
+   "updated_at": "updated 06:40:17"
+  },
+  {
+   "step": "A1_breach_retry",
+   "t_utc": "01:12:37Z",
+   "attempt": 1,
+   "banner": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid"
+  },
+  {
+   "step": "A1_breach",
+   "t_utc": "01:13:21Z",
+   "banner": "SIMULATED \u00b7 T1078.002 Valid Accounts: Domain Accounts\nCompromised domain credentials flagged. This principal is now assumed controlled by the attacker \u2014 every path it can reach is in scope.",
+   "attempt": 2
+  },
+  {
+   "step": "A2_grant_retry",
+   "t_utc": "01:15:22Z",
+   "attempt": 1,
+   "banner": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid"
+  },
+  {
+   "step": "A2_grant_retry",
+   "t_utc": "01:17:30Z",
+   "attempt": 2,
+   "banner": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid"
+  },
+  {
+   "step": "A2_grant_retry",
+   "t_utc": "01:19:38Z",
+   "attempt": 3,
+   "banner": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid"
+  },
+  {
+   "step": "A2_grant",
+   "t_utc": "01:20:01Z",
+   "banner": "SIMULATED \u00b7 T1098 Account Manipulation\nAn excessive access control right was just granted. The identity graph now carries a new abusable edge \u2014 re-scoring all attack paths.",
+   "attempt": 4
+  },
+  {
+   "step": "A3_toggle_paused",
+   "t_utc": "01:20:01Z",
+   "chip_class": "chip paused"
+  },
+  {
+   "step": "A3_toggle_resumed",
+   "t_utc": "01:20:01Z"
+  },
+  {
+   "step": "A4_gate_armed",
+   "t_utc": "01:20:01Z",
+   "row": "\u2026394-2102 -[READ_GMSAPASSWORD]-> \u2026394-2186on 5 path-edge occurrences \u00b7 benign 0 of 25 sampled APPROVE CUT",
+   "gate_render_s": 0.032,
+   "cancel_buttons": 1
+  },
+  {
+   "step": "A4b_gate_survives_15s_tick",
+   "t_utc": "01:20:18Z",
+   "still_armed": true,
+   "tick_state_calls": 1
+  },
+  {
+   "step": "A4c_escape_disarms_gate",
+   "t_utc": "01:20:18Z"
+  },
+  {
+   "step": "A4d_cut_executed",
+   "t_utc": "01:20:38Z",
+   "banner": "INTERDICTION RECEIPT\nremoved 1 relationship(s) \u00b7 reachability 1 \u2192 1 \u00b7 re-query 132.67ms \u00b7 verdict degraded",
+   "click_to_receipt_s": 20.42
+  }
+ ],
+ "console_errors": [
+  {
+   "label": "A0_load",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A1_breach",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A2_grant",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A3_toggle",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A4_gate",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  },
+  {
+   "label": "A5_reload",
+   "text": "Failed to load resource: the server responded with a status of 502 ()"
+  }
+ ],
+ "console_warnings": [],
+ "page_errors": [],
+ "request_failures": [],
+ "api_calls": [
+  {
+   "label": "A0_load",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:10:01Z"
+  },
+  {
+   "label": "A0_load",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:10:17Z"
+  },
+  {
+   "label": "A0_load",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:10:37Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/finding",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:10:37Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:10:50Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:10:50Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:11:05Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:11:12Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:11:38Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:11:38Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:11:43Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:11:44Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:11:44Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:11:46Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:02Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:03Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:19Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:23Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:23Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:12:23Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:33Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:45Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:12:54Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:13:15Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:13:15Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:15Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:15Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:16Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/finding",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:13:21Z"
+  },
+  {
+   "label": "A1_breach",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:22Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/finding",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:22Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:22Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:13:46Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:14:17Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:14:17Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:14:17Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:14:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:14:46Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:02Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:04Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:18Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/finding",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:15:30Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:48Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:15:51Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:16:08Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:16:08Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:16:16Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:16:32Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:16:34Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:16:49Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:16:49Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:17:08Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:08Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:08Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:17:17Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:17:18Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/finding",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:17:46Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:18:02Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:18:05Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:18:19Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:18:20Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:18:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:18:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:18:38Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:18:47Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:18:48Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:19:04Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/receipts",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:19:04Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:19:08Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:19:16Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:19:32Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:19:37Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:19:50Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/receipts",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:19:53Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:19:53Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/paths",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:19:53Z"
+  },
+  {
+   "label": "A2_grant",
+   "url": "/api/finding",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:20:01Z"
+  },
+  {
+   "label": "A3_toggle",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:20:01Z"
+  },
+  {
+   "label": "A4_gate",
+   "url": "/api/state",
+   "status": 502,
+   "dt_s": null,
+   "t_utc": "01:20:01Z"
+  },
+  {
+   "label": "A4b_tick",
+   "url": "/api/state",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:20:18Z"
+  },
+  {
+   "label": "A4d_confirm",
+   "url": "/api/paths",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:20:21Z"
+  },
+  {
+   "label": "A4d_confirm",
+   "url": "/api/proposal",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:20:38Z"
+  },
+  {
+   "label": "A4d_confirm",
+   "url": "/api/cut",
+   "status": 200,
+   "dt_s": null,
+   "t_utc": "01:20:38Z"
+  }
+ ],
+ "defects": [
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A0_load :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:10:01Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:10:37Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:10:50Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:10:53Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:11:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:11:44Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:11:44Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:11:46Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:12:23Z"
+  },
+  {
+   "defect": "breach finding failed (banner)",
+   "evidence": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid",
+   "t_utc": "01:12:37Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:15Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:15Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:16Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A1_breach :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:22Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:22Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:22Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:13:46Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:14:17Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:14:17Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:14:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:14:46Z"
+  },
+  {
+   "defect": "grant finding failed (banner)",
+   "evidence": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid",
+   "t_utc": "01:15:22Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:15:30Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:15:36Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:16:08Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:16:08Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:16:16Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:16:49Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:08Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:08Z"
+  },
+  {
+   "defect": "grant finding failed (banner)",
+   "evidence": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid",
+   "t_utc": "01:17:30Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:17:46Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:18:20Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:18:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:18:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:19:04Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:19:08Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:19:16Z"
+  },
+  {
+   "defect": "grant finding failed (banner)",
+   "evidence": "finding failed: <!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <meta name=\"viewport\" content=\"width=device-wid",
+   "t_utc": "01:19:38Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A2_grant :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:19:53Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A3_toggle :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:20:01Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A4_gate :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:20:01Z"
+  },
+  {
+   "defect": "JS console error (zero-tolerance)",
+   "evidence": "A5_reload :: Failed to load resource: the server responded with a status of 502 ()",
+   "t_utc": "01:20:39Z"
+  },
+  {
+   "defect": "reload mid-flow left page unpopulated",
+   "evidence": "Page.wait_for_function: Timeout 75000ms exceeded.",
+   "t_utc": "01:21:54Z"
+  }
+ ],
+ "observations": [
+  {
+   "obs": "refresh chip gains .paused class while paused",
+   "detail": "chip paused",
+   "t_utc": "01:20:01Z"
+  }
+ ]
+}

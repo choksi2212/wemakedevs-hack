@@ -1,0 +1,71 @@
+{
+ "checks": [
+  {
+   "check": "F1 no raw HTML in banner",
+   "ok": true,
+   "detail": "finding failed: server error 502 (HTML error page)"
+  },
+  {
+   "check": "F1 clean server-error copy",
+   "ok": true,
+   "detail": "finding failed: server error 502 (HTML error page)"
+  },
+  {
+   "check": "F3 card shows ledger unavailable",
+   "ok": true,
+   "detail": "ledger unavailable \u2014 server error 502 (HTML error page)"
+  },
+  {
+   "check": "F3 chip NOT engine-unreachable",
+   "ok": true,
+   "detail": "falkordb \u00b7 sever_audit5_e2e_own"
+  },
+  {
+   "check": "F3 chip stays green",
+   "ok": true,
+   "detail": "chip"
+  },
+  {
+   "check": "F3 recovery ledger renders",
+   "ok": true,
+   "detail": "ledger unavailable \u2014 server error 502 (HTML error page)"
+  },
+  {
+   "check": "F4 no literal 'benign null'",
+   "ok": true,
+   "detail": "k=3 \u00b7 base reachability 1 \u00b7 graph_copy_remeasure\n#1 cut \u2026394-2110 -[GENERIC_ALL]-> \u20267394-512kills 1 path-edge occurrences \u00b7 benign not measured \u00b7 projected reachability 0 (collapsed)\nAPPROVE PLAN\nhone"
+  },
+  {
+   "check": "F4 honest not-measured copy",
+   "ok": true,
+   "detail": "k=3 \u00b7 base reachability 1 \u00b7 graph_copy_remeasure\n#1 cut \u2026394-2110 -[GENERIC_ALL]-> \u20267394-512kills 1 path-edge occurrences \u00b7 benign not measured \u00b7 projected reachability 0 (collapsed)\nAPPROVE PLAN\nhone"
+  },
+  {
+   "check": "own-instance breach applied",
+   "ok": true,
+   "detail": "reach=1"
+  },
+  {
+   "check": "F5 CONFIRM PLAN disabled immediately after press",
+   "ok": true,
+   "detail": "disabled=True"
+  },
+  {
+   "check": "F5 plan executed once with receipt",
+   "ok": true,
+   "detail": "PLAN RECEIPT \u00b7 drift stopped at step\nexecuted 1 step(s) \u00b7 reachability \u2192 1 \u00b7 projection drift \u2014 later steps NOT executed, re-plan needed"
+  }
+ ],
+ "shots": [
+  "fix01_html_502_banner",
+  "fix02_ledger_degraded_card",
+  "fix03_ledger_recovers",
+  "fix04_benign_none_plan_card",
+  "fix05_confirm_plan_disabled",
+  "fix06_plan_receipt"
+ ],
+ "console_errors": [
+  "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+  "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+ ]
+}

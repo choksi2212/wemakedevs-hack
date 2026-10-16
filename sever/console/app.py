@@ -371,8 +371,18 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return receipt
 
     @app.get("/api/receipts")
-    async def receipts() -> list[dict[str, Any]]:
-        return log.read()
+    async def receipts(limit: int = 200) -> list[dict[str, Any]]:
+        # Bounded tail (audit5/live-e2e): the ledger is append-only and grows
+        # with every poll — every /api/state appends a line, so a day of
+        # auto-refresh plus operator traffic makes the full-ledger response
+        # grow without bound until the public deployment's worker died on it
+        # (live 502s, Oct 16 06:15Z). The UI renders the newest 40; the API
+        # ships the newest ``limit`` events (newest-last, unchanged order).
+        # The full file stays on disk for forensics — it is never the HTTP
+        # payload.
+        limit = max(1, min(limit, 5000))
+        events = log.read()
+        return events[-limit:] if limit < len(events) else events
 
     # expose for tests/teardown
     build_app.port_obj = port
