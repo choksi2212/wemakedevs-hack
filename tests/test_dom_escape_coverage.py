@@ -158,7 +158,8 @@ def test_no_untrusted_field_appears_raw_in_any_sink():
     sinks = _sink_statements(js)
     untrusted = ["p.principal", "h.src", "h.dst", "h.rel", "c.src", "c.dst",
                  "c.rel", "e.message", "recErr.message", "r.technique",
-                 "r.narration", "p.src", "p.dst", "p.rel", "esc((e.ts",
+                 "r.narration", "p.src", "p.dst", "p.rel", "e.ts",
+
                  # plan surfaces (audit4): every dynamic plan field must be
                  # esc()-wrapped at its sink too
                  "s.cut.src", "s.cut.dst", "s.cut.rel", "plan.note",
@@ -207,7 +208,11 @@ def test_no_untrusted_field_appears_raw_in_any_sink():
     # (audit5/live-e2e: two sinks now touch #receipts — the degraded-card line
     # and the ledger render; the pins target the RENDER sink)
     receipts_stmt = next(s for s in sinks if "slice(-40)" in s)
-    assert "esc((e.ts" in receipts_stmt
+    # audit5/judge-experience: ts is now rendered via new Date(...).toLocaleTimeString
+    # (local clock) — the invariant pinned here is that e.ts only ever reaches
+    # the DOM through esc(...).
+    assert "esc(e.ts" in receipts_stmt
+
     assert receipts_stmt.count("esc(line)") == 2  # title attribute AND text node
     # trusted ledger-literal placement pinned: badgeFor(step) drives the class,
     # step is the raw trusted ledger literal (audit3/console-logic markup)
