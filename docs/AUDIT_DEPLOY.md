@@ -6,6 +6,30 @@ branch `develop`, autoDeploy **no** — all confirmed via the Render API).
 Evidence: Render API (deploys, env-var names, logs windows), live HTTP probes,
 and repo history. All timestamps UTC (IST = UTC+5:30).
 
+> **TL;DR** — Six deploys API-verified; exactly one failed (53fa606, a missing
+> `import os` NameError) and Render's rollback kept the old build serving — **live is
+> bfe9308**. Two free-tier failure modes measured live: the **ephemeral receipts
+> ledger** (four wipes in ~47 minutes) and `/api/state` health checks blowing the 5s
+> window under load (measured 6.07s–24.1s), which caused an instance-restart loop —
+> fixed on this branch by `/api/health` (one cheap engine query). Operator musts
+> before the demo (§7): flip the dashboard health path, rotate the 7-char engine
+> password, actually schedule the keepalive, sequence judge traffic. Topology below.
+
+## 0. Deployment topology (browser → Render SG → FalkorDB Cloud Mumbai)
+
+```mermaid
+flowchart LR
+    B["Judge browser"] -->|"HTTPS - TLS terminated at Render"| R["Render web service<br/>sever-console.onrender.com<br/>free plan, singapore region, Docker runtime"]
+    R -->|"RESP - plaintext on the free tier:<br/>AUTH + every Cypher query + data on-path readable"| F["FalkorDB Cloud<br/>ap-south-1 Mumbai, free tier<br/>engine v4.22.0, 100 MiB maxmemory, noeviction"]
+    HC["Render HTTP health check<br/>every few seconds, 2xx within 5s"] -->|"GET /api/health - one cheap engine query, no receipt write"| R
+    KA["keepalive_silent.vbs on the demo host<br/>silent 10-minute /api/state ping<br/>NOT scheduled as of 2026-10-16"] -->|"keeps the console warm"| R
+    R -.->|"engine sees real query traffic - stays warm<br/>free Cloud stops after 1 day idle"| F
+```
+
+The health path and the keepalive are the two load-bearing lines: `/api/state` runs
+five engine queries and measured 6–24s under concurrent load (§4), and the keepalive
+must be scheduled by hand — the repo does not start it (§6).
+
 ## 1. Deploy history (API-verified, complete)
 
 | deploy | commit | status | started → finished |

@@ -1,5 +1,37 @@
 # SEVER × Track 2: Agent Memory and Coordination
 
+> **TL;DR** — SEVER's case memory is the investigation itself, checkpointed in the
+> same engine that holds the estate: LangGraph flows saved by **FalkorDBSaver**, one
+> checkpoint graph per tenant. A killed process resumes with zero re-explanation
+> (fresh-process resume lands the gated cut **1 → 0 in 2.47ms**, `state_step:
+> verified`); interleaved cases never cross-contaminate; a deleted checkpoints graph
+> fails **closed**. The five key-focus bullets map one-to-one below — flow diagram
+> first, then the map, then the adversarial verification that re-attacked every claim.
+
+## The case-memory flow — finding → checkpoint → resume
+
+```mermaid
+stateDiagram-v2
+    [*] --> Finding: a finding lands on a tenant estate
+    Finding --> Triage: the agent scores it against the graph
+    Triage --> Propose: top cut ranked by path coverage
+    Propose --> Gate: case state checkpointed by FalkorDBSaver
+    Gate --> Gate: the process can die here - the state survives
+    Gate --> Verify: human approves, any fresh process resumes
+    Verify --> Verified: gated cut executes, re-query receipt
+    Verified --> [*]: state_step verified
+    Gate --> FailClosed: checkpoints graph deleted mid-case
+    FailClosed --> [*]: fails closed - thread is not paused at the gate
+```
+
+Receipts: fresh-process resume and cut at 2.47ms
+([`receipts_T2_live.json`](receipts/receipts_T2_live.json)); kill-9 durability,
+isolation, DEL-fail-closed and concurrency receipts under
+[`receipts/audit3_mem/`](receipts/audit3_mem/) — regenerate with
+`python scripts/audit3_memory_audit.py <beat>`.
+
+## Track 2 key-focus map
+
 Track 2 asks for agents that "remember across sessions and share state with
 each other," with five key-focus bullets. Here is exactly how SEVER's case
 memory satisfies each — and where it deliberately doesn't claim.
@@ -12,14 +44,20 @@ memory satisfies each — and where it deliberately doesn't claim.
 | **High-concurrency reads/writes** | FalkorDB is the substrate: MVCC engine, read replicas via `GRAPH.RO_QUERY`, per-tenant graph isolation. Scale receipts: 300 concurrent tenant graphs, queries flat at a 4.67ms median. | `docs/receipts/scale_wall.json` |
 | **Separate memory per user or tenant** | Native FalkorDB multi-tenancy: case checkpoints live in `sever_<tenant>_checkpoints` graphs; estate in `sever_<tenant>`; identity remaps are injective so tenants share zero objectids. | `sever/memory/flow.py::_checkpointer`; `tests/test_synth.py` |
 
+## Honest boundary
+
 **Honest boundary**: procedural memory is the fixed investigation flow — we do
 not claim learned remediation policies. Cross-graph single-query is not used
 (per FalkorDB's engine design); cross-tenant coordination happens through the
 shared ledger pattern, demonstrated process-to-process.
 
+## Why this qualifies
+
 **Why this qualifies**: the memory exists to serve a job — a shift-handoff
 interdiction case — not as a memory demo for its own sake. The same database
 that stores the estate runs the case memory, the scoring, and the receipts.
+
+## Adversarial verification — audit3/memory-flow
 
 **audit3/memory-flow adversarial verification** — every claim above was
 re-attacked live on the engine (receipts: `docs/receipts/audit3_mem/`,
