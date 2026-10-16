@@ -10,7 +10,7 @@ collateral-ranked cut **plans** → **human gate** → live re-query → before/
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
   <img src="https://img.shields.io/badge/engine-FalkorDB%206.0.0-8B5CF6?style=flat-square" alt="falkordb"/>
   <img src="https://img.shields.io/badge/console-FastAPI-10B981?style=flat-square" alt="fastapi"/>
-  <img src="https://img.shields.io/badge/tests-~400%20green-059669?style=flat-square" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-454%20collected%20%C2%B7%200%20failed-059669?style=flat-square" alt="tests"/>
   <img src="https://img.shields.io/badge/license-MIT-64748B?style=flat-square" alt="mit"/>
 </p>
 
@@ -22,11 +22,12 @@ collateral-ranked cut **plans** → **human gate** → live re-query → before/
 
 ---
 
-An on-call identity-security agent on [FalkorDB](https://falkordb.com): it ingests
-BloodHound-style Active Directory + Entra identity graphs, reacts to a live findings
-stream, walks the real exploitable paths to Domain Admin, ranks the one edge whose
-removal kills the most paths, and — **only after an explicit human approval** —
-severs it and proves the attack surface actually collapsed.
+**TL;DR** — SEVER is an on-call identity-security agent on [FalkorDB](https://falkordb.com): it ingests
+BloodHound-style Active Directory + Entra identity graphs into one graph per tenant, reacts to a live
+findings stream, walks the real exploitable paths to Domain Admin, ranks the one edge whose removal
+kills the most paths, and — **only after an explicit human APPROVE → CONFIRM** — severs it and proves
+the attack surface actually collapsed, with before/after receipts in milliseconds. Try the loop live
+at **[sever-console.onrender.com](https://sever-console.onrender.com)**.
 
 > **Measured, not promised** — every number in this README ran on a live FalkorDB
 > engine (self-hosted 6.0.0; the Cloud beat on managed 4.22.0, per its receipt) and
@@ -35,8 +36,8 @@ severs it and proves the attack surface actually collapsed.
 
 ## Table of contents
 
-1. [The four beats (measured)](#1-the-four-beats-measured)
-2. [System architecture](#2-system-architecture)
+1. [System architecture](#1-system-architecture)
+2. [The four beats (measured)](#2-the-four-beats-measured)
 3. [Control architecture — the interdiction loop](#3-control-architecture--the-interdiction-loop)
 4. [Data flow architecture](#4-data-flow-architecture)
 5. [Graph data model](#5-graph-data-model)
@@ -51,7 +52,66 @@ severs it and proves the attack surface actually collapsed.
 
 ---
 
-## 1. The four beats (measured)
+## 1. System architecture
+
+```mermaid
+flowchart LR
+  subgraph SG_COLLECT["SpecterOps sample collectors"]
+    BH["BloodHound CE collectors - AD JSON"]
+    AZH["AzureHound collectors - Entra JSON"]
+  end
+  subgraph SG_ETL["sever/etl - two-pass ETL"]
+    ETL["BloodHound-faithful parse, unresolved-principal materialization, deterministic edge hashes"]
+    BATCH["UNWIND $rows Cypher batches, idempotent MERGE, range indexes"]
+  end
+  subgraph SG_ENGINE["FalkorDB - one engine, graph per tenant"]
+    DEMO["sever_demo - 1,480 nodes / 12,450 edges"]
+    TENANTS["sever_tenant001 .. sever_tenant300 - 444K nodes / 3.73M edges"]
+    MEMDB["FalkorDBSaver case memory - gate state survives process death"]
+  end
+  subgraph SG_CORE["sever/core - FalkorGraphPort, the only GraphPort"]
+    Q1["jewels + owned-set queries"]
+    Q2["two-arm all-pairs reachability"]
+    Q3["canonical path enumeration - 43 abusable rel types, 12-hop cap"]
+    Q4["edge scoring + collateral benign sample"]
+  end
+  subgraph SG_AGENT["sever/agent - Investigator"]
+    LOOPP["perceive finding, triage, propose the ranked cut"]
+    LLM["optional LLM seam - narration only, deterministic offline fallback"]
+    GATE["human gate - passes only on literal True"]
+  end
+  subgraph SG_CONSOLE["sever/console - FastAPI cockpit"]
+    UI["operator panel - APPROVE CUT then CONFIRM CUT"]
+    LEDGER["append-only receipts ledger - JSON, ms timings"]
+  end
+  F["findings stream - deterministic breach-timeline replay, live mutations"]
+  BH --> ETL
+  AZH --> ETL
+  ETL --> BATCH
+  BATCH --> DEMO
+  BATCH --> TENANTS
+  DEMO --> Q1
+  TENANTS --> Q1
+  F --> LOOPP
+  Q1 --> Q2
+  Q2 --> Q3
+  Q3 --> Q4
+  Q4 --> LOOPP
+  LLM -.->|"narration garnish"| LOOPP
+  LOOPP --> UI
+  UI --> GATE
+  GATE -->|"executed cut on the live edge"| DEMO
+  GATE -->|"re-query verdict, before/after"| LEDGER
+  MEMDB --> LOOPP
+```
+
+One engine, one port, many tenants. The console is a thin operator surface over the
+`Investigator` agent; every graph operation goes through `FalkorGraphPort` — the
+only `GraphPort` implementation that exists. The LLM seam is deliberately optional:
+narration is garnish, Cypher does the load-bearing work, and the offline narrator
+keeps the product deterministic when no model is configured.
+
+## 2. The four beats (measured)
 
 ### ▍ Beat 1 — the interdiction loop
 *official BloodHound CE sample estate — 3 domains, 1,480 nodes / 12,450 edges, zero dangling*
@@ -110,21 +170,65 @@ canonical shortest-path query across sampled tenants:
 16.8s over the wire, breach 0→1, two gated cuts, COLLAPSED —
 [`receipts_cloud_live.json`](docs/receipts/receipts_cloud_live.json).
 
----
+### The demo arc as a sequence
 
-## 2. System architecture
+The full hero arc, end to end — every mutation measured, every cut gated, every
+verdict re-queried (timings from [`receipts_live_sever_demo.json`](docs/receipts/receipts_live_sever_demo.json)):
 
-<img src="docs/assets/diagram-system-architecture.svg" width="880" alt="SEVER system architecture"/>
-
-One engine, one port, many tenants. The console is a thin operator surface over the
-`Investigator` agent; every graph operation goes through `FalkorGraphPort` — the
-only `GraphPort` implementation that exists. The LLM seam is deliberately optional:
-narration is garnish, Cypher does the load-bearing work, and the offline narrator
-keeps the product deterministic when no model is configured.
+```mermaid
+sequenceDiagram
+  participant J as Judge in the browser
+  participant UI as Console UI
+  participant API as FastAPI console
+  participant AG as Investigator agent
+  participant DB as FalkorDB engine
+  J->>UI: click Simulate Breach, finding F-001
+  UI->>API: POST /api/finding
+  API->>DB: SET n.owned = true
+  Note over DB: reachability 0 to 1, attack paths to 5 crown jewels light up
+  API->>AG: react to the mutated estate
+  AG->>DB: enumerate canonical paths per jewel
+  AG->>DB: score every edge, rank the coverage argmax
+  AG-->>API: ranked cut proposal
+  Note over AG,UI: mid-demo a live ACE grant, F-003, mutates the graph and the agent re-scores on camera
+  J->>UI: APPROVE CUT
+  Note over UI: gate armed, CONFIRM now required
+  J->>UI: CONFIRM CUT
+  UI->>API: POST /api/cut with approved true
+  API->>AG: approve_and_cut, only literal True passes
+  AG->>DB: DELETE the proposed live edge
+  AG->>DB: re-query reachability
+  DB-->>AG: collapsed, re-query 2.28 ms
+  AG-->>API: verdict receipt with ms timing
+  API-->>J: before and after receipt appended to the ledger
+```
 
 ## 3. Control architecture — the interdiction loop
 
-<img src="docs/assets/diagram-control-flow.svg" width="880" alt="SEVER control architecture — the interdiction loop"/>
+```mermaid
+flowchart TD
+  F["finding lands - breach, kerberoast, live ACE grant"] --> M["graph mutates - mark_owned or a new edge"]
+  M --> R["two-arm reachability - owned principals to crown jewels"]
+  R --> P["enumerate one canonical path per owned-jewel pair"]
+  P --> S["score every edge by the paths it lies on"]
+  S --> C["collateral tie-break - benign_usage sampled from the estate"]
+  C --> PR["ranked proposal - top edge plus alternates"]
+  PR --> G{"human gate - APPROVE"}
+  G -->|"not approved"| X["no cut - proposal expires with the next finding"]
+  G -->|"approved"| G2{"human gate - CONFIRM, literal True only"}
+  G2 -->|"confirmed"| CUT["DELETE the live edge"]
+  G2 -->|"no confirm"| X
+  CUT --> REQ["re-query reachability - measured, never assumed"]
+  REQ --> V{"verdict by re-query"}
+  V -->|"zero paths"| COL["COLLAPSED"]
+  V -->|"paths survive"| DEG["DEGRADED - honest"]
+  V -->|"no change"| NOE["NO_EFFECT - honest"]
+  COL --> RC["append-only receipt - before, after, ms"]
+  DEG --> RC
+  NOE --> RC
+  RC --> R2["loop re-scores the mutated estate"]
+  R2 --> PR
+```
 
 The loop's honesty rules, each one pinned by live tests:
 
@@ -154,7 +258,26 @@ The loop's honesty rules, each one pinned by live tests:
 
 ## 4. Data flow architecture
 
-<img src="docs/assets/diagram-data-flow.svg" width="880" alt="SEVER data flow architecture"/>
+```mermaid
+flowchart TD
+  A["collector JSON files - users, groups, computers, domains, OUs, GPOs, CAs, Entra"] --> P1["pass 1 - nodes, keyed by objectid"]
+  P1 --> P2["pass 2 - memberships, ACE rights, delegation, trusts"]
+  P2 --> D["normalized node and edge records"]
+  D --> Q{"principal referenced but never collected?"}
+  Q -->|"yes"| U["materialize an unresolved node - flagged, never invented data"]
+  Q -->|"no"| K["keep the collected record"]
+  U --> H["deterministic 3x-identical edge hashes - prop variants stay distinct"]
+  K --> H
+  H --> NB["node batches grouped by label - UNWIND $rows, MERGE on objectid"]
+  H --> EB["edge batches grouped by rel type - props_key keeps variants distinct"]
+  NB --> G["FalkorDB tenant graph"]
+  EB --> G
+  G --> IX["range index on objectid for each indexed label"]
+  FS["findings stream - deterministic breach-timeline replay"] --> MU["mark_owned and live ACE grant mutations"]
+  MU --> G
+  G --> CUTS["gated cuts and re-queries"]
+  CUTS --> LED["append-only receipts ledger - JSON, ms timings"]
+```
 
 Two-pass parsing with unresolved-principal materialization (never invent data the
 collectors didn't give), deterministic 3×-identical edge hashes, UNWIND `$rows`
@@ -163,7 +286,66 @@ idempotent MERGE loads, and range indexes on every label's natural key.
 
 ## 5. Graph data model
 
-<img src="docs/assets/diagram-graph-model.svg" width="880" alt="SEVER graph data model"/>
+```mermaid
+erDiagram
+  USER {
+    string objectid
+    string name
+    bool owned
+    bool unresolved
+  }
+  GROUP {
+    string objectid
+    string name
+  }
+  COMPUTER {
+    string objectid
+    bool isdc
+  }
+  DOMAIN {
+    string objectid
+    bool external
+  }
+  OU {
+    string objectid
+  }
+  GPO {
+    string objectid
+  }
+  CERTTEMPLATE {
+    string objectid
+  }
+  ENTERPRISECA {
+    string objectid
+  }
+  AZUSER {
+    string objectid
+    string name
+    bool owned
+  }
+  AZSERVICEPRINCIPAL {
+    string objectid
+  }
+  AZGROUP {
+    string objectid
+  }
+  AZTENANT {
+    string objectid
+  }
+  USER |o--o{ GROUP : "MEMBER_OF - membership, traversable"
+  GROUP |o--o{ GROUP : "MEMBER_OF - nested groups"
+  USER |o--o{ USER : "GENERIC_ALL and 24 more ACE-derived rights"
+  USER |o--o{ COMPUTER : "ADMIN_TO - local admin"
+  USER |o--o{ DOMAIN : "TRUSTED_BY - domain trusts, traversable"
+  COMPUTER |o--o{ OU : "CONTAINED_BY - structural, never traversed"
+  OU |o--o{ DOMAIN : "CONTAINED_BY - structural, never traversed"
+  CERTTEMPLATE }o--|| ENTERPRISECA : "PUBLISHED_ON - structural, never traversed"
+  USER |o--o| AZUSER : "SYNCED_TO - the hybrid bridge, 9 on the merged sample"
+  AZUSER |o--o{ AZSERVICEPRINCIPAL : "AZOwns"
+  AZUSER |o--o{ AZGROUP : "AZMemberOf"
+  AZSERVICEPRINCIPAL |o--o{ AZGROUP : "AZAppRole"
+  AZUSER |o--o{ AZTENANT : "AZMemberOf - tenant roles"
+```
 
 28 node labels · 42 edge families · graph-per-tenant isolation. The traversal set
 is the core judgment: only abusable families chain, structural edges never do,
@@ -174,7 +356,16 @@ constant documented in [`docs/CYPHER.md`](docs/CYPHER.md).
 
 ## 6. Deployment architecture
 
-<img src="docs/assets/diagram-deployment.svg" width="880" alt="SEVER deployment architecture"/>
+```mermaid
+flowchart LR
+  B["judge browser"] -->|"HTTPS - TLS terminated at Render"| R["Render free tier, Singapore - uvicorn FastAPI console"]
+  R -->|"plaintext RESP - the documented TLS gap"| F["FalkorDB Cloud free tier, Mumbai - 100 MiB maxmemory, noeviction"]
+  F --> G["sever_demo tenant graph - auto-loads in 16.8s on first boot"]
+  R --> L["out/cases ledger - JSONL, ephemeral on the free tier"]
+  K["silent keepalive - every 10 minutes"] -->|"GET /api/state, real engine queries"| R
+  H["self-hosted option - docker compose or Dockerfile"] -->|"SEVER_FALKOR_HOST and friends"| F
+  O["render.yaml one-click blueprint - secrets sync false"] --> R
+```
 
 The live stack runs entirely on free tiers — Render (Singapore) for the console,
 FalkorDB Cloud (Mumbai) for the engine — with a silent 10-minute keepalive keeping
@@ -228,8 +419,8 @@ keepalive has to actually be scheduled on the demo machine (Task Scheduler
   pointing `SEVER_FALKOR_HOST` at localhost or a private network.
 - **The 100MB ceiling**: `maxmemory` is exactly 100 MiB (policy
   `noeviction`). Measured live: the 1,480-node / 12,450-edge demo tenant
-  costs **~4.8–5.3MB** of `used_memory` per tenant graph on the cloud
-  engine (three fresh loads: 5.29/4.97/4.96MB), with the engine idling at
+  costs **~5.0–5.3MB** of `used_memory` per tenant graph on the cloud
+  engine (three fresh loads: 5.25/4.97/4.96MB), with the engine idling at
   ~14MB used (peak observed 31MB during the audit fleet). Headroom for the
   live demo: ~86MB. The 3,000-tenant extrapolation does **not** fit: the
   build-host receipt says 5.44MB/tenant (`scale_wall.json` — 300 tenants /
@@ -308,15 +499,8 @@ and LLM-seam semantics — execute without the engine.
 
 ## 10. How it works
 
-```
-BloodHound CE + AzureHound collectors ──▶ ETL (two-pass, BloodHound-faithful)
-        │                                       │  1,480 nodes / 12,450 edges / 0 dangling
-        ▼                                       ▼
- findings stream ──▶ SEVER agent ──▶ FalkorDB (graph-per-tenant)
- (breach-timeline        │  paths, scoring, proposals        │
-  replay, live-mutating) ▼                                   ▼
-                   HUMAN GATE ──▶ cut ──▶ re-query ──▶ receipts (JSON, ms)
-```
+The end-to-end shape is §1's architecture diagram, §3's interdiction loop and §4's
+data-flow diagram; the load-bearing pieces:
 
 - **FalkorDB is load-bearing** (rule 3): every path query, score, cut and re-verification
   is FalkorDB Cypher — `sever/core/falkor_port.py` holds the exact queries as module
@@ -392,6 +576,12 @@ on the sample estate (pool/sampled sizes + the attacker-only #1), an exact two-c
 plan on a synthetic engine estate — both steps attacker-only by the collateral
 tie-break — execution to measured collapse, and the drift-stop honesty rule.
 
+Live DB-free run at the develop tip (2026-10-16, no docker on the audit host —
+[`docs/receipts/test_suite_2026-10-16.json`](docs/receipts/test_suite_2026-10-16.json)):
+**454 collected — 278 passed + 176 engine-skips, 0 failures**. With the engine up,
+the engine suites run as well — the engine-up full green count is not recorded
+in-repo, which is why the badge says "collected", not "green".
+
 ## 13. Disclosures
 
 - **Simulated environment**: estates are built from the official SpecterOps
@@ -417,5 +607,5 @@ sever/synth/       injective multi-tenant identity generator
 sever/console/     FastAPI cockpit (human gate as an APPROVE CUT button)
 scripts/           rehearse · case_memory_live · hybrid_live · scale_wall · cloud_demo
 docs/              graph model · exact Cypher · demo script · incidents · live receipts
-docs/assets/       the architecture diagrams above (light, color-coded SVG)
+docs/assets/       the original SVG architecture diagrams (the docs above embed mermaid)
 ```

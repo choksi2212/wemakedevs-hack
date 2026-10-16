@@ -1,7 +1,38 @@
 # SEVER — The Cypher Queries the Product Depends On
 
-Rule 10 requires publishing the exact queries. These are the **live-verified**
-forms — executed against falkordb 6.0.0 (self-hosted Docker; case-log receipts in
+**TL;DR** — Rule 10 requires publishing the exact queries. These are the **live-verified**
+forms, maintained as module constants in `sever/core/falkor_port.py` and
+`sever/core/jewels.py`, executed against falkordb 6.0.0 (self-hosted Docker) and
+re-verified form-by-form on the managed FalkorDB Cloud engine (module `graph` 4.22.0).
+The interdiction pipeline they implement: jewels + owned set → two-arm reachability →
+canonical path enumeration → edge scoring with a collateral tie-break → ranked proposal →
+human-gated cut → measured re-query verdict.
+
+```mermaid
+flowchart TD
+  A["owned set - MATCH n owned true"] --> B["crown jewels - Group RID -512 or -519; AZUser -GlobalAdministrator suffix"]
+  B --> R{"reachability - two arms, O of 2 queries"}
+  R --> R1["arm 1 - Group jewels: shortestPath per owned-jewel row inside WITH"]
+  R --> R2["arm 2 - AZUser jewels: same pattern, unioned in Python"]
+  R1 --> CNT["reached set plus owned jewels counted directly"]
+  R2 --> CNT
+  CNT --> P["canonical shortest path per owned-jewel pair - 43 rel types, 12-hop cap"]
+  P --> F["edge frequency - the enumerated paths each edge lies on"]
+  F --> BEN["collateral - benign paths of 25 sampled of 98 non-owned users, same canonical query"]
+  BEN --> TIE{"coverage tie?"}
+  TIE -->|"yes"| RANK["rank attacker-only benign 0 edges above shared ones"]
+  TIE -->|"no"| RANK2["order by paths_on desc"]
+  RANK --> PROP["ranked proposal - greedy argmax, never claimed optimal"]
+  RANK2 --> PROP
+  PROP --> GATE["human gate - APPROVE then CONFIRM, literal True only"]
+  GATE --> CUT["pre-check count, then DELETE r on the live edge"]
+  CUT --> RE["re-query reachability - measured"]
+  RE --> V["COLLAPSED or DEGRADED or NO_EFFECT - receipt with ms"]
+```
+
+## Provenance of every form
+
+Executed against falkordb 6.0.0 (self-hosted Docker; case-log receipts in
 `docs/receipts/receipts_live_sever_demo.json`; GRAPH.PROFILE receipt of the canonical
 path query in `docs/receipts/profile.txt`, ~1.1 ms in-engine on the
 1,480-node / 12,450-edge demo tenant) and re-verified form-by-form on the managed
