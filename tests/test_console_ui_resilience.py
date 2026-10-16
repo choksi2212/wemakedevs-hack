@@ -74,8 +74,13 @@ def _drive(browser, site, finding, state, click):
         elif url.endswith("/api/state"):
             status, body = state
             route.fulfill(status=status, body=body, content_type="text/plain")
-        else:  # paths / proposal / receipts — healthy enough to render
+        elif url.endswith("/api/paths"):
+            # honest shape per endpoint — the resilience guards 422 nothing,
+            # but a wrong-shape 200 legitimately degrades that ONE section
+            # (partial-data lane), which must never clobber an action receipt
             route.fulfill(status=200, body='{"paths":[]}', content_type="text/plain")
+        else:  # proposal / receipts — array endpoints
+            route.fulfill(status=200, body="[]", content_type="text/plain")
 
     page.route("**/api/*", fulfill)
     page.goto(site, wait_until="load")
@@ -190,5 +195,53 @@ def test_state_stall_flips_chip_to_engine_unreachable(static_site):
             banner, chip = _drive(browser, static_site, (200, FINDING_OK), (200, ""), "grant")
             _assert_no_parse_artifact(banner)
             assert chip == "engine unreachable", chip
+        finally:
+            browser.close()
+
+
+def test_partial_refresh_never_clobbers_an_action_receipt(static_site):
+    """audit5 merge bug (found by the ryzen gate): a refresh whose proposal/
+    receipts sections come back wrong-shaped used to overwrite a FRESH action
+    receipt with the 'partial data' state marker — the operator lost the
+    finding result they had just been shown. The banner's own flag contract
+    says an unflagged banner (an action receipt) must persist; the partial
+    condition surfaces through the degraded chip + stale timestamp instead."""
+    with pw_sync.sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+
+            def fulfill(route):
+                url = route.request.url
+                if url.endswith("/api/finding"):
+                    route.fulfill(status=200, body=FINDING_OK, content_type="text/plain")
+                elif url.endswith("/api/state"):
+                    route.fulfill(status=200, body=STATE_OK, content_type="text/plain")
+                elif url.endswith("/api/proposal"):
+                    # WRONG SHAPE: object where an array is the contract —
+                    # the partial lane engages, the receipt must survive it
+                    route.fulfill(status=200, body='{"oops": true}', content_type="text/plain")
+                else:
+                    route.fulfill(status=200, body='{"paths":[]}', content_type="text/plain")
+
+            page.route("**/api/*", fulfill)
+            page.goto(static_site, wait_until="load")
+            page.wait_for_selector("#btn-breach", timeout=15000)
+            page.click("#btn-breach")
+            page.wait_for_function(
+                "() => !document.getElementById('banner').textContent.includes('re-scoring')",
+                timeout=15000,
+            )
+            # force refreshes (the 15s tick + manual) while the receipt shows
+            for _ in range(3):
+                page.click("#btn-refresh")
+                page.wait_for_timeout(300)
+            banner = (page.text_content("#banner") or "").strip()
+            chip = (page.text_content("#engine-label") or "").strip()
+            page.close()
+            _assert_no_parse_artifact(banner)
+            assert banner.startswith("SIMULATED"), banner  # the receipt survived
+            assert "T1078.002" in banner, banner
+            assert "degraded" in chip, chip  # the partial condition is still visible
         finally:
             browser.close()
