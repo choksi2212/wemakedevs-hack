@@ -94,6 +94,20 @@
      until the owner approves; this rule is the only wiring and stays
      inert while the slot is empty. */
   .logo { display: block; width: 24px; height: 24px; flex: 0 0 auto; }
+  /* One chip grammar for every header chip: [state dot][content]. The dot is
+     the ONLY liveness claim and its color is never ambiguous:
+       green (default)  live / healthy / freshly read
+       amber (.paused)  degraded, paused, or last-known (stale)
+       red   (.down)    unreachable / failed
+       gray  (.idle)    advisory or informational — explicitly NOT a liveness
+                        claim (simulation label, operator name, estate chip
+                        before its first successful read) */
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; background: var(--bg); }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+  .chip.paused .dot { background: var(--warn); }
+  .chip.down .dot { background: var(--danger); }
+  .chip.idle .dot { background: var(--text-3); }
+  .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .spacer { flex: 1; }
   .tagline { font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); }
   .tagline b { color: var(--text-2); font-weight: 600; }
@@ -245,6 +259,22 @@
   .plan-result.done-note { border: 1px solid #2E5138; background: #121D15; color: var(--text-2); }
   .plan-result.done-note b { color: #7ED08C; }
   .sys-note { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; margin-top: 12px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); line-height: 1.6; }
+  /* Receipts ledger — an audit timeline, newest first (audit6/ui-telemetry).
+     accent so an honest failure never reads as a success. */
+  .ledger { max-height: 320px; overflow-y: auto; }
+  .entry { display: flex; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
+  .entry:last-child { border-bottom: none; }
+  .entry.sys { background: var(--bg); }
+  .entry.sys .line { color: var(--text-3); }
+  .entry.failed { box-shadow: inset 2px 0 0 var(--danger-dim); }
+  .badge { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; border: 1px solid var(--border-strong); color: var(--text-2); border-radius: 3px; padding: 1px 6px; flex-shrink: 0; text-transform: uppercase; }
+  .badge.cut { border-color: var(--danger-dim); color: var(--danger); }
+  .badge.finding { border-color: #4A5A2E; color: var(--warn); }
+  .badge.plan { border-color: var(--focus); color: var(--focus); }
+  .badge.sys { border-color: var(--border); color: var(--text-3); }
+  .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; }
+  .entry.ledger-down .line { color: var(--warn); }
   footer { padding: 12px 20px; font-size: 11px; color: var(--text-3); font-family: var(--mono); border-top: 1px solid var(--border); margin-top: 16px; }
 
   /* ---- audit6/ui-ia: information-architecture layer ----
@@ -487,7 +517,7 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null };
+  const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null, lastAt: null, estateFacts: null };
   const short = (id) => id.length > 34 ? '\u2026' + id.slice(-8) : id;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   // audit6/ui-flow: client-side id→name view for the PLAN card. Plan steps
@@ -638,6 +668,15 @@
         '/api/state response');
     } catch (e) {
       engineDown();
+      // the estate read did not answer: flip the header's estate chip to its
+      // stale (amber) state and mark the updated-at line — the panel below is
+      // last-known and must never read as fresh.
+      $('estate-chip').className = 'chip paused';
+      if (state.estateFacts) setText('estate-label', state.estateFacts + ' — last known');
+      else setText('estate-label', 'estate unavailable');
+      setText('updated-at', state.lastAt
+        ? 'state updated ' + state.lastAt + ' · refresh failed — showing last known data'
+        : '— · refresh failed');
       // surface the failure once, but never clobber a concrete action
       // receipt with a generic line, and never pretend the data below is
       // fresh — it is last-known, and the message says so.
@@ -658,10 +697,11 @@
     setText('stat-jewels', s.jewels.length.toLocaleString());
     setText('stat-owned', s.owned.length.toLocaleString());
     const at = new Date().toLocaleTimeString();
+    state.lastAt = at;
     setText('updated-at', 'state updated ' + at);
     const r = $('reach');
     r.textContent = s.reachability;
-    r.className = 'value ' + (s.reachability > 0 ? 'danger' : 'ok');
+    r.className = 'value ' + (s.nodes === 0 ? '' : (s.reachability > 0 ? 'danger' : 'ok'));  // audit6/ui-telemetry honesty: zero on an EMPTY estate is missing, not contained
     $('estate-detail').textContent = 'owned: ' + ((s.owned_names && s.owned_names.length) ? s.owned_names.map(short).join(', ') : (s.owned.length ? s.owned.map(short).join(', ') : 'none'));
     // audit6/ui-ia: the one-word verdict the hero leads with — dormant (no
     // owned principals), exposed (attack paths live), contained (owned but
@@ -774,20 +814,29 @@
     if (gen !== state.gen) return;
     if (recErr) {
       $('receipts').innerHTML =
-        '<div class="entry"><span class="line" style="color:var(--warn)">ledger unavailable — ' +
-        esc(recErr.message) + '</span></div>';
+        '<div class="entry ledger-down"><span class="badge sys">ledger</span>' +
+        '<span class="line">ledger unavailable — ' + esc(recErr.message) +
+        ' — estate data above may still be current; the case file could not be read</span></div>';
     } else {
     $('receipts').innerHTML = rec.slice(-40).reverse().map((e) => {
       const step = e.step || 'state';
       const badgeFor = (s) => s === 'cut' || s === 'cut_failed' ? 'cut'
-        : (s === 'finding' || s === 'finding_failed' ? 'finding' : '');
-      let line = '';
+        : (s === 'finding' || s === 'finding_failed' ? 'finding'
+        : (s === 'plan' || s.indexOf('plan') === 0 ? 'plan'
+        : (s === 'state' || s === 'estate_loaded' || s === 'estate_missing' || s === 'ledger_repair' ? 'sys' : '')));
+      // system events (poll noise, estate lifecycle, ledger self-repair) sit
+      // in a quieter lane; failed attempts carry a danger accent — an honest
+      // failure must never read the same as a success.
+      const sysEv = step === 'state' || step === 'estate_loaded' || step === 'estate_missing' || step === 'ledger_repair';
+      const failedEv = /_failed$/.test(step);
+      let line = '', delta = null, op = null;
       if (step === 'cut' && e.receipt) {
         const rc = e.receipt;
+        delta = { before: (rc.before ? rc.before.reachability : null), after: (rc.after ? rc.after.reachability : null) };
+        op = rc.approved_by || null;
         line = 'cut ' + short(rc.cut.src) + ' -[' + rc.cut.rel + ']-> ' + short(rc.cut.dst) +
                ' · removed ' + rc.cut.relationships_removed +
-               ' · reachability ' + rc.before.reachability + ' → ' + rc.after.reachability +
-               ' · ' + rc.requery_ms + 'ms · ' + rc.verdict + ' · by ' + rc.approved_by;
+               ' · re-query ' + rc.requery_ms + 'ms · verdict ' + rc.verdict + ' · by ' + rc.approved_by;
       } else if (step === 'plan' && e.plan) {
         const pl = e.plan;
         line = 'plan · k=' + (pl.k ?? '?') + ' · ' + (pl.steps ? pl.steps.length : 0) + ' step(s)' +
@@ -795,27 +844,49 @@
                ' · projections measured on an isolated copy';
       } else if (step === 'plan_execute' && e.result) {
         const rr = e.result;
+        const steps = rr.steps || [];
+        const lastStep = steps.length ? steps[steps.length - 1] : null;
+        delta = { before: steps.length ? steps[0].before.reachability : null, after: lastStep ? lastStep.after.reachability : null };
+        op = steps.length ? (steps[0].approved_by || null) : null;
         line = 'plan execute · ' + String(rr.status).replace(/_/g, ' ') + ' · ' + rr.executed_steps + ' step(s)' +
-               (rr.steps && rr.steps.length ? ' · reachability → ' + rr.steps[rr.steps.length - 1].after.reachability : '');
+               (String(rr.status).indexOf('drift') >= 0 ? ' · projection drift — re-plan needed' : '') +
+               (lastStep && lastStep.plan_drift ? ' · step ' + lastStep.plan_step + ' diverged from its projection' : '');
       } else if (step === 'plan_execute_failed') {
-        line = step + ' · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
+        line = 'plan execute failed · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
+        op = e.approved_by || null;
       } else if (step === 'finding' && e.triage) {
-        line = 'finding ' + e.finding + ' · ' + e.kind + ' · reachability ' +
-               (e.triage.before ? e.triage.before.reachability : '?') + ' → ' + (e.triage.after ? e.triage.after.reachability : '?');
+        delta = { before: (e.triage.before ? e.triage.before.reachability : null), after: (e.triage.after ? e.triage.after.reachability : null) };
+        line = 'finding ' + e.finding + ' · ' + e.kind;
       } else if (step === 'cut_failed' || step === 'finding_failed') {
         // honest failure receipts (audit3/console-logic): an attempt whose
         // outcome the server could not observe is never rendered as a
         // phantom success — and never as a generic "state" line either.
-        line = step + ' · ' + (e.error || 'engine unreachable') +
+        line = (step === 'cut_failed' ? 'cut failed' : 'finding failed') + ' · ' + (e.error || 'engine unreachable') +
                ' · outcome ' + (e.outcome || '?') +
                (step === 'cut_failed' && e.cut ? ' · attempted ' + short(e.cut.src) + ' -[' + e.cut.rel + ']-> ' + short(e.cut.dst) : '');
+        if (step === 'cut_failed') op = e.approved_by || null;
       } else if (step === 'ledger_repair') {
         line = 'ledger repair · ' + (e.note || 'terminated torn trailing fragment');
+      } else if (step === 'estate_loaded') {
+        line = 'estate loaded · ' + (e.nodes ?? '?') + ' nodes · ' + (e.edges ?? '?') + ' edges · ' +
+               (e.note || 'sample loaded into an empty graph');
+      } else if (step === 'estate_missing') {
+        line = 'estate missing · ' + (e.note || 'graph is empty — deleted or reset outside this console; receipts continuity breaks here');
       } else {
         line = 'state · reachability ' + (e.reachability ?? '?') + ' · ' + (e.nodes ?? '?') + ' nodes';
       }
-      return '<div class="entry"><span class="badge ' + badgeFor(step) + '">' + step + '</span>' +
+      // the measured before→after delta is the receipt's key figure: rendered
+      // as its own chip (collapse green, regression red, no change muted),
+      // kept OUT of the summary line so the two never duplicate. Hover the
+      // line for the rest of the story.
+      const dnum = delta && typeof delta.before === 'number' && typeof delta.after === 'number';
+      if (delta && !dnum) line += ' · reachability ' + (delta.before ?? '?') + ' → ' + (delta.after ?? '?');
+      const dcls = !dnum ? '' : (delta.after < delta.before ? 'd-down' : (delta.after > delta.before ? 'd-up' : 'd-flat'));
+      return '<div class="entry' + (sysEv ? ' sys' : '') + (failedEv ? ' failed' : '') + '">' +
+             '<span class="badge ' + badgeFor(step) + '">' + step + '</span>' +
              '<span class="line" title="' + esc(line) + '">' + esc(line) + '</span>' +
+             (dnum ? '<span class="delta ' + dcls + '" title="measured reachability, before → after">' + esc(delta.before) + ' → ' + esc(delta.after) + '</span>' : '') +
+             (op ? '<span class="op" title="operator — approved_by on the receipt">by ' + esc(op) + '</span>' : '') +
              '<span class="ts">' + esc(e.ts ? new Date(e.ts).toLocaleTimeString([], {hour12: false}) : '') + '</span></div>';
     }).join('') || '<div class="entry"><span class="line">—</span></div>';
     }
@@ -888,10 +959,19 @@
         && b.after && typeof b.after.reachability === 'number'
         && typeof b.requery_ms === 'number' && typeof b.verdict === 'string',
         'cut receipt');
+      // typographic hierarchy (audit6/ui-telemetry): the eyebrow names the
+      // receipt, the MEASURED VERDICT is the hero line, the re-measured
+      // delta and attribution sit beneath it. The verdict word is the
+      // server's own vocabulary rendered verbatim — the UI never rewords a
+      // verdict — and its color comes from a closed class map, never from
+      // the value itself.
+      const vcls = { collapsed: 'v-ok', degraded: 'v-warn', no_effect: 'v-idle' }[r.verdict] || 'v-idle';
       banner('<span class="technique">INTERDICTION RECEIPT</span>' +
-             'removed ' + r.cut.relationships_removed + ' relationship(s) · reachability ' +
-             r.before.reachability + ' → <b>' + r.after.reachability + '</b> · re-query ' +
-             r.requery_ms + 'ms · verdict <b>' + r.verdict + '</b>');
+             '<span class="verdict ' + vcls + '">' + esc(r.verdict) + '</span>' +
+             '<span class="res">cut ' + esc(short(r.cut.src)) + ' -[' + esc(r.cut.rel) + ']-> ' + esc(short(r.cut.dst)) +
+             ' · removed ' + esc(r.cut.relationships_removed) + ' relationship(s) · reachability ' +
+             esc(r.before.reachability) + ' → <b>' + esc(r.after.reachability) + '</b>' +
+             ' · re-query ' + esc(r.requery_ms) + 'ms · by ' + esc(r.approved_by) + '</span>');
     }).catch((e) => {
       // the gate buttons were disabled at execution start; a failed cut must
       // not strand a permanently disabled row (a stuck state during an
@@ -1106,6 +1186,14 @@
                ? ' · projection drift — later steps NOT executed, re-plan needed'
                : ' · every step matched its live re-measure'));
       renderPlan();
+      // same receipt hierarchy as the single cut: the status is the hero
+      // line; the executed count and end reachability sit beneath it.
+      banner('<span class="technique">PLAN RECEIPT</span>' +
+             '<span class="verdict ' + (String(r.status) === 'completed' ? 'v-ok' : 'v-warn') + '">' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
+             '<span class="res">executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
+             (String(r.status).indexOf('drift') >= 0
+               ? ' · projection drift — later steps NOT executed, re-plan needed'
+               : ' · every step matched its live re-measure') + '</span>');
     } catch (e) {
       banner('<span class="res">plan execution failed: ' + esc(e.message) + '</span>');
     }
@@ -1135,7 +1223,8 @@
         (r.applied === false
           ? ' · graph unchanged — this step is already part of the loaded replay estate'
           : (nochange ? ' · surface unchanged — this step is already reflected in the replay estate' : ''));
-      banner('<span class="technique">' + sim + esc(r.technique) + '</span>' + esc(r.narration) +
+      banner('<span class="technique">' + sim + esc(r.technique) + '</span>' +
+             '<span class="narration">' + esc(r.narration) + '</span>' +
              '<span class="res">' + esc(delta) + '</span>');
     } catch (e) {
       banner('<span class="res">finding failed: ' + esc(e.message) + '</span>');
