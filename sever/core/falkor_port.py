@@ -160,7 +160,17 @@ class FalkorGraphPort(GraphPort):
         else:
             from falkordb import FalkorDB
 
-            fdb = FalkorDB(host=host, port=port, username=username, password=password)
+            # socket timeouts bound HANGS, not query time: without them redis-py
+            # waits forever on a stalled remote engine (the live Render->Cloud
+            # deployment hit a multi-second latency window where requests
+            # dragged until the proxy cut them, surfacing as empty responses).
+            # A stalled query now fails in <= SEVER_FALKOR_SOCKET_TIMEOUT
+            # seconds as a clean ConnectionError -> the console's 503 JSON.
+            fdb = FalkorDB(
+                host=host, port=port, username=username, password=password,
+                socket_timeout=int(os.environ.get("SEVER_FALKOR_SOCKET_TIMEOUT", "30")),
+                socket_connect_timeout=int(os.environ.get("SEVER_FALKOR_CONNECT_TIMEOUT", "10")),
+            )
             self.graph = fdb.select_graph(graph_name)
         self.graph_name = graph_name
 
