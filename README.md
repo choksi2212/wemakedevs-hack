@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/logo-banner.svg" width="440" alt="SEVER — attack-path interdiction">
+
 # S E V E R
 
 **Attack-path tools stop at advice. SEVER closes the loop.**
