@@ -2,6 +2,8 @@
 
 <img src="docs/assets/logo-banner.svg" width="440" alt="SEVER — attack-path interdiction">
 
+**[▶ Watch the 60-second demo video](docs/assets/sever_demo_v2.mp4)** — the full judge arc, recorded live on the deployed product: breach → exposure → ranked proposals → the two-step human gate → measured collapse → receipts → the remediation plan.
+
 # S E V E R
 
 **Attack-path tools stop at advice. SEVER closes the loop.**
