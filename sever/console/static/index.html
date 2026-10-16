@@ -116,6 +116,19 @@
             <div class="sub" id="estate-detail"></div>
           </div>
         </div>
+        <!-- audit5/judge-experience: 90-second onboarding — a first-time judge
+             must be able to run breach → paths → gate → cut → receipt without
+             the README. Also states the simulation + the BloodHound delta in
+             plain language. -->
+        <div style="font-size:11px;color:var(--text-3);line-height:1.7;margin-top:12px">
+          <b style="color:var(--text-2)">Demo arc (~90s, no README needed):</b>
+          1) <b style="color:var(--text-2)">Simulate breach finding</b> — an identity is marked compromised and its attack paths to the crown jewels light up below.
+          2) Read the ranked <b style="color:var(--text-2)">interdiction proposal</b> — which single edge, if removed, kills the most attack paths; benign-usage collateral breaks ties.
+          3) <b style="color:var(--text-2)">APPROVE CUT</b> then <b style="color:var(--text-2)">CONFIRM CUT</b> — the two-step human gate: nothing is ever severed without an explicit confirm.
+          4) Read the <b style="color:var(--text-2)">receipt</b> — the engine is re-queried live and reachability is re-measured before vs after.<br>
+          BloodHound shows you these paths; SEVER removes the edge and <b style="color:var(--text-2)">proves the collapse with a measured receipt</b>.
+          Everything here runs on public BloodHound CE sample data as a labeled simulated replay — no real organization.
+        </div>
         <div class="actions">
           <button class="btn" id="btn-breach" type="button" aria-label="Simulate a credential breach finding"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1 3 8l5 7 5-7z"/></svg> Simulate breach finding</button>
           <button class="btn" id="btn-grant" type="button" aria-label="Simulate a new ACE grant, mutating the graph live"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2v12M2 8h12"/></svg> Grant new ACE (live mutation)</button>
@@ -145,12 +158,12 @@
     </div>
   </section>
 </main>
-<footer>SEVER · identity attack-path interdiction on FalkorDB · remove the database and nothing here works — the graph is the engine</footer>
+<footer>SEVER · identity attack-path interdiction on FalkorDB · remove the database and nothing here works — the graph is the engine · BloodHound maps the paths; SEVER cuts them and receipts the collapse</footer>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null };
-  const short = (id) => id.length > 26 ? '\u2026' + id.slice(-8) : id;
+  const short = (id) => id.length > 34 ? '\u2026' + id.slice(-8) : id;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   async function api(path, opts) {
@@ -163,8 +176,20 @@
     let body = null;
     try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
     if (!res.ok) {
-      const detail = (body && (body.detail || body.message)) ||
-        (text ? text.slice(0, 120) : 'empty response (backend stalled?)');
+      let detail = (body && (body.detail || body.message)) || null;
+      if (!detail) {
+        const trimmed = (text || '').replace(/^\s+/, '');
+        if (trimmed.startsWith('<')) {
+          // audit5/judge-experience: a Render/proxy outage hands back an HTML
+          // error page — dumping 120 chars of markup into the banner reads
+          // as "broken app". Name the real condition instead.
+          detail = 'HTTP ' + res.status + ' — backend unreachable (proxy error page; engine state unknown)';
+        } else if (trimmed) {
+          detail = trimmed.slice(0, 120);
+        } else {
+          detail = 'empty response (backend stalled?)';
+        }
+      }
       throw new Error(typeof detail === 'string' ? detail : ('HTTP ' + res.status));
     }
     if (body === null || body === undefined) {
@@ -172,7 +197,14 @@
     }
     return body;
   }
-  function banner(html) { const b = $('banner'); b.innerHTML = html; b.classList.add('show'); }
+  function banner(html) {
+    const b = $('banner');
+    b.innerHTML = html;
+    b.classList.add('show');
+    // audit5/judge-experience: on small screens the gate lives far below
+    // the banner; pull the result back into view so the judge sees it.
+    if (b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
   const setText = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
   const engineDown = () => {
@@ -194,7 +226,7 @@
     const r = $('reach');
     r.textContent = s.reachability;
     r.className = 'value ' + (s.reachability > 0 ? 'danger' : 'ok');
-    $('estate-detail').textContent = 'owned: ' + (s.owned.length ? s.owned.map(short).join(', ') : 'none');
+    $('estate-detail').textContent = 'owned: ' + ((s.owned_names && s.owned_names.length) ? s.owned_names.map(short).join(', ') : (s.owned.length ? s.owned.map(short).join(', ') : 'none'));
 
     try {
     const paths = await api('/api/paths');
@@ -202,25 +234,33 @@
       ? paths.paths.map((p) =>
           '<div class="path-block"><div class="path-head"><b>' + esc(p.principal) + '</b> → crown jewel</div>' +
           '<div class="hops">' + p.hops.map((h, i) =>
-            '<div class="hop"><span class="node' + (i === 0 ? ' mut' : '') + '" title="' + esc(h.src) + '">' + esc(short(h.src)) + '</span>' +
+            '<div class="hop"><span class="node' + (i === 0 ? ' mut' : '') + '" title="' + esc(h.src_id && h.src_id !== h.src ? h.src + ' (' + h.src_id + ')' : h.src) + '">' + esc(short(h.src)) + '</span>' +
             '<span class="rel">-[' + esc(h.rel) + ']-></span>' +
-            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst) + '">' + esc(short(h.dst)) + '</span></div>'
+            '<span class="node' + (i === p.hops.length - 1 ? ' jewel' : '') + '" title="' + esc(h.dst_id && h.dst_id !== h.dst ? h.dst + ' (' + h.dst_id + ')' : h.dst) + '">' + esc(short(h.dst)) + '</span></div>'
           ).join('') + '</div></div>')
         .join('')
-      : '<div class="empty">No owned principals — simulate a breach to begin.</div>';
+      // audit5/judge-experience: distinguish "nothing owned" (demo not
+      // started) from "owned but fully contained" (surface collapsed) — the
+      // old single message lied in the second case.
+      : (s.owned && s.owned.length
+          ? '<div class="empty">Owned principals are contained — every path to every crown jewel has been cut. The estate stays collapsed until the sample estate is reset (a fresh deploy restores it).</div>'
+          : '<div class="empty">No owned principals — simulate a breach to begin.</div>');
 
     const prop = await api('/api/proposal');
     $('proposal').innerHTML = prop.length
       ? prop.map((c) =>
-          '<div class="prop-row"><div class="prop-main"><span title="' + esc(c.src) + '">' + esc(short(c.src)) + '</span> ' +
+          // audit5/judge-experience: display the server-resolved principal
+          // NAME here, but keep the data-* attributes as raw objectids —
+          // the cut API is addressed by objectid, never by display name.
+          '<div class="prop-row"><div class="prop-main"><span title="' + esc(c.src_name && c.src_name !== c.src ? c.src_name + ' (' + c.src + ')' : c.src) + '">' + esc(short(c.src_name || c.src)) + '</span> ' +
           '<span class="rel">-[' + esc(c.rel) + ']-></span> ' +
-          '<span title="' + esc(c.dst) + '">' + esc(short(c.dst)) + '</span>' +
+          '<span title="' + esc(c.dst_name && c.dst_name !== c.dst ? c.dst_name + ' (' + c.dst + ')' : c.dst) + '">' + esc(short(c.dst_name || c.dst)) + '</span>' +
           '<span class="quiet">on ' + c.paths_on + ' path-edge occurrences' +
           (c.benign_usage != null ? ' · benign ' + c.benign_usage + (c.benign_sample ? ' of ' + c.benign_sample.sampled + ' sampled' : '') : '') +
           '</span></div>' +
           '<div class="prop-cta"><button class="btn approve" data-src="' + esc(c.src) + '" data-dst="' + esc(c.dst) + '" data-rel="' + esc(c.rel) + '" aria-label="Approve cutting this edge">APPROVE CUT</button></div></div>')
         .join('')
-      : '<div class="empty" style="padding:12px 16px">Nothing to propose.</div>';
+      : '<div class="empty" style="padding:12px 16px">Nothing to propose — every attack path is already severed (reachability 0). A fresh deploy of the sample estate restores the demo.</div>';
     document.querySelectorAll('#proposal button.approve').forEach((b) =>
       b.addEventListener('click', () => armGate(b.dataset.src, b.dataset.dst, b.dataset.rel)));
     // keep an armed gate armed across re-renders (auto-refresh must not wipe
@@ -267,7 +307,7 @@
       }
       return '<div class="entry"><span class="badge ' + badgeFor(step) + '">' + step + '</span>' +
              '<span class="line" title="' + esc(line) + '">' + esc(line) + '</span>' +
-             '<span class="ts">' + esc((e.ts || '').slice(11, 19)) + '</span></div>';
+             '<span class="ts">' + esc(e.ts ? new Date(e.ts).toLocaleTimeString([], {hour12: false}) : '') + '</span></div>';
     }).join('') || '<div class="entry"><span class="line">—</span></div>';
     } catch (e) { engineDown(); }
   }
@@ -453,7 +493,17 @@
         body: JSON.stringify(body),
       });
       const sim = r.simulated ? 'SIMULATED · ' : '';  // honesty: never pass replay findings off as live telemetry
-      banner('<span class="technique">' + sim + esc(r.technique) + '</span>' + esc(r.narration));
+      // audit5/judge-experience: the replay estate loads pre-breached, so a
+      // click often changes nothing — SHOW the before→after reachability so
+      // the judge can tell "worked" from "already reflected".
+      const before = (r.reachability_before != null) ? String(r.reachability_before) : '?';
+      const nochange = before === String(r.reachability);
+      const delta = 'reachability ' + before + ' → ' + r.reachability +
+        (r.applied === false
+          ? ' · graph unchanged — this step is already part of the loaded replay estate'
+          : (nochange ? ' · surface unchanged — this step is already reflected in the replay estate' : ''));
+      banner('<span class="technique">' + sim + esc(r.technique) + '</span>' + esc(r.narration) +
+             '<span class="res">' + esc(delta) + '</span>');
     } catch (e) {
       banner('<span class="res">finding failed: ' + esc(e.message) + '</span>');
     }

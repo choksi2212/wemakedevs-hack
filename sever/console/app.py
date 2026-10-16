@@ -171,12 +171,21 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             })
         return out
 
+    _name_cache: dict[str, str] = {}
+
     def _name(oid: str) -> str:
+        # audit5/judge-experience: resolve SIDs to human names (a judge must
+        # read "T1_TONYMONTANA@PHANTOM.CORP", not "…394-2110"). Cached: names
+        # never change on cuts, and the 15s auto-refresh would otherwise
+        # re-query the same ids on every poll.
+        hit = _name_cache.get(oid)
+        if hit is not None:
+            return hit
         res = port.graph.query(
             "MATCH (n {objectid: $o}) RETURN n.name AS name LIMIT 1", {"o": oid})
-        if res.result_set and res.result_set[0][0]:
-            return str(res.result_set[0][0])
-        return oid
+        name = str(res.result_set[0][0]) if res.result_set and res.result_set[0][0] else oid
+        _name_cache[oid] = name
+        return name
 
     def _objectid_exists(oid: str) -> bool:
         """Resolves against the loaded estate — the honest-rejection probe:
@@ -190,6 +199,13 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     async def index() -> str:
         return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
 
+    # audit5/judge-experience: /api/state is polled every 15s by every open
+    # console tab. Pre-fix, each poll appended a "state" line to the
+    # receipts ledger — 4 lines/minute of identical spam burying the cut and
+    # finding receipts a judge actually needs to see. Log state only when it
+    # changes; the transition itself is the receipt.
+    last_state_log: dict[str, Any] = {"key": None}
+
     @app.get("/api/state")
     async def state() -> dict[str, Any]:
         data = {
@@ -199,9 +215,16 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             "edges": port.edge_count(),
             "jewels": port.crown_jewels(),
             "owned": port.owned_ids(),
+            # audit5/judge-experience: names for the owned list — the metric
+            # sub-line under the big reachability number must read as
+            # principals, not as elided SID tails.
+            "owned_names": [_name(o) for o in port.owned_ids()],
             "reachability": port.reachability(),
         }
-        log.append({"step": "state", **{k: data[k] for k in ("reachability", "nodes", "edges")}})
+        key = (data["reachability"], data["nodes"], data["edges"])
+        if key != last_state_log["key"]:
+            last_state_log["key"] = key
+            log.append({"step": "state", **{k: data[k] for k in ("reachability", "nodes", "edges")}})
         return data
 
     @app.get("/api/paths")
@@ -209,12 +232,25 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         out: dict[str, Any] = {"paths": []}
         for owned in port.owned_ids():
             for path in port.paths_to_jewels(owned):
-                out["paths"].append({"principal": _name(owned), "hops": names(path)})
+                # audit5/judge-experience: _names resolves each hop's
+                # objectid to a human name (src/dst) while keeping the raw
+                # id (src_id/dst_id). The module-level names() below returns
+                # raw SIDs — pre-fix every hop rendered as an elided
+                # "…394-2110" that no judge could read, and the resolver
+                # directly above was dead code.
+                out["paths"].append({"principal": _name(owned), "hops": _names(path)})
         return out
 
     @app.get("/api/proposal")
     async def proposal() -> list[dict[str, Any]]:
-        return inv.propose(limit=5)
+        out = inv.propose(limit=5)
+        # audit5/judge-experience: the operator approves a cut between
+        # PRINCIPALS, not between opaque SID tails — resolve display names.
+        # src/dst keep the raw objectids: the cut API must receive ids.
+        for item in out:
+            item["src_name"] = _name(item["src"])
+            item["dst_name"] = _name(item["dst"])
+        return out
 
     @app.get("/api/plan")
     async def plan() -> dict[str, Any]:
@@ -314,6 +350,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             "simulated": True,  # findings stream is a labeled breach-timeline replay, not live telemetry
             "applied": report.applied,
             "reachability": report.after["reachability"],
+            # audit5/judge-experience: the replay estate loads pre-breached,
+            # so both demo buttons often change nothing — the UI must be able
+            # to SHOW "1 → 1, no surface change" instead of leaving the judge
+            # wondering whether the click worked.
+            "reachability_before": report.before["reachability"],
         }
 
     @app.post("/api/cut")
