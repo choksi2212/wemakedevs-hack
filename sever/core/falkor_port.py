@@ -415,9 +415,15 @@ class _CountingGraph:
     """Passthrough for the falkordb graph object that (a) counts every
     GRAPH.QUERY for the round-trip audit, (b) drops the snapshot cache when a
     query text carries a write clause. Attribute access (``.calls`` on test
-    stubs, ``.client``, ``._build_params_header`` …) delegates untouched, so
-    every existing wire-shape contract against injected clients keeps
-    working verbatim."""
+    stubs, ``.client``, ``._build_params_header`` …) delegates untouched in
+    BOTH directions — reads via ``__getattr__`` and writes via ``__setattr__``
+    land on the inner graph verbatim — so every existing wire-shape contract
+    against injected clients, and the documented round-trip counting seam
+    (``port.graph.client = wrapper`` / ``port.graph.execute_command =
+    wrapper.execute_command``, valid writes on the raw graph because
+    falkordb's ``Graph`` keeps both as plain instance attributes and
+    dispatches queries through ``self.execute_command``), keeps working
+    verbatim through the proxy."""
 
     __slots__ = ("_inner", "_port", "_client_proxy")
 
@@ -444,6 +450,23 @@ class _CountingGraph:
                 object.__setattr__(self, "_client_proxy", cached)
             return cached
         return getattr(self._inner, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Write passthrough (audit8/fix-code, F105): without this, the
+        # __slots__ proxy turned every attribute WRITE into an
+        # AttributeError('_CountingGraph' object has no attribute ...) —
+        # including the documented round-trip counting seam
+        # (``port.graph.client = wrapper`` + re-binding
+        # ``port.graph.execute_command = wrapper.execute_command``), which
+        # are legal writes on the raw falkordb Graph and are load-bearing:
+        # rebinding execute_command is how graph.query() traffic is routed
+        # through the wrapper. Slot bookkeeping stays local; every other
+        # write lands on the inner graph verbatim, so the proxy is
+        # indistinguishable from the raw handle for both reads and writes.
+        if name in ("_inner", "_port", "_client_proxy"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._inner, name, value)
 
 
 class FalkorGraphPort(GraphPort):

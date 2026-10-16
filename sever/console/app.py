@@ -89,7 +89,6 @@ from starlette.responses import Response
 from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
-from sever.console.security import BodySizeLimitMiddleware
 from sever.console.schemas import CutRequest, FindingRequest, PlanExecuteRequest
 from sever.console.security import BodySizeLimitMiddleware
 from sever.core.falkor_port import (
@@ -646,10 +645,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
                 for path in port.paths_to_jewels(owned):
                     # audit5/judge-experience: _names resolves each hop's
                     # objectid to a human name (src/dst) while keeping the raw
-                    # id (src_id/dst_id). The module-level names() below returns
-                    # raw SIDs — pre-fix every hop rendered as an elided
-                    # "…394-2110" that no judge could read, and the resolver
-                    # directly above was dead code.
+                    # id (src_id/dst_id). Pre-fix the hops rendered as elided
+                    # "…394-2110" SIDs that no judge could read — the raw-SID
+                    # list comprehension that used to sit here was dead code
+                    # (audit8/fix-code: the leftover module-level helper was
+                    # removed with it; zero callers repo-wide).
                     out["paths"].append({"principal": _name(owned), "hops": _names(path)})
             return out
         _nodes, _edges, owned, jewels = probe
@@ -992,10 +992,6 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # expose for tests/teardown
     build_app.port_obj = port
     return app
-
-
-def names(hops):
-    return [{"src": s, "rel": r, "dst": d} for s, r, d in hops]
 
 
 if os.environ.get("SEVER_CONSOLE_NO_BOOTSTRAP") == "1":
