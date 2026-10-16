@@ -186,6 +186,47 @@ on first boot (16.8s measured over the wire on FalkorDB Cloud —
 [`receipts_cloud_live.json`](docs/receipts/receipts_cloud_live.json)),
 an existing one boots without reloading.
 
+**Free-tier reality, documented honestly** (per FalkorDB Cloud's own
+[free-tier docs](https://docs.falkordb.com/cloud/tiers/free/) and measured live —
+[`audit5_cloud_instance.json`](docs/receipts/audit5_cloud_instance.json)):
+
+- **Lifecycle**: a free instance that goes **unutilized for 1 day is stopped,
+  and is deleted after 7 days** of inactivity — no snapshots, no backups, no
+  recovery. The keepalive works *through* the console: each 10-minute
+  `/api/state` ping runs real engine queries (node/edge counts, jewels,
+  owned set, the all-pairs shortestPath reachability), so the engine sees
+  traffic, not just Render. If the keepalive and all visitors stop for a
+  day, the engine stops; a stopped instance is restarted with the
+  cloud console's START operation (auto-resume-on-connect is not documented
+  anywhere). Because the free tier keeps no persistence, the honest reading
+  is: after a stop, expect an **empty engine** — the console's boot
+  auto-load then rebuilds `sever_demo` from the sample baked into the image,
+  which is the actual self-heal path; anything else on the instance would
+  be gone. (Render's free tier, for contrast, only sleeps the console —
+  next request spins it back up in ~50s.)
+- **The TLS gap**: free-tier FalkorDB Cloud has **no TLS** (TLS starts at the
+  $73/mo Startup tier), so the Render→engine link is plaintext RESP over the
+  public internet. What crosses it: the `AUTH` handshake (username +
+  password), every Cypher query, and all graph data (the estate, the
+  telemetry streams the platform writes per graph). The estate is synthetic
+  public sample data and the credential is single-purpose, but the honest
+  statement is: an on-path attacker can read the data and replay the
+  credential. The browser→Render hop *is* TLS (Render terminates HTTPS);
+  the gap is the backend leg only. Self-hosted deployments close it by
+  pointing `SEVER_FALKOR_HOST` at localhost or a private network.
+- **The 100MB ceiling**: `maxmemory` is exactly 100 MiB (policy
+  `noeviction`). Measured live: the 1,480-node / 12,450-edge demo tenant
+  costs **~4.8–5.3MB** of `used_memory` per tenant graph on the cloud
+  engine (three fresh loads: 5.29/4.97/4.96MB), with the engine idling at
+  ~14MB used (peak observed 31MB during the audit fleet). Headroom for the
+  live demo: ~86MB. The 3,000-tenant extrapolation does **not** fit: the
+  build-host receipt says 5.44MB/tenant (`scale_wall.json` — 300 tenants /
+  1.594GiB on self-hosted 6.0.0), so 3,000 tenants ≈ **16.3GiB ≈ 163× the
+  free-tier ceiling**; measured on the cloud engine itself it is ~15.2GB
+  (≈145×). Roughly **19 tenants** fit before the wall — the multi-tenant
+  scale beat is a build-host story, not a free-tier story, and the docs say
+  so.
+
 ## 7. Real incidents this shape catches
 
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md) maps SEVER's beats onto real identity
@@ -304,6 +345,15 @@ external against the live deployment, one internal against code + supply chain).
 - **Exposure**: security headers on every response (HSTS, CSP, nosniff, DENY,
   no-referrer); OpenAPI/docs opt-in; CORS fail-closed; no cookies, no CSRF vector;
   no URL parameters anywhere (no SSRF surface).
+- **Transport — the one plaintext leg**: browser→Render is TLS (Render
+  terminates HTTPS), but the free-tier Render→FalkorDB Cloud leg is
+  plaintext RESP (free tier ships no TLS; the managed instance's RESP port
+  is public): the engine credential, every query, and all graph data cross
+  it readable by an on-path observer. Demo data is synthetic/public and the
+  credential is single-purpose; a real deployment closes the gap by paying
+  for TLS, or by self-hosting the engine on localhost/private networking.
+  Full write-up in §6 ("Free-tier reality") — kept here so the security
+  posture doesn't overclaim.
 - **Prompt injection**: contained and delimited — garnish renders only to the same
   operator and is never load-bearing; the HTTP console wires no LLM at all.
 - **Supply chain**: pip-audit clean across the transitive closure; git history

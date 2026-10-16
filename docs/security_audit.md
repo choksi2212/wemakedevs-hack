@@ -90,6 +90,22 @@ reach the host can read, mutate, or `GRAPH.DELETE` every tenant graph; the
 browser UI exposes the same data. Flagged in-file with a SECURITY NOTE
 (loopback-bind guidance). **Ports left unchanged per audit scope.**
 
+## 4b. The live deployment's plaintext engine leg (added by audit5/cloud-instance)
+
+Scope note for completeness: this audit scoped the app surface; the LIVE
+deployment adds one infra-leg gap outside its original scope. Free-tier
+FalkorDB Cloud ships **no TLS** (TLS begins at the paid Startup tier), so the
+Render console talks to the engine in **plaintext RESP over the public
+internet** — the AUTH credential, every Cypher query, and all graph data are
+on-path-readable (and the engine's RESP port is internet-facing, protected
+only by that credential — note the ACL surface measured live in
+`docs/receipts/audit5_cloud_instance.json`: `CONFIG`, `ACL`, `KEYS`, `DEBUG`,
+stream reads (`XLEN`/`XRANGE`) and `SAVE` are all denied for the app user,
+which limits what a stolen credential can do, but does not encrypt it).
+Browser→Render IS TLS (Render terminates HTTPS); only the backend leg is
+plaintext. Documented honestly in README §6 "Free-tier reality" and §11
+"Transport — the one plaintext leg".
+
 ## 5. Console UI DOM XSS (found during the injection sweep)
 
 `index.html` inserted graph-derived strings (node names, objectids, rel

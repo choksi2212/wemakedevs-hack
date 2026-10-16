@@ -4,7 +4,9 @@ The exact Cypher SEVER depends on lives here as module constants — these are t
 queries reproduced in the README's "Cypher queries" section and shown with
 GRAPH.PROFILE receipts in the demo.
 
-Live-verified on falkordb 6.0.0 (self-hosted Docker + FalkorDB Cloud).
+Live-verified on falkordb 6.0.0 (self-hosted Docker) and on the managed
+FalkorDB Cloud instance (module 'graph' 4.22.0 — see
+docs/receipts/receipts_cloud_live.json and audit5_cloud_instance.json).
 """
 from __future__ import annotations
 
@@ -98,18 +100,24 @@ REACHABILITY_QUERY_TEMPLATE = (
 )
 
 # Per-pair SHORTEST-path tie enumeration (offline analysis mode, capped at
-# 100 paths). FalkorDB quirk: shortestPath works only as a WITH-clause
-# expression; algo.SPpaths enumerates ties but yields raw node ids on edges —
-# hence the index-zip hop parser below. The traversal set is passed server-side
-# via `relTypes` (live-verified honored: a CONTAINED_BY-only pair returns 0
-# rows under relTypes ['MEMBER_OF']) and re-enforced app-side, because SPpaths
-# has NO working hop-bound config on falkordb 6.0.0 — unknown config keys such
-# as `maxHops` are accepted and silently ignored (a 12-hop path is returned
-# even under maxHops: 2), so the hop cap is applied to the parsed hops.
-# Observed on a shared engine under concurrent graph create/delete churn: the
-# procedure can intermittently fail server-side ("unhandled type in inlined
-# properties") — one more reason the live loop and the reachability metric use
-# only the canonical shortestPath form.
+# 100 paths). The canonical form is the WITH-clause expression — audit5
+# cross-checked both engines (Cloud 4.22.0 + self-hosted 6.0.0): the WITH
+# form AND the RETURN form both parse+run on each, but the WITH form is the
+# one shipped everywhere. algo.SPpaths enumerates ties but yields raw node
+# ids on edges — hence the index-zip hop parser below. The traversal set is
+# passed server-side via `relTypes` (live-verified honored on BOTH engines:
+# a CONTAINED_BY-only pair returns 0 rows under relTypes ['MEMBER_OF']) and
+# re-enforced app-side, because SPpaths has NO working hop-bound config on
+# falkordb 6.0.0 — unknown config keys such as `maxHops` are accepted and
+# silently ignored (a 12-hop path is returned even under maxHops: 2), so the
+# hop cap is applied to the parsed hops.
+# audit5/cloud-instance correction: the "unhandled type in inlined
+# properties" error was NOT an intermittent churn bug — it is the
+# deterministic 6.0.0 parser's rejection of the raw {{…}}-escaped template
+# that this module used to ship unformatted (4.22.0 rejects it with
+# "Invalid input '{'"); the template is now .format()-ed before it reaches
+# the engine, verified live on both. One more reason the live loop and the
+# reachability metric use only the canonical shortestPath form anyway.
 PATH_QUERY_TEMPLATE = (
     "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
     "CALL algo.SPpaths({{sourceNode: o, targetNode: t, relTypes: "
@@ -327,7 +335,13 @@ class FalkorGraphPort(GraphPort):
         paths: list[list[tuple[str, str, str]]] = []
         for jewel in self.crown_jewels():
             query = (
-                PATH_QUERY_TEMPLATE
+                # .format() unwraps the {{...}} escapes into the literal Cypher
+                # the engine parses — until audit5/cloud-instance the RAW
+                # template reached the engine and was rejected on BOTH engines
+                # (4.22.0: "Invalid input '{'"; 6.0.0: "unhandled type in
+                # inlined properties") — the ties mode was dead at the engine,
+                # masked by test_live_semantics' broad engine-bug except.
+                PATH_QUERY_TEMPLATE.format()
                 if ties
                 else CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern)
             )

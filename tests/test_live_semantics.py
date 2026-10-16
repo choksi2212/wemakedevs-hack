@@ -93,15 +93,19 @@ def test_ties_mode_never_reports_structural_or_overlong_hops(port):
         port.mark_owned(STRUCT)
         assert port.paths_to_jewels(STRUCT, 12, ties=True) == []
     except Exception as exc:
-        # algo.SPpaths intermittently fails server-side on this falkordb build
-        # under concurrent graph churn ("unhandled type in inlined
-        # properties" — documented in docs/CYPHER.md); the ties mode is
-        # offline-only and the guard logic is covered engine-free in
-        # tests/test_core_edges.py, so skip rather than fail on the engine bug
+        # audit5/cloud-instance root-caused the historical "unhandled type in
+        # inlined properties" failures: they were the deterministic 6.0.0
+        # parser rejecting our RAW {{…}}-escaped PATH_QUERY_TEMPLATE, shipped
+        # unformatted (4.22.0 rejects it with "Invalid input '{'"); the
+        # template is now .format()-ed, so this skip should never fire for
+        # that reason again — it stays as belt-and-braces for a genuinely
+        # unavailable procedure. The ties mode is offline-only and the guard
+        # logic is covered engine-free in tests/test_core_edges.py.
         if "inlined properties" in str(exc):
             pytest.skip(
                 "algo.SPpaths unavailable on this engine state "
-                "(falkordb 6.0.0 shared-engine instability; offline mode only)"
+                "(historically our raw unformatted template, fixed in "
+                "audit5/cloud-instance; offline mode only)"
             )
         raise
     for path in paths:

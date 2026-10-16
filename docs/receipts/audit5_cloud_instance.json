@@ -1,0 +1,368 @@
+{
+ "beat": "cloud instance audit (audit5/cloud-instance)",
+ "probes": {
+  "estate_inventory": {
+   "module_list": [
+    {
+     "name": "falkordbe",
+     "ver": 10000,
+     "path": "/var/lib/falkordb/bin/falkordb_enterprise.so",
+     "args": []
+    },
+    {
+     "name": "graph",
+     "ver": 42200,
+     "path": "/var/lib/falkordb/bin/falkordb.so",
+     "args": [
+      "MAX_INFO_QUERIES",
+      "1",
+      "CACHE_SIZE",
+      "25",
+      "NODE_CREATION_BUFFER",
+      "16384",
+      "MAX_QUEUED_QUERIES",
+      "50",
+      "TIMEOUT_MAX",
+      "0",
+      "TIMEOUT_DEFAULT",
+      "0",
+      "RESULTSET_SIZE",
+      "10000",
+      "QUERY_MEM_CAPACITY",
+      "52428800",
+      "VKEY_MAX_ENTITY_COUNT",
+      "4611686000000000000",
+      "EFFECTS_THRESHOLD",
+      "0"
+     ]
+    },
+    {
+     "name": "vectorset",
+     "ver": 1,
+     "path": "",
+     "args": []
+    }
+   ],
+   "engine": {
+    "redis_version": "8.10.2",
+    "os": "Linux 6.12.88 aarch64",
+    "uptime_seconds": 39838,
+    "maxmemory_bytes": 104857600,
+    "used_memory_bytes": 14219592,
+    "used_memory_peak_bytes": 31173864,
+    "used_memory_startup_bytes": 2802536,
+    "used_memory_dataset_bytes": 11324328,
+    "maxmemory_policy": "noeviction",
+    "aof_enabled": null,
+    "role": null
+   },
+   "dbsize": 4,
+   "graph_list": [
+    "sever_cloud_smoke",
+    "sever_demo"
+   ],
+   "estate": [
+    {
+     "key": "sever_cloud_smoke",
+     "type": "graphdata",
+     "memory_usage_bytes": 40,
+     "graph_memory_mb": {
+      "total_graph_sz_mb": 0,
+      "label_matrices_sz_mb": 0,
+      "relation_matrices_sz_mb": 0,
+      "amortized_node_block_sz_mb": 0,
+      "amortized_node_attributes_by_label_sz_mb": {
+       "N": 0
+      },
+      "amortized_unlabeled_nodes_attributes_sz_mb": 0,
+      "amortized_edge_block_sz_mb": 0,
+      "amortized_edge_attributes_by_type_sz_mb": {
+       "MEMBER_OF": 0
+      },
+      "indices_sz_mb": 0
+     },
+     "nodes": 2,
+     "edges": 1,
+     "labels_present": [
+      "N"
+     ]
+    },
+    {
+     "key": "sever_demo",
+     "type": "graphdata",
+     "memory_usage_bytes": 32,
+     "graph_memory_mb": {
+      "total_graph_sz_mb": 2,
+      "label_matrices_sz_mb": 0,
+      "relation_matrices_sz_mb": 0,
+      "amortized_node_block_sz_mb": 0,
+      "amortized_node_attributes_by_label_sz_mb": {
+       "AIACA": 0,
+       "CertTemplate": 0,
+       "Computer": 0,
+       "Container": 0,
+       "Domain": 0,
+       "EnterpriseCA": 0,
+       "GPO": 0,
+       "Group": 0,
+       "NTAuthStore": 0,
+       "OU": 0,
+       "RootCA": 0,
+       "User": 0,
+       "AZUser": 0,
+       "AZServicePrincipal": 0,
+       "AZApp": 0
+      },
+      "amortized_unlabeled_nodes_attributes_sz_mb": 0,
+      "amortized_edge_block_sz_mb": 0,
+      "amortized_edge_attributes_by_type_sz_mb": {
+       "ADD_ALLOWED_TO_ACT": 0,
+       "ADD_KEY_CREDENTIAL_LINK": 0,
+       "ADD_MEMBER": 0,
+       "ADD_SELF": 0,
+       "ADMIN_TO": 0,
+       "ALLOWED_TO_ACT": 0,
+       "ALLOWED_TO_DELEGATE": 0,
+       "ALL_EXTENDED_RIGHTS": 0,
+       "CONTAINED_BY": 0,
+       "ENROLL": 0,
+       "FORCE_CHANGE_PASSWORD": 0,
+       "GENERIC_ALL": 0,
+       "GENERIC_WRITE": 0,
+       "GET_CHANGES": 0,
+       "GET_CHANGES_ALL": 0,
+       "GET_CHANGES_IN_FILTERED_SET": 0,
+       "MANAGE_CA": 0,
+       "MANAGE_CERTIFICATES": 0,
+       "MEMBER_OF": 0,
+       "OWNS": 0,
+       "PUBLISHED_ON": 0,
+       "READ_GMSAPASSWORD": 0,
+       "READ_LAPSPASSWORD": 0,
+       "TRUSTED_BY": 0,
+       "WRITE_ACCOUNT_RESTRICTIONS": 0,
+       "WRITE_DACL": 0,
+       "WRITE_OWNER": 0,
+       "WRITE_PKIENROLLMENT_FLAG": 0,
+       "WRITE_PKINAME_FLAG": 0
+      },
+      "indices_sz_mb": 0
+     },
+     "nodes": 1480,
+     "edges": 12450,
+     "labels_present": [
+      "AIACA",
+      "CertTemplate",
+      "Computer",
+      "Container",
+      "Domain",
+      "EnterpriseCA",
+      "GPO",
+      "Group",
+      "NTAuthStore",
+      "OU",
+      "RootCA",
+      "User"
+     ]
+    },
+    {
+     "key": "telemetry{sever_cloud_smoke}",
+     "type": "stream",
+     "memory_usage_bytes": 526
+    },
+    {
+     "key": "telemetry{sever_demo}",
+     "type": "stream",
+     "memory_usage_bytes": 2910
+    }
+   ],
+   "acl_surface": {
+    "CONFIG": "denied: User falkordb has no permissions to run the 'config|get' command",
+    "ACL": "denied: User falkordb has no permissions to run the 'acl|whoami' command",
+    "XLEN": "denied: User falkordb has no permissions to run the 'xlen' command",
+    "XRANGE": "denied: User falkordb has no permissions to run the 'xrange' command",
+    "KEYS": "denied: User falkordb has no permissions to run the 'keys' command",
+    "GRAPH.ROSTER": "denied: unknown command 'GRAPH.ROSTER'",
+    "SAVE": "denied: User falkordb has no permissions to run the 'save' command",
+    "DEBUG": "denied: DEBUG command not allowed. If the enable-debug-command option is set t",
+    "INFO": "allowed (used by this audit)",
+    "PING": "allowed (used by this audit)",
+    "SCAN": "allowed (used by this audit)",
+    "DBSIZE": "allowed (used by this audit)",
+    "TYPE": "allowed (used by this audit)",
+    "MEMORY USAGE": "allowed (used by this audit)",
+    "GRAPH.QUERY": "allowed (used by this audit)",
+    "GRAPH.LIST": "allowed (used by this audit)",
+    "GRAPH.MEMORY USAGE": "allowed (used by this audit)",
+    "GRAPH.EXPLAIN": "allowed (used by this audit)",
+    "GRAPH.PROFILE": "allowed (used by this audit)",
+    "GRAPH.SLOWLOG": "allowed (used by this audit)",
+    "GRAPH.CONFIG GET": "allowed (used by this audit)",
+    "MODULE LIST": "allowed (used by this audit)",
+    "GRAPH.DELETE": "allowed (used by this audit)",
+    "GRAPH.COPY": "allowed (used by this audit)"
+   }
+  },
+  "sizing": {
+   "sample_nodes": 1480,
+   "sample_edges": 12450,
+   "tenants": [
+    {
+     "graph": "sever_audit5_cloud_t1",
+     "load_seconds": 16.9,
+     "used_memory_after_bytes": 19535232,
+     "used_memory_delta_bytes": 5253896,
+     "graph_memory_total_mb": 2
+    },
+    {
+     "graph": "sever_audit5_cloud_t2",
+     "load_seconds": 16.77,
+     "used_memory_after_bytes": 24509896,
+     "used_memory_delta_bytes": 4974664,
+     "graph_memory_total_mb": 2
+    },
+    {
+     "graph": "sever_audit5_cloud_t3",
+     "load_seconds": 16.7,
+     "used_memory_after_bytes": 29473928,
+     "used_memory_delta_bytes": 4964032,
+     "graph_memory_total_mb": 2
+    }
+   ],
+   "per_tenant_bytes": 5064197,
+   "extrapolation_3000_tenants_bytes": 15192591000,
+   "extrapolation_3000_tenants_vs_maxmemory": "144.9x the 100MB ceiling",
+   "tenants_that_fit_in_100mb_approx": 19,
+   "ryzen_receipt_per_tenant_mb": 5.44,
+   "extrapolation_3000_from_ryzen_receipt_bytes": 17112759000,
+   "extrapolation_3000_from_ryzen_receipt_vs_maxmemory": "163.2x the 100MB ceiling (16.32GiB)"
+  },
+  "version_gap": {
+   "engine_note": "FalkorDB Cloud module 'graph' ver 42200 (=4.22.0) vs self-hosted 6.0.0",
+   "setup_node_count": 2,
+   "canonical_shortestPath_WITH_form": {
+    "ok": true,
+    "result": "[[<falkordb.path.Path object at 0x0000028626410250>]]"
+   },
+   "shortestPath_RETURN_form_documented_quirk": {
+    "ok": true,
+    "result": "[[<falkordb.path.Path object at 0x0000028626410150>]]"
+   },
+   "reachability_arm_Group": {
+    "ok": true,
+    "result": "[['S-1-5-21-990000000000000000000000000001-1001']]"
+   },
+   "reachability_arm_AZUser": {
+    "ok": true,
+    "result": "[]"
+   },
+   "reachability_perpair_hit_form": {
+    "ok": true,
+    "result": "[[True]]"
+   },
+   "jewels_query": {
+    "ok": true,
+    "result": "[['S-1-5-21-990000000000000000000000000001-512']]"
+   },
+   "owned_query": {
+    "ok": true,
+    "result": "[['S-1-5-21-990000000000000000000000000001-1001']]"
+   },
+   "user_objectids_query": {
+    "ok": true,
+    "result": "[['S-1-5-21-990000000000000000000000000001-1001']]"
+   },
+   "spPaths_RAW_template_as_shipped_expect_reject": {
+    "ok": false,
+    "error": "errMsg: Invalid input '{': expected a property name or '}' line: 1, column: 11, offset: 10 errCtx: MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) CALL algo.SPpaths({{s... errCtxOffset: 10"
+   },
+   "spPaths_relTypes_form_formatted": {
+    "ok": true,
+    "result": "[[<falkordb.path.Path object at 0x0000028626737890>]]"
+   },
+   "spPaths_relTypes_filter_honored_CONTAINED_BY_pair_yields_0": {
+    "ok": true,
+    "result": "[]"
+   },
+   "paths_to_jewels_canonical_via_port": {
+    "ok": true,
+    "result": "[[('S-1-5-21-990000000000000000000000000001-1001', 'MEMBER_OF', 'S-1-5-21-990000000000000000000000000001-512')]]"
+   },
+   "paths_to_jewels_ties_via_port_after_fix": {
+    "ok": true,
+    "result": "[[('S-1-5-21-990000000000000000000000000001-1001', 'MEMBER_OF', 'S-1-5-21-990000000000000000000000000001-512')]]"
+   },
+   "add_edge_MERGE_semantics": {
+    "ok": true,
+    "result": "[[1]]"
+   },
+   "cut_count_then_delete": {
+    "ok": true,
+    "result": "[]"
+   },
+   "mark_owned_SET": {
+    "ok": true,
+    "result": "[]"
+   },
+   "toLower_ENDS_WITH": {
+    "ok": true,
+    "result": "[]"
+   },
+   "create_index": {
+    "ok": true,
+    "result": "[]"
+   },
+   "db_indexes_procedure": {
+    "ok": true,
+    "result": "[['User', ['objectid'], 'OPERATIONAL']]"
+   },
+   "OPTIONAL_MATCH_pre_count": {
+    "ok": true,
+    "result": "[[1]]"
+   },
+   "GRAPH.COPY": {
+    "ok": true,
+    "result": "b'OK'",
+    "nodes_in_copy": 4
+   },
+   "PROFILE_params_header_transport": {
+    "ok": true,
+    "result": "['Results | Records produced: 1, Execution time: 0.000489 ms', '    Project | Records produced: 1, Execution time: 0.000"
+   },
+   "GRAPH.ROSTER_exists": {
+    "ok": false,
+    "error": "unknown command 'GRAPH.ROSTER'"
+   },
+   "cross_engine_parity": {
+    "shortestPath_WITH_form": "parses+runs on BOTH (the form the product ships)",
+    "shortestPath_RETURN_form": "parses+runs on BOTH \u2014 the 'WITH-clause only' quirk in the old docstrings does NOT reproduce on 4.22.0 or 6.0.0 (1 row each; possibly an older-falkordb behavior) \u2014 docstrings updated",
+    "spPaths_RAW_template_as_shipped": "REJECTED on BOTH (4.22.0: \"Invalid input '{'\"; 6.0.0: \"unhandled type in inlined properties\") \u2014 product bug fixed on this branch; the 6.0.0 error text is exactly what the code comments misattributed to an 'intermittent engine bug under churn'",
+    "spPaths_formatted_relTypes_pathCount": "parses+runs on BOTH; relTypes filter honored on 4.22.0 (CONTAINED_BY-only pair yields 0 paths)",
+    "GRAPH.COPY": "works on 4.22.0 (b'OK', node-count parity) \u2014 plan projections safe on the cloud",
+    "GRAPH.ROSTER": "unknown command on BOTH engines \u2014 not a cloud gap",
+    "GRAPH.MEMORY_USAGE": "works on BOTH; integer-MB precision: sever_demo reads 2 MB on 4.22.0 while scale_wall per-graph reads 0.0 MB on 6.0.0 \u2014 lead with measured used_memory deltas, not GRAPH.MEMORY, for sizing",
+    "add_edge_MERGE_pre_semantics": "identical on 4.22.0 (pre=0 new grant, pre=1 idempotent re-grant)",
+    "db_indexes_PROFILE_timeout_transport": "identical on 4.22.0"
+   }
+  },
+  "cleanup": {
+   "deleted": [
+    "sever_audit5_cloud_copy",
+    "sever_audit5_cloud_t1",
+    "sever_audit5_cloud_t2",
+    "sever_audit5_cloud_t3",
+    "sever_audit5_cloud_vgap"
+   ],
+   "remaining_audit5_keys": [],
+   "final_keyspace": [
+    "sever_cloud_smoke",
+    "sever_demo",
+    "telemetry{sever_cloud_smoke}",
+    "telemetry{sever_demo}"
+   ],
+   "sever_demo_nodes_after": 1480
+  }
+ },
+ "failures": [],
+ "all_pass": true
+}
