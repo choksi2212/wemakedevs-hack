@@ -1,0 +1,26 @@
+{
+ "url": "https://sever-console.onrender.com/api/plan",
+ "estate": {
+  "reachability": 1,
+  "nodes": 1480,
+  "edges": 12449
+ },
+ "warmup_ms": 13533.0,
+ "runs_ms": [
+  13505.0,
+  13454.0,
+  13549.0,
+  13442.0,
+  13533.0
+ ],
+ "median_ms": 13505.0,
+ "p95_ms": 13549.0,
+ "min_ms": 13442.0,
+ "plan_shape": {
+  "k": 3,
+  "steps": 1,
+  "plan_completes_at_step": 1,
+  "method": "graph_copy_remeasure"
+ },
+ "note": "production console (develop code) against the FalkorDB Cloud free-tier engine (ap-south-1) \u2014 the owner-reported slow path, measured read-only; the plan runs on an isolated scratch copy"
+}
