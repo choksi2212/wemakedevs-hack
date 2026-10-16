@@ -125,11 +125,14 @@ def test_every_innerhtml_sink_escapes_or_trusts_html_adjacent_operands():
     src = INDEX.read_text(encoding="utf-8")
     js = re.search(r"<script>(.*)</script>", src, re.S).group(1)
     sinks = _sink_statements(js)
-    # the console has exactly these nine sinks today (audit4 added the plan
+    # the console has exactly these ten sinks today (audit4 added the plan
     # card + plan gate; audit5/live-e2e added the receipts-card degraded
     # line when the pure-file /api/receipts route fails independently of the
-    # engine); a new sink must extend this test consciously, not slip through
-    assert len(sinks) == 9, [s[:60] for s in sinks]
+    # engine; the armed-gate invariant sweep added the cta APPROVE-restore
+    # sink — the disarmGate and renderGate sweeps are textually identical, so
+    # they dedupe to one statement, built only from esc()-wrapped operands);
+    # a new sink must extend this test consciously, not slip through
+    assert len(sinks) == 10, [s[:60] for s in sinks]
 
     violations = []
     for stmt in sinks:
