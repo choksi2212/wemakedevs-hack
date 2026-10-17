@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="docs/assets/logo-banner.svg" width="440" alt="SEVER — attack-path interdiction">
-
-**[▶ Watch the 60-second demo video](docs/assets/sever_demo_v2.mp4)** — the full judge arc, recorded live on the deployed product: breach → exposure → ranked proposals → the two-step human gate → measured collapse → receipts → the remediation plan.
-
-# S E V E R
+<img src="docs/assets/logo-mark.svg" width="150" alt="SEVER — the severed ring">
 
 **Attack-path tools stop at advice. SEVER closes the loop.**
 
 collateral-ranked cut **plans** → **human gate** → live re-query → before/after receipts — per-tenant, in milliseconds
+
+<a href="docs/assets/sever_demo_v2.mp4"><img src="docs/assets/demo-video-poster.jpg" width="720" alt="▶ Watch the demo video — the full judge arc, recorded live on the deployed product"></a>
+
+**▶ Watch the demo video** — the full judge arc, recorded live on the deployed product: breach → exposure → ranked proposals → the two-step human gate → measured collapse → receipts → the remediation plan.
 
 <p>
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
