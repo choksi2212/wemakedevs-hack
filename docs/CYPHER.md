@@ -25,7 +25,7 @@ flowchart TD
   RANK --> PROP["ranked proposal - greedy argmax, never claimed optimal"]
   RANK2 --> PROP
   PROP --> GATE["human gate - APPROVE then CONFIRM, literal True only"]
-  GATE --> CUT["pre-check count, then DELETE r on the live edge"]
+  GATE --> CUT["atomic cut - DELETE r RETURN count, one statement"]
   CUT --> RE["re-query reachability - measured"]
   RE --> V["COLLAPSED or DEGRADED or NO_EFFECT - receipt with ms"]
 ```
@@ -41,12 +41,16 @@ FalkorDB Cloud engine (module `graph` 4.22.0 —
 identically on both engines) — maintained as module constants in
 `sever/core/falkor_port.py` (`JEWELS_QUERY`, `AZ_JEWELS_QUERY`,
 `MARK_OWNED_QUERY`, `OWNED_QUERY`, `USER_OBJECTIDS_QUERY`,
-`REACHABILITY_METHOD`,
+`REACHABILITY_METHOD`, `REACHABILITY_ARM_TEMPLATES`,
+`PER_OWNED_REACHABILITY_ARM_TEMPLATES` (fleet-7 lineage, test-pinned),
 `REACHABILITY_QUERY_TEMPLATE`, `PATH_QUERY_TEMPLATE`,
-`CANONICAL_PATH_QUERY_TEMPLATE`,
-`CUT_COUNT_QUERY_TEMPLATE`, `CUT_DELETE_QUERY_TEMPLATE`, `ADD_EDGE_QUERY`,
+`CANONICAL_PATH_QUERY_TEMPLATE`, `CUT_ATOMIC_QUERY_TEMPLATE`, `ADD_EDGE_QUERY`,
 `INDEXED_LABELS`) and `sever/core/jewels.py` (`TRAVERSAL_RELS`,
-`cypher_traversal_pattern`).
+`cypher_traversal_pattern`). The audit7/perf-client round-trip folds
+(`ESTATE_SNAPSHOT_QUERY` and siblings) are concatenations of these
+single-purpose forms — same predicates, same aggregates, one engine
+round-trip; their equivalence against the per-query forms is pinned on the
+real engine by tests.
 
 `[:REL|…]` is the abusable traversal pattern emitted by
 `cypher_traversal_pattern(12)`: the **43 relationship types** of
@@ -61,8 +65,9 @@ the pattern is emitted as `*..N`.
 ```cypher
 MATCH (g:Group) WHERE g.objectid ENDS WITH '-512' OR g.objectid ENDS WITH '-519'
 RETURN g.objectid AS objectid ORDER BY objectid
-// Entra jewels (hybrid estates):
-MATCH (u:AZUser) WHERE u.name ENDS WITH '-GlobalAdministrator'
+// Entra jewels (hybrid estates) — case-insensitive suffix match, so a
+// holder named jdoe-GLOBALADMINISTRATOR is still a jewel (audit3):
+MATCH (u:AZUser) WHERE toLower(u.name) ENDS WITH '-globaladministrator'
 RETURN u.objectid AS objectid ORDER BY objectid
 ```
 
@@ -173,13 +178,27 @@ against `^[A-Z][A-Z0-9_]{0,63}$` (`_valid_rel` in `falkor_port.py`) **before**
 it can reach the query string — the Cypher injection guard; relationship
 types are a closed vocabulary from the data model.
 
+The shipped cut is **one atomic statement** (`CUT_ATOMIC_QUERY_TEMPLATE`):
+the engine computes the removal count over the same `MATCH` that performs
+the `DELETE`, so the receipt and the mutation can never disagree. The
+previous count-then-delete pair was a TOCTOU seam under the console's
+multi-client traffic: two operators cutting the same edge concurrently
+could both read the pre-count (n=1) before either `DELETE` ran, so both
+receipts claimed `relationships_removed=1` for one edge — the ledger
+double-claimed a single removal (measured 6/6 race rounds by audit5's
+multi-client harness, cross-process; rationale in the constant's comment
+in `falkor_port.py`). The engine executes each command atomically, so the
+single-statement form serializes: the first cutter removes and counts 1;
+the second matches zero rows and honestly returns 0 → verdict `NO_EFFECT`
+(live-verified on falkordb 6.0.0: the delete-return-count form returns `[[1]]`
+on a match and `[[0]]` on no match, parallel edges counted per matched row).
+
 ```cypher
-// pre-check receipt: how many relationships will be removed
+// the cut — only after explicit human approval (APPROVE then CONFIRM);
+// one atomic statement removes the relationship and returns the count
+// over the same MATCH:
 MATCH (s {objectid: $src})-[r:GENERIC_ALL]->(t {objectid: $dst})
-RETURN count(r) AS n
-// execution — only after explicit human approval
-MATCH (s {objectid: $src})-[r:GENERIC_ALL]->(t {objectid: $dst})
-DELETE r
+DELETE r RETURN count(r) AS n
 ```
 
 ## Live mutation (finding application — F-003 grants an ACE mid-demo)
