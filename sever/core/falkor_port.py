@@ -612,11 +612,24 @@ class FalkorGraphPort(GraphPort):
 
     def _probe_engine_version(self) -> int:
         """falkordb 'graph' module version (e.g. 60000 = 6.0.0, 42200 = 4.22.0),
-        probed lazily ONCE per port via MODULE LIST and inherited by scratch
-        copies (so a plan's copy never re-pays the probe). The probe RT is
-        absorbed by the first accessor burst of a port's life (console boot,
-        the receipts driver's warmup pass) — it never lands inside a measured
-        endpoint sequence.
+        probed ONCE per port via MODULE LIST and inherited by scratch copies
+        (so a plan's copy never re-pays the probe). WHEN the probe runs is
+        fixed by how the port was built (F900 reopen, audit8/fix-code):
+        - a LIVE client (this constructor built the real falkordb client) is
+          probed EAGERLY, IN THE CONSTRUCTOR — the first engine contact, right
+          after the client's own eager Is_Sentinel INFO round-trip. A lazy
+          first-use probe there armed the cross-product folds before the
+          engine could vouch for them (the deployed Cloud answered reach 0 /
+          paths [] with an owned principal), and could land the probe inside
+          the first measured request sequence — the round-trip receipts pins
+          caught exactly that misplacement.
+        - an INJECTED port (client=... — the stub graphs of the DB-free
+          wire-shape suite, a scratch copy) skips the constructor probe: the
+          stub keeps its pinned lazy semantics (the first _modern_engine
+          consult probes once), and a scratch copy instead inherits its
+          parent's already-latched answer.
+        Either way the answer is latched for the port's life — one engine,
+        one answer — and never lands inside a measured endpoint sequence.
         0 = probe failed -> conservative: the engine is treated as NOT
         supporting the cross-product fold forms (the legacy per-query forms
         always tell the truth; a wrong fast answer is never acceptable)."""
