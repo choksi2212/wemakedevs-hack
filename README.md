@@ -14,7 +14,7 @@ collateral-ranked cut **plans** → **human gate** → live re-query → before/
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
   <img src="https://img.shields.io/badge/engine-FalkorDB%206.0.0-8B5CF6?style=flat-square" alt="falkordb"/>
   <img src="https://img.shields.io/badge/console-FastAPI-10B981?style=flat-square" alt="fastapi"/>
-  <img src="https://img.shields.io/badge/tests-563%20collected%20%C2%B7%200%20failed-059669?style=flat-square" alt="tests"/>
+  <img src="https://img.shields.io/badge/tests-580%20collected%20%C2%B7%200%20failed-059669?style=flat-square" alt="tests"/>
   <img src="https://img.shields.io/badge/license-MIT-64748B?style=flat-square" alt="mit"/>
 </p>
 
@@ -610,7 +610,7 @@ tie-break — execution to measured collapse, and the drift-stop honesty rule.
 
 Live DB-free run at the develop tip (2026-10-16, no docker on the audit host —
 [`docs/receipts/test_suite_2026-10-16.json`](docs/receipts/test_suite_2026-10-16.json)):
-**563 collected — 391 passed + 172 engine-skips, 0 failures**. With the engine up,
+**580 collected — 392 passed + 188 engine-skips, 0 failures** (receipt: docs/receipts/test_suite_2026-10-17.json). With the engine up,
 the engine suites run as well — the engine-up full green count is not recorded
 in-repo, which is why the badge says "collected", not "green".
 
