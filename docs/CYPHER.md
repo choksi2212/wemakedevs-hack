@@ -79,12 +79,52 @@ MATCH (n {owned: true}) RETURN n.objectid AS objectid
 
 Count of owned principals with ≥1 bounded traversal path to any crown jewel —
 the same relationship filter and hop cap as the canonical enumeration.
-`REACHABILITY_METHOD` is per-pair existence: the port runs
-`REACHABILITY_QUERY_TEMPLATE` for every (owned, jewel) pair (60 s per-query
-timeout) and counts the principal as soon as any `hit` comes back true.
-shortestPath yields NULL (a row with `hit` = false) when no bounded
-traversal path exists, and a principal that is itself a crown jewel counts
-as reached without a query — owning Domain Admins IS the breach:
+`REACHABILITY_METHOD` is **two-arm all-pairs shortestPath existence**: the
+port runs the two `REACHABILITY_ARM_TEMPLATES` queries and unions the
+reached-principal sets in Python — crown jewels span two labels (Group +
+AZUser), so one arm per label. shortestPath is evaluated per (owned, jewel)
+row inside the WITH clause (FalkorDB's only valid shortestPath form),
+`WHERE p IS NOT NULL` keeps reached pairs and `DISTINCT` collapses to the
+reached-principal set: O(2) queries instead of O(owned × jewels), and
+immune to SPpaths' combinatorial tie-enumeration hang. On engines the
+constructor-time `MODULE LIST` probe vouches for (falkordb >= 6.0.0) the
+two arms are issued **concurrently** over the connection pool, one wall
+clock instead of two (receipt: `docs/receipts/perf_audit7_client_roundtrips.json`);
+every other engine runs the identical two arm templates **sequentially**
+(60 s per-query timeout, fail-safe: any probe failure selects sequential).
+The fleet-7 per-owned arm variant this replaced answered reach 0 with an
+owned principal on the deployed Cloud twice (F900), while this two-arm
+form ran green on that estate for days. A principal that is itself a crown
+jewel counts as reached without a query — owning Domain Admins IS the breach:
+
+```cypher
+// arm 1 — Group jewels (RID -512 Domain Admins / -519 Enterprise Admins):
+MATCH (o {owned: true}), (t:Group)
+WHERE t.objectid ENDS WITH '-512' OR t.objectid ENDS WITH '-519'
+WITH o, t, shortestPath((o)-{pattern}->(t)) AS p
+WHERE p IS NOT NULL
+RETURN DISTINCT o.objectid AS oid
+
+// arm 2 — AZUser jewels (case-insensitive GA suffix — audit3 fixed the
+// case-sensitive undercount this arm originally shipped with):
+MATCH (o {owned: true}), (t:AZUser)
+WHERE toLower(t.name) ENDS WITH '-globaladministrator'
+WITH o, t, shortestPath((o)-{pattern}->(t)) AS p
+WHERE p IS NOT NULL
+RETURN DISTINCT o.objectid AS oid
+```
+
+`{pattern}` is the 43-type relationship filter with the `*..12` hop cap,
+inlined from `cypher_traversal_pattern()` — byte-identical to the
+enumeration pattern inlined in the next section.
+
+**Legacy/fallback per-pair form** (`REACHABILITY_QUERY_TEMPLATE`, the
+pre-fleet-7 existence probe, both endpoints `$param`-bound): kept as the
+parity reference the tests pin the arm templates against and as the
+live-probe form — shortestPath yields NULL (a row with `hit` = false) when
+no bounded traversal path exists. On engines below 6.0.0 the product stays
+on per-pair forms (`paths_to_jewels` keeps the per-pair canonical loop
+there — the one form production proved on that engine family for days):
 
 ```cypher
 MATCH (o {objectid: $oid}), (t {objectid: $target})

@@ -3,6 +3,15 @@
 SEVER is a hackathon project, but the bar is production-honesty: every claim in
 the docs traces to a receipt, and nothing ships on belief. Keep that bar.
 
+## Rules NOTE
+
+The official rules, schedule, and prize breakdown may be updated before the
+hackathon; any change is announced through the WeMakeDevs and FalkorDB
+community channels. Re-verify
+<https://www.wemakedevs.org/hackathons/falkordb/rules> (and the event Discord)
+before submission — `docs/RESEARCH_FALKORDB_ECOSYSTEM.md` §0 is a dated
+snapshot, not current truth.
+
 ## Setup
 
 Follow [README §9](README.md#9-reproduce-everything) — `docker compose up -d`

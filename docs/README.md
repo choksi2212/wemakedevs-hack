@@ -6,7 +6,9 @@ the live engine. The root [`../README.md`](../README.md) is the product pitch an
 architecture; this page is the map of the supporting documents.
 
 > **TL;DR** — Judges: read [DEMO_SCRIPT.md](DEMO_SCRIPT.md) (walkthrough + beat
-> table), then [JUDGE_QA.md](JUDGE_QA.md). Story: [BLOG_POST.md](BLOG_POST.md) and
+> table), then [JUDGE_QA.md](JUDGE_QA.md) — and note the AI-assistance disclosure
+> in the main [README §13 Disclosures](../README.md#13-disclosures).
+> Story: [BLOG_POST.md](BLOG_POST.md) and
 > [INCIDENTS.md](INCIDENTS.md) (six real kill chains mapped to SEVER beats). Tech
 > contract: [GRAPH_MODEL.md](GRAPH_MODEL.md), [CYPHER.md](CYPHER.md),
 > [T2_MEMORY.md](T2_MEMORY.md). Audits: [AUDIT_DEPLOY.md](AUDIT_DEPLOY.md),
