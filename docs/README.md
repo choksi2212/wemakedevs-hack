@@ -97,7 +97,8 @@ free-tier receipts (ap-south-1, v4.22.0).
 | [`receipts/perf_plan_equivalence.json`](receipts/perf_plan_equivalence.json) | plan hot-path equivalence on the self-hosted engine: old two-arm vs per-pair vs batched seam (identical plan output) | k=3 plan medians 220.8ms → 217.6ms → 108.4ms |
 | [`receipts/perf_cloud_before_develop.json`](receipts/perf_cloud_before_develop.json) | production console (develop code) `GET /api/plan` against the Cloud free-tier engine — the BEFORE of the cloud latency story | median 13,505ms over the wire (p95 13,549ms) |
 | [`receipts/perf_cloud_plan.json`](receipts/perf_cloud_plan.json) | the same cloud `/api/plan` endpoint: owner-reported 13-14s repro matched, plus derived after-predictions for the branch | before median 13.5s; predicted ~12.6s standalone scoring path |
-| [`receipts/test_suite_2026-10-16.json`](receipts/test_suite_2026-10-16.json) | the test-count receipt behind the README badge (live DB-free run at the develop tip) | 454 collected / 278 passed / 176 engine-skips / 0 failed in 61.21s |
+| [`receipts/test_suite_2026-10-16.json`](receipts/test_suite_2026-10-16.json) | DB-free suite run at the 2026-10-16 develop tip — superseded by the 2026-10-17 receipt below | 454 collected / 278 passed / 176 engine-skips / 0 failed in 61.21s |
+| [`receipts/test_suite_2026-10-17.json`](receipts/test_suite_2026-10-17.json) | the current test-count receipt (live DB-free run at the fleet-9 tip; the README badge/§12 repoint to this number is parent-owned — F501) | 580 collected / 392 passed / 188 skips / 0 failed in 149.18s (host-composition-dependent: Playwright-less hosts collect 569) |
 
 ## Reading order for a judge with ten minutes
 
