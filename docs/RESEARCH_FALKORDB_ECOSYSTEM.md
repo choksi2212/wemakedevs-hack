@@ -12,6 +12,10 @@ External claims carry their URL; SEVER claims carry the repo receipt that proves
 
 ## 0. The event, live-verified today (real browser DOM, not SEO cache)
 
+> Snapshot dated 2026-10-16: the official rules, schedule and prize breakdown
+> may be updated before the hackathon — re-verify the live pages (and the
+> WeMakeDevs/FalkorDB community channels) before submission.
+
 - **Graph Hacks: Context for AI Agents**, WeMakeDevs × FalkorDB, online **Oct 15–18, 2026**, **$20,000** total — https://www.wemakedevs.org/hackathons/falkordb/schedule, https://luma.com/graph-hacks
 - Tracks: **Agents That Act on Connected Data** (iPhone 18 Pro) · **Agent Memory and Coordination** (PS5 + GTA VI) · **Company Brain** (M6 Mac Mini); AirPods 5 for best blog post, tees for top-50 teams — https://luma.com/graph-hacks
 - Live rules: *"You may enter any or all of them, and you must name every track you are entering when you submit"* — multi-track entry is legal — https://www.wemakedevs.org/hackathons/falkordb/rules

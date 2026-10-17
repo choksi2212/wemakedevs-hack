@@ -1,5 +1,30 @@
 # Third-party notices
 
+## Python dependencies & engine
+
+Direct dependencies declared in `pyproject.toml` (the console extra is mirrored
+in `requirements-console.txt`). Licenses verified against live PyPI/GitHub
+metadata on 2026-10-17; all are permissive and compatible with this repo's
+MIT license (see [LICENSE](LICENSE)).
+
+| Package | Declared in | License | Upstream |
+| --- | --- | --- | --- |
+| falkordb (FalkorDB Python client) | core | MIT | https://falkordb-py.readthedocs.io/ |
+| langgraph | core | MIT | https://github.com/langchain-ai/langgraph |
+| python-dotenv | core | BSD-3-Clause | https://github.com/theskumar/python-dotenv |
+| langchain-falkordb | `memory` extra | MIT | https://github.com/FalkorDB/langchain-falkordb |
+| fastapi | `console` extra | MIT | https://github.com/fastapi/fastapi |
+| uvicorn | `console` extra | BSD-3-Clause | https://github.com/encode/uvicorn |
+| openai | `agent` extra | Apache-2.0 | https://github.com/openai/openai-python |
+| pytest | `dev` extra | MIT | https://github.com/pytest-dev/pytest |
+| httpx | `dev` extra | BSD-3-Clause | https://github.com/encode/httpx |
+| setuptools | build-system | MIT | https://github.com/pypa/setuptools |
+
+The graph engine container `falkordb/falkordb:6.0.0` (`docker-compose.yml`)
+is FalkorDB server, SSPL v1 (https://github.com/FalkorDB/FalkorDB, LICENSE.txt)
+— used as a service and never redistributed with this project. The
+Apache-2.0 SpecterOps sample data is inventoried in the section below.
+
 ## BloodHound CE / AzureHound sample data — Apache-2.0
 
 BloodHound CE + AzureHound sample data: © SpecterOps, Inc., Apache-2.0,
