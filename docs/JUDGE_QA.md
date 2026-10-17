@@ -6,6 +6,8 @@ Provenance: written against origin/main `7a30ede` on branch `audit4/judge-sim`; 
 
 **Refreshed 2026-10-16 on `audit6/docs-core` (develop tip `12d1392`):** the suite was re-executed live — **454 collected, 278 passed + 176 engine-skips, 0 failures in 61.21s** (receipt: [`docs/receipts/test_suite_2026-10-16.json`](receipts/test_suite_2026-10-16.json)); the README badge now states the measured count instead of "~400 green". The `GRAPH.MEMORY` per-graph zeros wart remains live in `scale_wall.json` (`per_graph_mb_mean: 0.0` — falkordb 6.0.0 MB-precision parse) — quote `docker_rss: 1.594GiB`, not the per-graph zeros.
 
+**Refreshed 2026-10-17 on `audit9/fix-code` (branch-off develop tip `ccfea06`):** the suite was re-executed live — **580 collected, 392 passed + 188 skips, 0 failures in 149.18s** (receipt: [`docs/receipts/test_suite_2026-10-17.json`](receipts/test_suite_2026-10-17.json)). The count is host-composition-dependent: this run had the full optional-dep set importable (playwright/openai/langgraph/langchain-falkordb), so skips = live-engine suites + Playwright-gated console modules + entra sample-fidelity tests; a Playwright-less host collects 569. The receipt is the record — quote it with its date, never a bare number.
+
 ## The judge's likely exploration path
 
 ```mermaid
@@ -93,7 +95,7 @@ flowchart TD
 
 ## 12. "Why should this WIN over a GraphRAG/agent-memory entry?"
 **A:** Rule 3, quantified: remove FalkorDB and nothing runs — the ablation shows graph traversal answering 5/5 where text retrieval answers 0/5. The graph acts, not decorates: gated cuts with measured before/after. And the memory serves a shift-handoff job, with adversarial receipts.
-**Receipts:** `ablation.json`; `scale_wall.json` (multi-tenancy made real, not described); `audit3_mem/` (memory attacked, not just shown); 454 collected tests, 0 failures; honest DEGRADED verdicts on camera.
+**Receipts:** `ablation.json`; `scale_wall.json` (multi-tenancy made real, not described); `audit3_mem/` (memory attacked, not just shown); 580 collected tests, 0 failures ([2026-10-17 receipt](receipts/test_suite_2026-10-17.json)); honest DEGRADED verdicts on camera.
 **If pressed:** differentiation is verifiability — every headline claim has a JSON receipt or a reproducible script. A GraphRAG demo's quality varies with the model; ours is deterministic.
 
 ## Delivery rules for the room
@@ -117,7 +119,7 @@ flowchart TD
 
 1. **10K-tenant extrapolation note** (one page, cite in Q9): RAM 5.44MB/tenant ⇒ 53.1GB @10K (32GB host ceiling ≈ 6,023 tenants); load 3.391s/tenant single-stream ⇒ 9.4h ⇒ parallel-connection plan; edge_frequency fan-out O(owned×jewels).
 2. **Heterogeneous-estate load receipt**: vary tenant shapes/densities (or a larger public AD dataset), ≥100K nodes, re-run the latency sample — defuses Q6 and Q8 in one artifact.
-3. **Test-count receipt** — refreshed 2026-10-16, no longer a wart: live DB-free run at the develop tip is 454 collected / 278 passed / 176 engine-skips / 0 failures (61.21s; [`docs/receipts/test_suite_2026-10-16.json`](receipts/test_suite_2026-10-16.json)); the README badge now carries the measured count. If an engine-up host is free before judging, print the full green run to turn the 176 skips into passes on camera.
+3. **Test-count receipt** — refreshed 2026-10-17: live DB-free run at the fleet-9 tip is 580 collected / 392 passed / 188 skips / 0 failures (149.18s; [`docs/receipts/test_suite_2026-10-17.json`](receipts/test_suite_2026-10-17.json)); skips = live-engine suites + Playwright-gated console modules + entra fidelity tests (a Playwright-less host collects 569 — host-composition-dependent, the dated receipt is the record); the README badge/§12 must carry this run's number (parent-owned repoint). If an engine-up host is free before judging, print the full green run to turn the skips into passes on camera.
 4. **GRAPH.MEMORY zeros footnote**: `scale_wall.json` per-graph MB reads 0.0 on falkordb 6.0.0 (MB-precision parse) — keep the one-line quirk note; lead with `docker_rss: 1.594GiB`.
 5. **BloodHound Enterprise cheat-sheet**: three bullets on what BE does/doesn't (advice-only, no gated execution, no re-measured receipts), citing SpecterOps's own read-only-agents stance (our README §10).
 6. **Live-URL cold-start drill**: Render free-tier spin-up (~50s) + keepalive; rehearse the hero arc with the receipts page open; screenshot the 503 containment JSON as the engine-down fallback. Rehearse the DEGRADED arc — the honest 1→1 cut is the trust spike, don't hide it.
@@ -135,5 +137,5 @@ flowchart TD
 | ~1.1ms in-engine canonical query | `profile.txt` |
 | Ablation: graph 5/5 vs keyword 0/5 | `ablation.json` |
 | Cloud load 16.8s, hero arc COLLAPSED | `receipts_cloud_live.json` |
-| 454 tests collected, 0 failures (278 pass + 176 engine-skips local) | live `pytest` run, `docs/receipts/test_suite_2026-10-16.json` |
+| 580 tests collected, 0 failures (392 pass + 188 skips local, DB-free) | live `pytest` run, `docs/receipts/test_suite_2026-10-17.json` |
 | 43 traversal rels, hop cap 12; 28 labels / 42 edge families | `docs/CYPHER.md`, `docs/GRAPH_MODEL.md` |
