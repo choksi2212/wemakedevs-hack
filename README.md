@@ -6,9 +6,9 @@
 
 collateral-ranked cut **plans** → **human gate** → live re-query → before/after receipts — per-tenant, in milliseconds
 
-<a href="docs/assets/sever_demo_v2.mp4"><img src="docs/assets/demo-video-poster.jpg" width="720" alt="▶ Watch the demo video — the full judge arc, recorded live on the deployed product"></a>
+<a href="docs/assets/sever-demo.mp4"><img src="docs/assets/demo-video-poster.jpg" width="720" alt="▶ Watch the 3-minute demo video — the judge arc recorded live, then the product explained with motion graphics"></a>
 
-**▶ Watch the demo video** — the full judge arc, recorded live on the deployed product: breach → exposure → ranked proposals → the two-step human gate → measured collapse → receipts → the remediation plan.
+**▶ Watch the 3-minute demo** — the judge arc recorded live on the deployed product (breach → exposure → ranked proposals → the two-step human gate → measured collapse → receipts → the remediation plan), then the product explained with motion graphics: the pipeline, the graph model, the scoring, the scale wall, and the real incidents it maps to.
 
 <p>
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
