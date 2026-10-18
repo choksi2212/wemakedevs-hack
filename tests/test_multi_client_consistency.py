@@ -178,6 +178,28 @@ def test_failed_plan_is_ledgered_and_answers_503(console, monkeypatch):
     assert "RuntimeError" in failed[-1]["error"]
 
 
+def test_successful_plan_mirror_carries_both_kind_keys(console):
+    """Ledger event-key contract (audit M46/X31): the console's plan mirror
+    entry carries 'event': 'plan' (the cross-ledger kind key the agent lane
+    is moving to) ALONGSIDE the console ledger's own 'step' kind (which the
+    receipts UI reads) — pinned here DB-free through the fixture's fake port
+    (probe-less, so /api/plan answers through inv.propose_plan, the original
+    loop, exactly like an engine below 6.0.0)."""
+    tc, fake, tmp_path = console
+    r = tc.get("/api/plan")
+    assert r.status_code == 200
+    plan = r.json()
+    assert plan["method"] == "graph_copy_remeasure"
+    # audit N17: keyed by the port's graph name, not the env var
+    ledger = tmp_path / "out" / "cases" / "sever_audit5_fake.jsonl"
+    events = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
+    mirror = [e for e in events if e.get("event") == "plan"]
+    assert mirror, "the plan mirror must carry the cross-ledger 'event' key"
+    assert all(e.get("step") == "plan" for e in mirror), (
+        "the console ledger's own 'step' kind stays (the receipts UI reads e.step)"
+    )
+
+
 # ------------------------------------------------------------------
 # 4. The cut is ONE atomic engine statement
 # ------------------------------------------------------------------
