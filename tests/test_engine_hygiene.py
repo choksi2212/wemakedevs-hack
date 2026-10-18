@@ -132,7 +132,13 @@ def test_keyspace_sweep_no_test_key_survives_the_suite():
     scan the WHOLE keyspace and assert no key under any test prefix
     remains — a missing teardown, a crashed-run leftover, or a re-leaked
     conftest probe key (M71) fails here instead of poisoning the next
-    session against one shared engine."""
+    session against one shared engine. When SEVER_TEST_GRAPH_PREFIX is
+    active, this suite's own keys live in the prefixed namespace, so BOTH
+    spellings of every prefix are policed."""
+    prefixes = tuple(
+        [p for p in TEST_KEY_PREFIXES]
+        + [prefixed(p) for p in TEST_KEY_PREFIXES]
+    )
     port = _fresh_port("sever_audit3_tf_sweep")  # drops any crashed-run leftover
     try:
         seen: list[str] = []
@@ -145,7 +151,7 @@ def test_keyspace_sweep_no_test_key_survives_the_suite():
             cursor = int(cursor)
             if cursor == 0:
                 break
-        leaked = sorted(k for k in seen if k.startswith(TEST_KEY_PREFIXES))
+        leaked = sorted(k for k in seen if k.startswith(prefixes))
         assert leaked == [], (
             f"test-prefixed keys survived on the engine: {leaked} — every "
             "suite must drop the keys it creates (clean one-time leftovers "
