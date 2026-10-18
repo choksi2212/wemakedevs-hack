@@ -10,9 +10,11 @@ collateral-ranked cut **plans** → **human gate** → live re-query → before/
 
 **▶ Watch the 3-minute demo** — the judge arc recorded live on the deployed product (breach → exposure → ranked proposals → the two-step human gate → measured collapse → receipts → the remediation plan), then the product explained with motion graphics: the pipeline, the graph model, the scoring, the scale wall, and the real incidents it maps to.
 
+Streaming copy (same take): **[YouTube — the SEVER demo](https://www.youtube.com/watch?v=wKHVyWizRyY)** · in-repo file: [`docs/assets/sever-demo.mp4`](docs/assets/sever-demo.mp4).
+
 <p>
   <img src="https://img.shields.io/badge/python-3.11%2B-3B82F6?style=flat-square" alt="python"/>
-  <img src="https://img.shields.io/badge/engine-FalkorDB%206.0.0-8B5CF6?style=flat-square" alt="falkordb"/>
+  <img src="https://img.shields.io/badge/engine-FalkorDB%20%286.0.0%20%C2%B7%20Cloud%204.22.0%29-D4993F?style=flat-square" alt="falkordb"/>
   <img src="https://img.shields.io/badge/console-FastAPI-10B981?style=flat-square" alt="fastapi"/>
   <img src="https://img.shields.io/badge/tests-580%20collected%20%C2%B7%200%20failed-059669?style=flat-square" alt="tests"/>
   <img src="https://img.shields.io/badge/license-MIT-64748B?style=flat-square" alt="mit"/>
@@ -53,6 +55,7 @@ at **[sever-console.onrender.com](https://sever-console.onrender.com)**.
 11. [Security posture](#11-security-posture)
 12. [Tests](#12-tests)
 13. [Disclosures](#13-disclosures)
+14. [Project layout](#project-layout)
 
 ---
 
@@ -70,13 +73,13 @@ flowchart LR
   end
   subgraph SG_ENGINE["FalkorDB - one engine, graph per tenant"]
     DEMO["sever_demo - 1,480 nodes / 12,450 edges"]
-    TENANTS["sever_tenant001 .. sever_tenant300 - 444K nodes / 3.73M edges"]
+    TENANTS["sever_tenant001 .. sever_tenant300 - 444K nodes / 3.74M edges"]
     MEMDB["FalkorDBSaver case memory - gate state survives process death"]
   end
   subgraph SG_CORE["sever/core - FalkorGraphPort, the only GraphPort"]
     Q1["jewels + owned-set queries"]
     Q2["two-arm all-pairs reachability"]
-    Q3["canonical path enumeration - 43 abusable rel types, 12-hop cap"]
+    Q3["canonical path enumeration - 45 abusable rel types, 12-hop cap"]
     Q4["edge scoring + collateral benign sample"]
   end
   subgraph SG_AGENT["sever/agent - Investigator"]
@@ -115,10 +118,12 @@ only `GraphPort` implementation that exists. The LLM seam is deliberately option
 narration is garnish, Cypher does the load-bearing work, and the offline narrator
 keeps the product deterministic when no model is configured.
 
+*Original diagram: [`docs/assets/diagram-system-architecture.svg`](docs/assets/diagram-system-architecture.svg).*
+
 ## 2. The four beats (measured)
 
 ### ▍ Beat 1 — the interdiction loop
-*official BloodHound CE sample estate — 3 domains, 1,480 nodes / 12,450 edges, zero dangling*
+*official BloodHound CE sample estate — 3 collected domains (+2 external trust targets = 5 Domain nodes), 1,480 nodes / 12,450 edges, zero dangling*
 
 ```
 breach finding → T1_TONYMONTANA owned → attack paths to 5 crown jewels light up
@@ -132,8 +137,12 @@ cut #2 (human-gated):  reachability 1 -> 0   COLLAPSED — re-query 2.28ms
 
 ```
 GET /api/plan → greedy k=3 cut sequence, re-enumerated on a copy after every cut
-  proposal tie (4 edges, 5 attack paths each) broken by collateral:
-    attacker-only edges (benign 0) rank above the shared DA-membership edge (benign 1)
+  proposal: the top-3 attacker-only edges (benign 0), each on all 5 attack paths —
+    MEMBER_OF 2101→2102 · READ_GMSAPASSWORD 2102→2138 · GENERIC_ALL 2110→2101
+  collateral tie-break: a shared edge (benign ≥ 1) ranks below any attacker-only
+    edge at equal coverage — pinned on the sample estate by tests (the limit=5
+    tie set contains the shared jewel-adjacent edge; the #1 cut is still
+    attacker-only)
   step #1: cut 2101 -[MEMBER_OF]-> 2102 · kills 5 paths · projected reachability 0 (collapsed)
 POST /api/plan/execute (human-gated) → step re-measured live == projection → COLLAPSED
   estate mutates after planning? live re-measure diverges → drift_stopped_at_step —
@@ -171,7 +180,7 @@ canonical shortest-path query across sampled tenants:
 ```
 
 …and the same hero arc on **FalkorDB Cloud** (free tier, Mumbai): estate loaded in
-16.8s over the wire, breach 0→1, two gated cuts, COLLAPSED —
+16.8s over the wire, breach 0→1, two gated cuts, DEGRADED→COLLAPSED —
 [`receipts_cloud_live.json`](docs/receipts/receipts_cloud_live.json).
 
 ### The demo arc as a sequence
@@ -255,15 +264,17 @@ The loop's honesty rules — every one pinned by live tests:
 
 | Rule | What the engine guarantees | Detail (receipts-traced) |
 |---|---|---|
-| **findings** | mutate the graph (`mark_owned`, live ACE grants) — | the estate is never static |
+| **findings** | mutate the graph (`mark_owned`, live ACE grants) | the estate is never static |
 | **proposals** | are always real: an edge that lies on zero enumerated paths cannot be proposed |  |
-| **collateral is ranked** | : coverage ties break toward *attacker-only* edges — | each candidate receipts `benign_usage`, the number of sampled non-owned principals whose own jewel paths cross it (25 sampled of the estate's pool, deterministic stride; the sampled estimate is labeled, never passed off as an exact count). An edge that carries someone else's access story loses the tie; receipts say by how much. *(NoiseHound re-ranks attack paths by detection cost — SEVER is the remediation-side flip: rank the CUT by the disruption it would cause.)* |
-| **plans are sequences, not one edge** | : `GET /api/plan` proposes a greedy k=3 cut sequence, every step projected on an isolated `GRAPH \| COPY` of the live estate — re-enumerated and re-measured after each cut, never simulated from a frozen path set. The live graph is never touched by a proposal, and the plan stops early the moment its copy measures zero (no invented third step). |
-| **execution re-measures every step and stops at the first drift** | : a plan step whose live re-query diverges from its projection halts the rest — | later steps were computed on a surface that no longer exists, and stale projections never execute. `drift_stopped_at_step` is a status, not a failure to hide. |
-| **the gate** | passes only on the exact value `True` — | schema, handler and tests all pin it independently |
-| **verdicts are measured claims** | : `collapsed` only when a re-query returns 0, `degraded` only when paths survive, `no_effect` for honest no-ops — | a cut can never *increase* reachability |
+| **collateral is ranked** | coverage ties break toward *attacker-only* edges | each candidate receipts `benign_usage`, the number of sampled non-owned principals whose own jewel paths cross it (25 sampled of the estate's pool, deterministic stride; the sampled estimate is labeled, never passed off as an exact count). An edge that carries someone else's access story loses the tie; receipts say by how much. *(NoiseHound re-ranks attack paths by detection cost — SEVER is the remediation-side flip: rank the CUT by the disruption it would cause.)* |
+| **plans are sequences, not one edge** | `GET /api/plan` proposes a greedy k=3 cut sequence, every step projected on an isolated `GRAPH.COPY` of the live estate — re-enumerated and re-measured after each cut, never simulated from a frozen path set. The live graph is never touched by a proposal, and the plan stops early the moment its copy measures zero (no invented third step). |  |
+| **execution re-measures every step and stops at the first drift** | a plan step whose live re-query diverges from its projection halts the rest | later steps were computed on a surface that no longer exists, and stale projections never execute. `drift_stopped_at_step` is a status, not a failure to hide. |
+| **the gate** | passes only on the exact value `True` | schema, handler and tests all pin it independently |
+| **verdicts are measured claims** | `collapsed` only when a re-query returns 0, `degraded` only when paths survive, `no_effect` for honest no-ops | a cut can never *increase* reachability |
 | **receipts** | are append-only, cross-process locked, and self-repairing after a crashed writer |  |
 | **case memory** | persists the gate state itself, so the human decision survives process death |  |
+
+*Original diagram: [`docs/assets/diagram-control-flow.svg`](docs/assets/diagram-control-flow.svg).*
 
 ## 4. Data flow architecture
 
@@ -314,7 +325,10 @@ flowchart LR
 Two-pass parsing with unresolved-principal materialization (never invent data the
 collectors didn't give), deterministic 3×-identical edge hashes, UNWIND `$rows`
 parameter binding (hostile-input fail-loud, injection-proof by construction),
-idempotent MERGE loads, and range indexes on every label's natural key.
+idempotent MERGE loads, and range indexes on each of the 15 indexed labels'
+natural key.
+
+*Original diagram: [`docs/assets/diagram-data-flow.svg`](docs/assets/diagram-data-flow.svg).*
 
 ## 5. Graph data model
 
@@ -368,9 +382,9 @@ erDiagram
   GROUP |o--o{ GROUP : "MEMBER_OF - nested groups"
   USER |o--o{ USER : "GENERIC_ALL and 24 more ACE-derived rights"
   USER |o--o{ COMPUTER : "ADMIN_TO - local admin"
-  USER |o--o{ DOMAIN : "TRUSTED_BY - domain trusts, traversable"
-  COMPUTER |o--o{ OU : "CONTAINED_BY - structural, never traversed"
-  OU |o--o{ DOMAIN : "CONTAINED_BY - structural, never traversed"
+  DOMAIN |o--o{ DOMAIN : "TRUSTED_BY - domain trusts, traversable"
+  COMPUTER |o--|| OU : "CONTAINED_BY - structural, never traversed"
+  OU |o--|| DOMAIN : "CONTAINED_BY - structural, never traversed"
   CERTTEMPLATE }o--|| ENTERPRISECA : "PUBLISHED_ON - structural, never traversed"
   USER |o--o| AZUSER : "SYNCED_TO - the hybrid bridge, 9 on the merged sample"
   AZUSER |o--o{ AZSERVICEPRINCIPAL : "AZOwns"
@@ -379,12 +393,18 @@ erDiagram
   AZUSER |o--o{ AZTENANT : "AZMemberOf - tenant roles"
 ```
 
-28 node labels · 42 edge families · graph-per-tenant isolation. The traversal set
-is the core judgment: only abusable families chain, structural edges never do,
-and crown jewels are SID/suffix-based so renames can't fool detection. The full
+28 node labels · 42 edge families on the loaded hybrid sample (ETL census:
+4 membership/forest + 22 ACE-derived + 3 delegation + 13 hybrid) ·
+graph-per-tenant isolation. The traversal set is the core judgment: only
+abusable families chain, structural edges never do, and on-prem crown jewels
+are SID-based so renames can't fool detection (the Entra GA jewel is
+name-suffix-based — the sample's role-holder convention, matched
+case-insensitively). The full
 live-verified inventory, with per-family counts and derivation proofs, is in
 [`docs/GRAPH_MODEL.md`](docs/GRAPH_MODEL.md); every load-bearing query is a module
 constant documented in [`docs/CYPHER.md`](docs/CYPHER.md).
+
+*Original diagram: [`docs/assets/diagram-graph-model.svg`](docs/assets/diagram-graph-model.svg).*
 
 ## 6. Deployment architecture
 
@@ -414,10 +434,13 @@ uvicorn binds its port, so Render's deploy window never races it.
 on the free plan the console's filesystem is **ephemeral — the receipts
 ledger (`out/cases/*.jsonl`) resets on every deploy, restart, and spin-up**;
 it scrolls post-boot actions, not history. The health check must use
-`/api/health` (one cheap engine query): `/api/state` runs five engine
-queries and can exceed Render's 5s health window under concurrent load,
-which before the split caused an instance-restart loop (three boots in
-21 minutes, each wiping the ledger) with intermittent 502s. The 10-minute
+`/api/health` (one cheap engine query): `/api/state` issued **eleven
+sequential engine round-trips pre-fold** (receipts-pinned; 1 warm / 3–4 cold
+after the fold) and measured 6–24s against the live Cloud under concurrent
+load — it can exceed Render's 5s health window, which before the split
+caused an instance-restart loop (three boots in ~11 minutes — 00:50:34 /
+00:51:42 / 01:01:47, per the deploy audit — each wiping the ledger) with
+intermittent 502s. The 10-minute
 keepalive has to actually be scheduled on the demo machine (Task Scheduler
 / login item) — the repo does not start it.
 
@@ -456,11 +479,14 @@ keepalive has to actually be scheduled on the demo machine (Task Scheduler
   ~14MB used (peak observed 31MB during the audit fleet). Headroom for the
   live demo: ~86MB. The 3,000-tenant extrapolation does **not** fit: the
   build-host receipt says 5.44MB/tenant (`scale_wall.json` — 300 tenants /
-  1.594GiB on self-hosted 6.0.0), so 3,000 tenants ≈ **16.3GiB ≈ 163× the
+  1.594GiB on self-hosted 6.0.0), so 3,000 tenants ≈ **15.9GiB ≈ 163× the
   free-tier ceiling**; measured on the cloud engine itself it is ~15.2GB
-  (≈145×). Roughly **19 tenants** fit before the wall — the multi-tenant
+  (≈145×). Roughly **17 tenants** fit before the wall (~86MB headroom ÷
+  ~5.06MB/tenant) — the multi-tenant
   scale beat is a build-host story, not a free-tier story, and the docs say
   so.
+
+*Original diagram: [`docs/assets/diagram-deployment.svg`](docs/assets/diagram-deployment.svg).*
 
 ## 7. Real incidents this shape catches
 
@@ -557,22 +583,30 @@ Three adversarial audit fleets (~30 agents) hammered this product — logic inva
 property fuzzing, mutation-tested coverage, and two dedicated pentest agents (one
 external against the live deployment, one internal against code + supply chain).
 
-- **Human gate**: 23 distinct truthy stand-ins (numbers, strings, containers,
-  `None`) plus `== True` and always-truthy decoys — **all fail closed** at
+- **Human gate**: 23 distinct non-bool stand-ins (truthy *and* falsy —
+  numbers, strings, containers, `None`) plus `== True` and always-truthy
+  decoys — **all fail closed** at
   every layer (schema 422, handler identity, agent gate, flow gate); only
   literal JSON `true` opens the gate, enforced at schema *and* handler,
   both test-pinned.
 - **Injection**: 39/39 hostile relationship-type payloads (homoglyphs, NFKC
   normalization tricks, zero-width, case games, metacharacters, length
-  boundaries) rejected before any Cypher is built — at the port, the ETL gate
-  and the HTTP schema (`tests/test_unicode_rel_guards.py`); collector data
+  boundaries) rejected before any Cypher is built — the 31 charset
+  violations die at all three layers (port, ETL gate, HTTP schema); the 8
+  vocabulary-only payloads are rejected at the port by design (HTTP 400)
+  (`tests/test_unicode_rel_guards.py`); collector data
   rides `$rows` parameters — zero hostile bytes ever reach query text.
-- **DoS surface**: 1MB request-body cap (413 before buffering, on both the
-  Content-Length and chunked-stream paths — `tests/test_body_size_limit.py`);
+- **DoS surface**: 1MB request-body cap, rejected before buffering — HTTP
+  413 on the Content-Length path; the chunked path aborts at the cap and
+  surfaces as FastAPI's 400 body-parse error
+  (`tests/test_body_size_limit.py`);
   field length caps at the schema; deep nesting rejected fast.
 - **Exposure**: security headers on every response (HSTS, CSP, nosniff, DENY,
   no-referrer); OpenAPI/docs opt-in; CORS fail-closed; no cookies, no CSRF vector;
-  no URL parameters anywhere (no SSRF surface).
+  no URL parameter reaches the query layer — the console's two client-side
+  display toggles (`?static`, `?operator`) never touch Cypher or fetch
+  targets, and `/api/receipts`'s `?limit` is an int-clamped 1..5000
+  tail-window size (no SSRF surface).
 - **Transport — the one plaintext leg**: browser→Render is TLS (Render
   terminates HTTPS), but the free-tier Render→FalkorDB Cloud leg is
   plaintext RESP (free tier ships no TLS; the managed instance's RESP port
@@ -607,10 +641,17 @@ suite (`tests/test_planning.py`): GRAPH.COPY scratch isolation, benign-usage rec
 on the sample estate (pool/sampled sizes + the attacker-only #1), an exact two-cut
 plan on a synthetic engine estate — both steps attacker-only by the collateral
 tie-break — execution to measured collapse, and the drift-stop honesty rule.
+Plus the two perf/equivalence suites: `tests/test_perf_equivalence.py`
+(84 items — the old-vs-batched plan fold: zero arm queries, ratio ≥ 3,
+wall-time pins, 56 DB-free equivalence items) and
+`tests/test_perf_client_folds.py` (23 items — the `/api/state` client-side
+fold: 4 cold / 1 warm / 3 post-mutation round-trips, equivalence against
+the per-query forms).
 
-Live DB-free run at the develop tip (2026-10-16, no docker on the audit host —
-[`docs/receipts/test_suite_2026-10-16.json`](docs/receipts/test_suite_2026-10-16.json)):
-**580 collected — 392 passed + 188 engine-skips, 0 failures** (receipt: docs/receipts/test_suite_2026-10-17.json). With the engine up,
+Live DB-free run at the develop tip ([`docs/receipts/test_suite_2026-10-17.json`](docs/receipts/test_suite_2026-10-17.json),
+2026-10-17, no docker on the audit host):
+**580 collected — 392 passed + 188 skips, 0 failures** (skips = live-engine
+suites + Playwright-gated console modules + entra sample-fidelity tests). With the engine up,
 the engine suites run as well — the engine-up full green count is not recorded
 in-repo, which is why the badge says "collected", not "green".
 
@@ -623,7 +664,8 @@ in-repo, which is why the badge says "collected", not "green".
 - **AI-assisted development** (rule 11): this project was built with AI assistance
   under human direction — **Hermes Agent** (Nous Research) drove implementation
   across ~50 audited sub-agent fleets under the author's explicit gates, and
-  **glm-5.3** (via Vultr Inference) narrates findings offline-capably at runtime.
+  **glm-5.3** (via Vultr Inference) narrates findings at runtime when
+  configured, with a deterministic offline narrator as the built-in fallback.
   Architecture decisions, graph model, traversal semantics, acceptance criteria
   and every merge were reviewed by the author, who can defend each component.
   Commit history is fully in-window.
@@ -642,5 +684,7 @@ sever/synth/       injective multi-tenant identity generator
 sever/console/     FastAPI cockpit (human gate as an APPROVE CUT button)
 scripts/           rehearse · case_memory_live · hybrid_live · scale_wall · cloud_demo
 docs/              graph model · exact Cypher · demo script · incidents · live receipts
-docs/assets/       the original SVG architecture diagrams (the docs above embed mermaid)
+docs/assets/       demo video + poster · original SVG architecture diagrams (linked
+                   from §1–§6 above) · brand set: logo.svg / logo-light.svg /
+                   logo-banner.svg / logo-mark.svg · favicon.svg
 ```
