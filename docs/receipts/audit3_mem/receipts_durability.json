@@ -198,5 +198,7 @@
     "next": []
   },
   "failures": [],
-  "all_pass": true
+  "all_pass": true,
+  "_correction": "2026-10-18 (audit M22): resumed_case_DUR.values.triage carries \"applied\": false for a credential_breach that stuck (owned [] → [hero], reachability 0→1) — captured pre-audit3-console-logic; the shipped sever/agent/investigator.py reports applied:true for a breach that sticks.",
+  "_note": "2026-10-18 (audit N7): the recorded stdout (resume_fresh_process) contains U+FFFD replacement characters — captured without encoding=utf-8 on subprocess capture; see scripts/audit3_memory_audit.py L149 for the encoding fix."
 }

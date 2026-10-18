@@ -84,5 +84,6 @@
   },
   "next": [
     "verify"
-  ]
+  ],
+  "_correction": "2026-10-18 (audit M22): values.triage carries \"applied\": false for a credential_breach that stuck (owned [] → [hero], reachability 0→1) — captured pre-audit3-console-logic; the shipped sever/agent/investigator.py reports applied:true for a breach that sticks."
 }

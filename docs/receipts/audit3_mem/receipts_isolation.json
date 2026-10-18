@@ -711,5 +711,7 @@
     ]
   },
   "failures": [],
-  "all_pass": true
+  "all_pass": true,
+  "_correction": "2026-10-18 (audit H10): the case-A cut records verdict \"collapsed\" for a 2→1 reachability drop (resumed_case_A.values.receipt, echoed in case_A_after_double_resume and verdicts.A) — captured pre-verdict-fix; the shipped sever/core/scoring.py calls a partial drop \"degraded\" (\"collapsed\" only when a re-query returns 0), so case-A would read \"degraded\" on the release tree. (audit M22): every triage block here (paused_case_A, paused_case_B, resumed_case_A, resumed_case_B, case_A_after_double_resume) carries \"applied\": false for a credential_breach that stuck (owned [] → [hero], reachability 0→1) — captured pre-audit3-console-logic; the shipped sever/agent/investigator.py reports applied:true for a breach that sticks.",
+  "_note": "2026-10-18 (audits N7/X40): the recorded resume stdout (resume_a, resume_b) contains U+FFFD replacement characters — captured without encoding=utf-8 on subprocess capture; see scripts/audit3_memory_audit.py L149 for the encoding fix."
 }
