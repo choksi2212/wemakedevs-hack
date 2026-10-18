@@ -57,7 +57,7 @@ on-call agent over an identity graph with one opinionated thesis:
 ## The architecture, honestly
 
 SEVER ingests the official BloodHound CE sample estates (Apache-2.0,
-SpecterOps — 3 domains, 1,480 nodes, 12,450 edges, zero dangling references
+SpecterOps — 3 domains plus 2 external trust targets, 1,480 nodes, 12,450 edges, zero dangling references
 after my ETL) into **FalkorDB**, plus the AzureHound Entra sample for the
 hybrid story. On a findings stream it:
 
@@ -111,8 +111,10 @@ matrices are not marketing.
 
 ## Things I learned shipping against FalkorDB 6.0.0
 
-- `shortestPath` only works as a **WITH-clause expression** — the
-  `MATCH p = shortestPath(...)` form that Neo4j tutorials teach is rejected.
+- `shortestPath` is used as a **WITH-clause expression** in the shipped
+  queries — though the RETURN form parses and runs on both engines I tested
+  (4.22.0 and 6.0.0); only the `MATCH p = shortestPath(...)` form that
+  Neo4j tutorials teach is rejected.
 - shortest-path hop ranges must be upper-bounded (`*..12`, no lower bound).
 - `algo.SPpaths` is glorious for tie analysis but explodes combinatorially on
   cross-domain path sets — keep it for offline analysis, use the canonical
