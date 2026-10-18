@@ -12,7 +12,8 @@ Env: SEVER_FALKOR_HOST/PORT/USER/PASSWORD, SEVER_FALKOR_GRAPH,
 API contract (audit2/api-contract), enforced by sever.console.schemas BEFORE
 any handler runs:
 - 422 schema: malformed JSON, wrong types, missing fields, empty required
-  strings, oversized fields (100KB subject dies here), rel syntax violations
+  strings, oversized fields (a 10KB subject dies here — the schema caps
+  ``subject`` at 256 chars), rel syntax violations
   (injection payloads, trailing newlines, >64 chars), truthy non-bool
   ``approved`` (1, 1.0, "true", "yes", "on", "1"), lone surrogates,
   unknown finding ``kind`` (closed ATT&CK vocabulary) and ``ace_granted``
@@ -61,8 +62,8 @@ reachability's own internal re-reads), GET /api/proposal 185, GET /api/plan
   that simultaneously preserves node count, edge count, the owned set AND
   the jewel set between two polls is the one thing the generation check
   cannot see; no console mutation can be silent (all bump the counter).
-  Receipt: cold poll 3 engine calls (probe + 2 arms), warm poll 1,
-  post-mutation poll 3 — from 11/11/11.
+  Receipt: cold poll 4 engine calls (probe + 2 arms + first-time name
+  lookups), warm poll 1, post-mutation poll 3 — from 11/11/11.
 - /api/plan runs the SAME greedy k=3 copy+measure algorithm as
   scoring.plan_cut_sequence (same scratch GRAPH.COPY isolation, same
   per-step re-measure, same verdict rules, byte-identical receipt fields),
@@ -98,9 +99,10 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import Response
 from dotenv import load_dotenv
 
+from sever import __version__
 from sever.agent.investigator import Investigator
 from sever.console.schemas import CutRequest, FindingRequest, PlanExecuteRequest
-from sever.console.security import BodySizeLimitMiddleware
+from sever.console.security import SECURITY_HEADERS, BodySizeLimitMiddleware
 from sever.core.falkor_port import (
     AZ_JEWELS_QUERY,
     FalkorGraphPort,
@@ -492,7 +494,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # product value for a demo UI that already renders the same information.
     docs_enabled = os.environ.get("SEVER_DOCS", "").lower() in ("1", "true", "yes")
     app = FastAPI(
-        title="SEVER console", version="0.2.0",
+        # audit L42/X51: the app self-describes with the PACKAGE version
+        # (sever/__init__.py) — pre-fix this hardcoded "0.2.0" while the
+        # package said 0.1.0 and the release was tagged v1.0, three
+        # disagreeing constants for one product.
+        title="SEVER console", version=__version__,
         docs_url="/docs" if docs_enabled else None,
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
@@ -510,19 +516,13 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # leakage, and transport security for proxied HTTPS deployments
         # (Render/Cloudflare terminate TLS in front of plain-HTTP uvicorn).
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        # The console ships inline <style>/<script> in its single page, so
-        # script/style need 'unsafe-inline'; the protective value here is
-        # object-src/base-uri/frame-ancestors and a default-src fence.
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-            "connect-src 'self'; object-src 'none'; base-uri 'self'; "
-            "frame-ancestors 'none'"
-        )
-        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        # audit M47: the five headers ship from the ONE constant the 413
+        # lane also answers with (sever.console.security.SECURITY_HEADERS —
+        # the body-cap middleware runs OUTERMOST, so its rejection bypasses
+        # this middleware and carries them itself); both lanes read the same
+        # bytes and can never drift apart.
+        for key, value in SECURITY_HEADERS:
+            response.headers[key.decode("latin-1")] = value.decode("latin-1")
         return response
     # body-size cap BEFORE any buffering (audit3/pentest-internal): hostile
     # multi-MB bodies die as 413 without being fully buffered (~4000x the
@@ -590,7 +590,14 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # ledger recorded 10 "removed 1" cuts whose edges exist again today — the
     # estate had been reset out-of-band overnight, and nothing in the trail
     # marked the discontinuity).
-    log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
+    # audit N17: the ledger is keyed by the PORT's graph name — the graph
+    # this console actually serves (an injected test port, a renamed
+    # production graph) — NOT by the SEVER_FALKOR_GRAPH env var, which
+    # describes how the default port was built and can legitimately diverge
+    # from an injected port. Falls back to the env var only for a port
+    # object that carries no graph_name at all.
+    log = CaseLog(getattr(port, "graph_name", None)
+                  or os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
     # Boot-time outage containment (audit8/fix-code, F303): the auto-load probe
     # is the second engine touch on the import path, and when the engine is
     # down — or the configured endpoint is a reachable-but-not-FalkorDB RESP
@@ -696,12 +703,14 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         # audit5/deploy-audit: Render's HTTP health check needs a 2xx within
-        # its 5-second window. /api/state runs five engine queries (incl. the
-        # full reachability traversal) and measured 6-24s against FalkorDB
-        # Cloud under concurrent load — as the health path it missed its
-        # window, Render restarted the instance every ~60s of that, and each
-        # restart wiped the ephemeral receipts ledger (three instance boots
-        # in 21 minutes, live-verified 2026-10-16). This probe touches the
+        # its 5-second window. Pre-fold /api/state ran 11 sequential engine
+        # queries per poll (incl. the full reachability traversal — post-fold
+        # it is 3-4 cold / 1 warm, receipts-pinned) and measured 6-24s
+        # against FalkorDB Cloud under concurrent load — as the health path
+        # it missed its window and Render restarted the instance, and each
+        # restart wiped the ephemeral receipts ledger (three boots in ~11
+        # minutes, live-verified 2026-10-16 — the AUDIT_DEPLOY §4 boot log
+        # spans 00:50:34 to 01:01:47). This probe touches the
         # engine with ONE cheap query (a dead engine still 503s through the
         # shared outage handler, so fail-fast semantics are unchanged) and
         # never appends a receipt, so health-check traffic cannot drown the
@@ -718,7 +727,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # receipts ledger — 4 lines/minute of identical spam burying the cut and
     # finding receipts a judge actually needs to see. Log state only when it
     # changes; the transition itself is the receipt.
-    last_state_log: dict[str, Any] = {"key": None}
+    last_state_log: dict[str, Any] = {"key": None, "missing": False}
 
     def _state_data_slow() -> dict[str, Any]:
         """The original per-poll computation, verbatim — the fallback every
@@ -743,15 +752,21 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
 
     @app.get("/api/state")
     def state() -> dict[str, Any]:
-        # audit7/perf-api: 11 sequential round-trips per poll folded to 3
-        # cold (probe + two arms) and 1 warm (the probe IS the cache check).
+        # audit7/perf-api: 11 sequential round-trips per poll folded to 4
+        # cold (probe + two arms + first-time name lookups) and 1 warm (the
+        # probe IS the cache check).
         # The fold refuses itself and falls back to the original path on any
         # dialect mismatch; an engine outage propagates to the 503 handler
-        # exactly as before. F900: on engines < 6.0.0 the arms undercount
+        # exactly as before.
+        # F900: on engines < 6.0.0 the arms undercount
         # (production served reach 0 with an owned principal) — those
         # engines answer through the port methods, exactly pre-fleet-7.
-        probe = _estate_probe(port)
-        if probe is None or not arms_fold_ok:
+        # audit L44: the arms gate is checked BEFORE the probe — its result
+        # is discarded on those engines anyway, so issuing it paid one
+        # wasted WAN round-trip on every state/paths/proposal/plan call
+        # against the deployed Cloud 4.22.0.
+        probe = _estate_probe(port) if arms_fold_ok else None
+        if probe is None:
             data = _state_data_slow()
         else:
             nodes, edges, owned, jewels = probe
@@ -781,15 +796,29 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # file survives it. Without a marker, cuts recorded before the
             # reset contradict the re-loaded estate and a judge cannot see
             # where the story broke.
-            log.append({
-                "step": "estate_missing",
-                "note": "graph is empty — the estate was deleted or reset outside "
-                        "this console; receipts continuity breaks here",
-            })
-            last_state_log["key"] = None
+            # audit M49: the marker fires ONCE per empty episode. Pre-fix,
+            # every poll while the estate stayed missing appended BOTH this
+            # marker AND a state line (the key below was reset to None behind
+            # the change-check's back) — 8 ledger lines/minute per open tab
+            # on the exact out-of-band-reset scenario the marker was built
+            # for, re-creating the unbounded-growth failure the /api/receipts
+            # bound and the change-only state logging were built against.
+            if not last_state_log["missing"]:
+                log.append({
+                    "step": "estate_missing",
+                    "note": "graph is empty — the estate was deleted or reset outside "
+                            "this console; receipts continuity breaks here",
+                })
+            last_state_log["missing"] = True
+        else:
+            # estate back: re-arm the detector so a LATER out-of-band reset
+            # marks its own discontinuity.
+            last_state_log["missing"] = False
         # audit5/judge-experience: /api/state is polled every 15s by every open
         # console tab — log state only when it CHANGES (the transition itself
         # is the receipt), so poll traffic cannot bury the cut/finding story.
+        # audit M49: the key is never reset behind the check's back — the
+        # (0,0,0) transition logs once and every further empty poll is silent.
         key = (data["reachability"], data["nodes"], data["edges"])
         if key != last_state_log["key"]:
             last_state_log["key"] = key
@@ -807,9 +836,10 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # F900: the arms are cross-product forms — on engines < 6.0.0 they
         # undercount (production served paths [] with an owned principal),
         # so those engines keep the per-pair port loop, exactly pre-fleet-7.
-        probe = _estate_probe(port)
+        # audit L44: gate first, probe only when the folds may run.
+        probe = _estate_probe(port) if arms_fold_ok else None
         pairs = None
-        if probe is not None and arms_fold_ok:
+        if probe is not None:
             try:
                 pairs = _arm_pair_paths(port, inv.hop_cap)
             except _FoldUnsupported:
@@ -847,9 +877,10 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # F900: the folded arms are cross-product forms — on engines < 6.0.0
         # they undercount, so those engines answer through inv.propose
         # (port.edge_frequency's per-pair legacy loop), exactly pre-fleet-7.
-        probe = _estate_probe(port)
+        # audit L44: gate first, probe only when the folds may run.
+        probe = _estate_probe(port) if arms_fold_ok else None
         out: list[dict[str, Any]]
-        if probe is None or not arms_fold_ok:
+        if probe is None:
             out = inv.propose(limit=5)
         else:
             _nodes, _edges, owned, _jewels = probe
@@ -896,21 +927,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         itself there and the caller's inv.propose_plan (scoring's per-pair
         enumeration — the form production proved on the Cloud) answers."""
         hop_cap = inv.hop_cap
-        probe = _estate_probe(port)
-        if probe is None or not arms_fold_ok:
+        # audit L44: gate first, probe only when the folds may run.
+        probe = _estate_probe(port) if arms_fold_ok else None
+        if probe is None:
             return None
         _nodes, _edges, owned, jewels = probe
-        base_reach = _arm_reach(port, owned, jewels, hop_cap)
-        if base_reach == 0:
-            return {
-                "k": 3,
-                "method": "graph_copy_remeasure",
-                "base": {"reachability": 0, "owned": owned, "jewels": jewels},
-                "benign_sample_size": BENIGN_SAMPLE_SIZE,
-                "steps": [],
-                "plan_completes_at_step": None,
-                "note": "surface already collapsed (0 breach paths) — nothing to plan",
-            }
         copier = getattr(port, "scratch_copy", None)
         if copier is None:
             raise TypeError(
@@ -924,6 +945,26 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         name = f"{getattr(port, 'graph_name', 'graph')}_plan_scratch_{os.urandom(4).hex()}"
         scratch = copier(name)
         try:
+            # audit M50 (parity with scoring.plan_cut_sequence, X53): the
+            # base is measured ON the scratch copy — the same isolated-estate
+            # state every step's projection is measured on, so "one receipt
+            # speaks about one estate state" (scoring.py's documented
+            # straddle refusal). Pre-fix the base was measured on the LIVE
+            # estate before the GRAPH.COPY, so a mutation landing between the
+            # read and the copy made the receipt's base describe a state the
+            # steps' projections never built on — exactly the live-read/copy
+            # straddle the claimed-parity ground truth documents and refuses.
+            base_reach = _arm_reach(scratch, owned, jewels, hop_cap)
+            if base_reach == 0:
+                return {
+                    "k": 3,
+                    "method": "graph_copy_remeasure",
+                    "base": {"reachability": 0, "owned": owned, "jewels": jewels},
+                    "benign_sample_size": BENIGN_SAMPLE_SIZE,
+                    "steps": [],
+                    "plan_completes_at_step": None,
+                    "note": "surface already collapsed (0 breach paths) — nothing to plan",
+                }
             # The benign pool cannot change across the plan's steps: the plan
             # only cuts edges on the scratch — nodes, owned flags and the
             # User pool are byte-identical to the live estate the probe just
@@ -1008,6 +1049,16 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             log.append({"step": "plan_failed",
                         "error": "engine unreachable mid-plan", "outcome": "unknown"})
             raise
+        except TypeError:
+            # audit N18: a DETERMINISTIC configuration bug — a port without
+            # the scratch_copy / user_objectids seam the plan path requires —
+            # is not an engine race. Folding it into the retry lane below
+            # mislabeled a config error as transient; let it propagate to
+            # FastAPI's default 500 and fail loud, the attempt still ledgered.
+            log.append({"step": "plan_failed",
+                        "error": "plan projection failed: port seam missing (TypeError)",
+                        "outcome": "unknown"})
+            raise
         except Exception as e:
             # Any other projection failure (an engine-side graph-lifecycle
             # race, a scratch collision, an internal bug) must still leave the
@@ -1015,15 +1066,29 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # vanished without a ledger entry — an invisible hole for a judge
             # reconstructing the story (audit5/multi-client: concurrent
             # planners 500'd with no trace).
+            # audit L45: the public ledger and the 503 detail carry the
+            # exception CLASS only — the same scrub the 503 outage lane
+            # applies. The raw {e} text embeds engine internals and is served
+            # verbatim on the public URL via GET /api/receipts; the full
+            # message stays in the server-side traceback uvicorn logs.
             log.append({"step": "plan_failed",
-                        "error": f"plan projection failed: {e}", "outcome": "unknown"})
+                        "error": f"plan projection failed: {type(e).__name__}",
+                        "outcome": "unknown"})
             raise HTTPException(
                 status_code=503,
-                detail=f"plan projection failed — engine graph lifecycle race, retry: {e}",
+                detail=f"plan projection failed — engine graph lifecycle race, "
+                       f"retry: {type(e).__name__}",
             )
         # mirror onto the console receipts ledger like every other agent
-        # step — the trail must show what was proposed, not only what ran
-        log.append({"step": "plan", "plan": out})
+        # step — the trail must show what was proposed, not only what ran.
+        # Ledger event-key contract (audit M46/X31): plan-kind entries are
+        # keyed "event" across both ledgers. The console CaseLog (unlike
+        # the investigator's case_log, whose "step" is a sequential int id)
+        # keys every entry's kind by "step" and the receipts UI reads
+        # e.step — so the console mirror carries BOTH: "event" converges
+        # the kind key with the agent lane, "step" keeps the console
+        # ledger/UI contract intact.
+        log.append({"event": "plan", "step": "plan", "plan": out})
         return out
 
     @app.post("/api/plan/execute")
@@ -1043,7 +1108,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             ]
         }
         try:
-            result = inv.execute_plan(plan, approved_by=req.approved_by)
+            # audit M51 (X54): forward the operator's decision into the
+            # agent-layer gate (same wiring as /api/cut above and the flow
+            # path flow.py::resume_investigation — every gate sees the value).
+            result = inv.execute_plan(plan, approved_by=req.approved_by,
+                                      require_explicit_approval=req.approved)
         except ValueError as e:
             # Only reachable with a schema-valid but unknown rel: the gate
             # above already handled the not-approved case, and the engine's
@@ -1095,8 +1164,9 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # An invalid rel (e.g. lowercase, spaces, injection attempt) is a
             # CLIENT error — the injection guard in FalkorGraphPort.add_edge
             # rejects it before any Cypher runs. It must surface as a 400,
-            # not an unhandled 500 with a stack trace. Nothing reached the
-            # engine, so no cache invalidation is needed.
+            # not an unhandled 500 with a stack trace. No MUTATION reached
+            # the engine (the rel guard fires after triage's before-snapshot
+            # reads), so no cache invalidation is needed.
             raise HTTPException(status_code=400, detail=str(e))
         except ENGINE_ERRORS:
             # The engine died mid-triage: the finding may have partially
@@ -1134,12 +1204,26 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         if req.approved is not True:
             raise HTTPException(status_code=403, detail="interdiction requires explicit human approval")
         try:
-            receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
+            # audit M51 (X54): the operator's decision is forwarded INTO the
+            # agent-layer gate — ``require_explicit_approval`` — so the gate
+            # below the handler is actually in the loop on the HTTP path.
+            # Pre-fix the parameter was never passed, so the investigator's
+            # ``True`` default auto-satisfied it and the handler's own
+            # identity check was the ONLY layer standing (the README claims
+            # "all fail closed at every layer" — the agent gate was
+            # structurally inert here). Defense-in-depth restored:
+            # req.approved is True here by construction, but a weakened or
+            # removed handler gate now still meets a live agent gate below it.
+            receipt = inv.approve_and_cut(req.src, req.dst, req.rel,
+                                           approved_by=req.approved_by,
+                                           require_explicit_approval=req.approved)
         except ValueError as e:
             # Only reachable with an invalid rel: the gate above already
             # handled the not-approved case, and FalkorGraphPort.cut rejects
             # bad rels before any Cypher runs. Client error -> 400, not 500.
-            # Nothing reached the engine — no cache invalidation needed.
+            # No MUTATION reached the engine — the rel guard fired after
+            # interdict's before-snapshot reads — so no cache invalidation
+            # is needed.
             raise HTTPException(status_code=400, detail=str(e))
         except ENGINE_ERRORS:
             # Engine died mid-cut (audit3/console-logic: live-verified by
@@ -1157,15 +1241,23 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return receipt
 
     @app.get("/api/receipts")
-    async def receipts(limit: int = 200) -> list[dict[str, Any]]:
-        # Bounded tail (audit5/live-e2e): the ledger is append-only and grows
-        # with every poll — every /api/state appends a line, so a day of
-        # auto-refresh plus operator traffic makes the full-ledger response
-        # grow without bound until the public deployment's worker died on it
-        # (live 502s, Oct 16 06:15Z). The UI renders the newest 40; the API
-        # ships the newest ``limit`` events (newest-last, unchanged order).
-        # The full file stays on disk for forensics — it is never the HTTP
-        # payload.
+    def receipts(limit: int = 200) -> list[dict[str, Any]]:
+        # audit M52: a plain sync def — like every other route — so FastAPI
+        # runs this in the threadpool. Pre-fix this was the ONE async
+        # handler, so log.read()'s blocking work (the cross-process sidecar
+        # flock + a full-file read of a ledger that keeps growing) stalled
+        # the single event loop for every concurrent request — including
+        # /api/health, which exists to answer inside Render's 5-second
+        # window — and contended on the same flock the /api/state appends
+        # hold. Response contract unchanged.
+        # Bounded tail (audit5/live-e2e): the ledger is append-only and
+        # grows with every state TRANSITION (change-only logging — not with
+        # every poll), so a day of auto-refresh plus operator traffic makes
+        # the full-ledger response grow without bound until the public
+        # deployment's worker died on it (live 502s, Oct 16 06:15Z). The UI
+        # renders the newest 40; the API ships the newest ``limit`` events
+        # (newest-last, unchanged order). The full file stays on disk for
+        # forensics — it is never the HTTP payload.
         limit = max(1, min(limit, 5000))
         events = log.read()
         return events[-limit:] if limit < len(events) else events

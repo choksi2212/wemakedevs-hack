@@ -147,7 +147,9 @@ def test_failed_plan_is_ledgered_and_answers_503(console, monkeypatch):
     """An engine-side plan failure (scratch lifecycle race, internal bug)
     must never vanish: the attempt lands on the receipts trail as
     plan_failed/outcome unknown and the caller gets a clean JSON 503 —
-    never a bare 500 with no ledger entry."""
+    never a bare 500 with no ledger entry. audit L45: the ledger line and
+    the 503 detail carry the exception CLASS only — raw exception text
+    (engine internals) never reaches the public receipts ledger."""
     tc, fake, tmp_path = console
 
     # simplest deterministic failure: make the engine port raise mid-plan
@@ -159,12 +161,43 @@ def test_failed_plan_is_ledgered_and_answers_503(console, monkeypatch):
     assert r.status_code == 503
     assert "retry" in r.json()["detail"]
 
-    ledger = tmp_path / "out" / "cases" / "sever_audit5_cl_mcc.jsonl"
+    # audit N17: the ledger is keyed by the PORT's graph name
+    # (sever_audit5_fake), not the SEVER_FALKOR_GRAPH env var
+    # (sever_audit5_cl_mcc, set by the fixture) — this fixture deliberately
+    # diverges the two, so reading the env-keyed path here would find no
+    # ledger at all.
+    ledger = tmp_path / "out" / "cases" / "sever_audit5_fake.jsonl"
     events = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
     failed = [e for e in events if e.get("step") == "plan_failed"]
     assert failed, "the failed plan attempt must be on the receipts trail"
     assert failed[-1]["outcome"] == "unknown"
     assert "plan projection failed" in failed[-1]["error"]
+    assert "graph was deleted" not in failed[-1]["error"], (
+        "raw exception text must not reach the public ledger — class name only"
+    )
+    assert "RuntimeError" in failed[-1]["error"]
+
+
+def test_successful_plan_mirror_carries_both_kind_keys(console):
+    """Ledger event-key contract (audit M46/X31): the console's plan mirror
+    entry carries 'event': 'plan' (the cross-ledger kind key the agent lane
+    is moving to) ALONGSIDE the console ledger's own 'step' kind (which the
+    receipts UI reads) — pinned here DB-free through the fixture's fake port
+    (probe-less, so /api/plan answers through inv.propose_plan, the original
+    loop, exactly like an engine below 6.0.0)."""
+    tc, fake, tmp_path = console
+    r = tc.get("/api/plan")
+    assert r.status_code == 200
+    plan = r.json()
+    assert plan["method"] == "graph_copy_remeasure"
+    # audit N17: keyed by the port's graph name, not the env var
+    ledger = tmp_path / "out" / "cases" / "sever_audit5_fake.jsonl"
+    events = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
+    mirror = [e for e in events if e.get("event") == "plan"]
+    assert mirror, "the plan mirror must carry the cross-ledger 'event' key"
+    assert all(e.get("step") == "plan" for e in mirror), (
+        "the console ledger's own 'step' kind stays (the receipts UI reads e.step)"
+    )
 
 
 # ------------------------------------------------------------------
@@ -199,7 +232,8 @@ def test_empty_estate_gets_an_estate_missing_receipt(console):
     fake._jewels = set()
     r = tc.get("/api/state")
     assert r.status_code == 200
-    ledger = tmp_path / "out" / "cases" / "sever_audit5_cl_mcc.jsonl"
+    # audit N17: keyed by the port's graph name, not the env var
+    ledger = tmp_path / "out" / "cases" / "sever_audit5_fake.jsonl"
     events = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
     steps = [e.get("step") for e in events]
     assert "estate_missing" in steps, (
@@ -207,3 +241,17 @@ def test_empty_estate_gets_an_estate_missing_receipt(console):
     )
     # the marker precedes the state snapshot that observed the emptiness
     assert steps.index("estate_missing") < len(steps) - 1
+    # audit M49: while the estate STAYS missing, further polls append
+    # NOTHING — pre-fix every poll added estate_missing AND a state line
+    # (the change-key was reset to None behind the check's back), 8
+    # lines/minute per open tab: exactly the unbounded-growth failure the
+    # change-only logging and the /api/receipts bound were built against.
+    assert steps.count("estate_missing") == 1
+    assert steps.count("state") == 1, "the (0,0,0) transition logs once"
+    n_before = len(events)
+    for _ in range(3):
+        assert tc.get("/api/state").status_code == 200
+    events_after = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(events_after) == n_before, (
+        "empty-estate poll traffic must not grow the receipts ledger"
+    )
