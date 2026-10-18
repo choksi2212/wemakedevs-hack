@@ -139,6 +139,25 @@ class _FakePort(GraphPort):
         return {"backend": "fake"}
 
 
+class _MidPlanDeathPort(_FakePort):
+    """_FakePort whose engine dies exactly BETWEEN interdict steps (audit
+    L46): edge_count() is the LAST engine call of each scoring.snapshot(),
+    so the 2nd edge_count call (step 1's after-snapshot) is the instant
+    step 1 is fully complete — death arms right after it, and step 2's
+    first engine touch (its before-snapshot) raises the outage."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._snapshots = 0
+
+    def edge_count(self) -> int:
+        n = super().edge_count()
+        self._snapshots += 1
+        if self._snapshots == 2:  # one-shot: arming once, never re-arming later
+            self.ops_dead = True
+        return n
+
+
 @pytest.fixture()
 def console(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # CaseLog root lands in the tmp dir
@@ -152,6 +171,30 @@ def console(tmp_path, monkeypatch):
     tc = TestClient(appmod.build_app(port=fake))
     yield tc, fake
     # the ledger file (when anything was written) must still be pristine JSONL
+    ledger = tmp_path / "out" / "cases" / "sever_audit3_cl_resil.jsonl"
+    if ledger.exists():
+        import json
+
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                json.loads(line)
+
+
+@pytest.fixture()
+def console_die_mid_plan(tmp_path, monkeypatch):
+    """The resilience console fixture, but the engine dies between interdict
+    steps 1 and 2 of the first plan executed against it (audit L46)."""
+    monkeypatch.chdir(tmp_path)  # CaseLog root lands in the tmp dir
+    monkeypatch.setenv("SEVER_CONSOLE_NO_BOOTSTRAP", "1")
+    monkeypatch.setenv("SEVER_FALKOR_GRAPH", "sever_audit3_cl_resil")
+    from fastapi.testclient import TestClient
+
+    import sever.console.app as appmod
+
+    fake = _MidPlanDeathPort()
+    tc = TestClient(appmod.build_app(port=fake))
+    yield tc, fake
+    # same pristine-JSONL teardown as the base fixture
     ledger = tmp_path / "out" / "cases" / "sever_audit3_cl_resil.jsonl"
     if ledger.exists():
         import json
@@ -276,6 +319,49 @@ def test_engine_dead_health_503_discloses_no_infra_details(console):
     assert "127.0.0.1" not in detail and "6379" not in detail
     fake.ops_dead = False
     assert tc.get("/api/health").status_code == 200
+
+
+def test_engine_dies_between_plan_steps_is_ledgered_plan_execute_failed(console_die_mid_plan):
+    """audit L46: the plan_execute_failed outage lane had NO test while its
+    three sibling lanes (finding_failed, cut_failed, plan_failed) were all
+    pinned. The engine dies BETWEEN step 1 and step 2 of an approved
+    2-step plan: the console must answer the clean 503, ledger the attempt
+    as plan_execute_failed with outcome unknown, never record a success —
+    and the step-1 cut (which fully landed before the outage) must stay
+    visible on the estate."""
+    tc, fake = console_die_mid_plan
+    # the breach landed out-of-band: mark it directly on the port so NO
+    # engine chatter precedes the plan (triage's own snapshots would consume
+    # the death arming above).
+    fake.mark_owned(ALICE)
+    r = tc.post("/api/plan/execute", json={
+        "approved": True, "approved_by": "resilience",
+        "steps": [
+            # step 1 collapses the surface (projection 0 == measured 0 —
+            # no drift-stop) so execution reaches step 2 and dies there
+            {"src": ALICE, "dst": TIER1, "rel": "MEMBER_OF",
+             "projected_reachability": 0},
+            {"src": TIER1, "dst": DA, "rel": "MEMBER_OF",
+             "projected_reachability": 0},
+        ],
+    })
+    assert r.status_code == 503
+    assert r.json()["detail"].startswith("engine unreachable")
+
+    recs = tc.get("/api/receipts").json()
+    failed = [e for e in recs if e.get("step") == "plan_execute_failed"]
+    assert failed, "the interrupted plan attempt must be on the receipts trail"
+    assert failed[-1]["outcome"] == "unknown"
+    assert failed[-1]["approved_by"] == "resilience"
+    assert failed[-1]["error"] == "engine unreachable mid-plan"
+    assert not any(e.get("step") == "plan_execute" for e in recs), (
+        "a plan that never completed must never be recorded as a success"
+    )
+    # steps before the failure still landed: engine back, step 1's cut shows
+    fake.ops_dead = False
+    state = tc.get("/api/state").json()
+    assert state["edges"] == 1, "step 1's executed cut must survive the outage"
+    assert state["reachability"] == 0, "the surviving edge reaches no jewel"
 
 
 # ---- audit M51 (X54): the operator's approval is forwarded into the agent gate ----
