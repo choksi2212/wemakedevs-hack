@@ -100,7 +100,7 @@ from dotenv import load_dotenv
 
 from sever.agent.investigator import Investigator
 from sever.console.schemas import CutRequest, FindingRequest, PlanExecuteRequest
-from sever.console.security import BodySizeLimitMiddleware
+from sever.console.security import SECURITY_HEADERS, BodySizeLimitMiddleware
 from sever.core.falkor_port import (
     AZ_JEWELS_QUERY,
     FalkorGraphPort,
@@ -510,19 +510,13 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # leakage, and transport security for proxied HTTPS deployments
         # (Render/Cloudflare terminate TLS in front of plain-HTTP uvicorn).
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        # The console ships inline <style>/<script> in its single page, so
-        # script/style need 'unsafe-inline'; the protective value here is
-        # object-src/base-uri/frame-ancestors and a default-src fence.
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-            "connect-src 'self'; object-src 'none'; base-uri 'self'; "
-            "frame-ancestors 'none'"
-        )
-        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        # audit M47: the five headers ship from the ONE constant the 413
+        # lane also answers with (sever.console.security.SECURITY_HEADERS —
+        # the body-cap middleware runs OUTERMOST, so its rejection bypasses
+        # this middleware and carries them itself); both lanes read the same
+        # bytes and can never drift apart.
+        for key, value in SECURITY_HEADERS:
+            response.headers[key.decode("latin-1")] = value.decode("latin-1")
         return response
     # body-size cap BEFORE any buffering (audit3/pentest-internal): hostile
     # multi-MB bodies die as 413 without being fully buffered (~4000x the

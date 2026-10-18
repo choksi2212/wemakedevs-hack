@@ -342,6 +342,21 @@ def test_security_headers_on_every_response(client):
     # fail-closed CORS posture: no origin is ever allowed to read the API
     assert "Access-Control-Allow-Origin" not in r.headers
     assert "Access-Control-Allow-Credentials" not in r.headers
+    # audit M47: the 413 was the one response class that answered WITHOUT
+    # the five headers — BodySizeLimitMiddleware is the OUTERMOST middleware,
+    # so its rejection never passed through the header middleware. The
+    # reject lane now carries them itself (security.SECURITY_HEADERS); pin
+    # all five on a >1MB body — the exact request an attacker sends.
+    r = client.post("/api/finding", json={
+        "kind": "credential_breach", "subject": "S-1-" + "9" * 1_000_000,
+    })
+    assert r.status_code == 413
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert r.headers["Referrer-Policy"] == "no-referrer"
+    assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in r.headers["Content-Security-Policy"]
+    assert r.headers["Strict-Transport-Security"] == "max-age=31536000"
 
 
 def test_cors_preflight_is_not_answered(client):
