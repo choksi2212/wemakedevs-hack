@@ -10,8 +10,9 @@ Five probes (branch audit5/cloud-instance):
      extrapolation. Never extrapolated BY loading: only 3 tenants load.
   C. version-gap       — every shipped query form re-run on a throwaway graph:
      canonical shortestPath WITH-form, both reachability arms, algo.SPpaths
-     (relTypes honored?), add_edge MERGE semantics, cut count/delete,
-     GRAPH.COPY, CREATE INDEX + db.indexes(), PROFILE params-header.
+     (relTypes honored?), add_edge MERGE semantics, the atomic
+     delete-and-count cut, GRAPH.COPY, CREATE INDEX + db.indexes(),
+     PROFILE params-header. Expected outcomes feed `failures` (L33).
   D. cleanup           — GRAPH.DELETE every sever_audit5_cloud* key, verify by
      SCAN that none remain and that sever_demo / sidecars are untouched.
 
@@ -37,8 +38,7 @@ load_dotenv()
 
 from sever.core.falkor_port import (  # noqa: E402
     CANONICAL_PATH_QUERY_TEMPLATE,
-    CUT_COUNT_QUERY_TEMPLATE,
-    CUT_DELETE_QUERY_TEMPLATE,
+    CUT_ATOMIC_QUERY_TEMPLATE,
     JEWELS_QUERY,
     MARK_OWNED_QUERY,
     OWNED_QUERY,
@@ -70,8 +70,6 @@ def main() -> int:
     user = os.environ.get("SEVER_FALKOR_USER")
     password = os.environ.get("SEVER_FALKOR_PASSWORD")
 
-    probe = FalkorGraphPort(host=host, port=port_i, username=user, password=password,
-                            graph_name=f"{THROWAWAY_PREFIX}_nop")
     # a plain redis client for raw RESP (INFO/SCAN/MEMORY/MODULE/GRAPH.* admin
     # surface) — the falkordb wrapper only proxies execute_command.
     import redis
@@ -217,15 +215,39 @@ def main() -> int:
     if per_tenant:
         maxm = eng["maxmemory_bytes"]
         used = eng["used_memory_bytes"]
-        startup = eng["used_memory_startup_bytes"]
         sizing["per_tenant_bytes"] = per_tenant
         sizing["extrapolation_3000_tenants_bytes"] = 3000 * per_tenant
-        sizing["extrapolation_3000_tenants_vs_maxmemory"] = f"{3000 * per_tenant / maxm:.1f}x the 100MB ceiling"
-        sizing["tenants_that_fit_in_100mb_approx"] = int((maxm - startup - 2 * 1024 * 1024) // per_tenant)
+        if maxm:
+            # build the ceiling label from the MEASURED maxmemory — the
+            # self-hosted §9 engine has no maxmemory (0 = unlimited) and a
+            # hardcoded "100MB" label would be a fabricated claim (M37)
+            ceiling_label = f"{maxm / (1024 * 1024):.0f}MB maxmemory ceiling"
+            sizing["extrapolation_3000_tenants_vs_maxmemory"] = (
+                f"{3000 * per_tenant / maxm:.1f}x the {ceiling_label}")
+            # honest headroom: subtract what the instance ALREADY uses at
+            # measurement time, not just startup (M38) — formula recorded so
+            # the receipt is recomputable in one line
+            sizing["tenants_fit_formula"] = (
+                "(maxmemory - used_memory - 2MiB headroom) // per_tenant_bytes")
+            sizing["tenants_that_fit_in_maxmemory_approx"] = int(
+                (maxm - used - 2 * 1024 * 1024) // per_tenant)
+        else:
+            sizing["extrapolation_3000_tenants_vs_maxmemory"] = (
+                "maxmemory=0 (unlimited) — no ceiling to extrapolate against")
+            sizing["tenants_that_fit_in_maxmemory_approx"] = None
         sizing["ryzen_receipt_per_tenant_mb"] = 5.44  # scale_wall.json: 1.594GiB/300 on falkordb 6.0.0
-        sizing["extrapolation_3000_from_ryzen_receipt_bytes"] = int(5.44 * 1024 * 1024) * 3000
-        sizing["extrapolation_3000_from_ryzen_receipt_vs_maxmemory"] = (
-            f"{5.44 * 3000 / 100:.1f}x the 100MB ceiling (16.32GiB)")
+        # derive the label from the BYTES field, never a hand-typed unit:
+        # 5.44MiB x 3000 = 16,320MiB = 15.94GiB (16.32 was a decimal-GB
+        # figure mislabeled GiB — M39)
+        ryzen_bytes = int(5.44 * 1024 * 1024) * 3000
+        sizing["extrapolation_3000_from_ryzen_receipt_bytes"] = ryzen_bytes
+        if maxm:
+            sizing["extrapolation_3000_from_ryzen_receipt_vs_maxmemory"] = (
+                f"{ryzen_bytes / maxm:.1f}x the {ceiling_label} "
+                f"({ryzen_bytes / (1024 ** 3):.2f}GiB)")
+        else:
+            sizing["extrapolation_3000_from_ryzen_receipt_vs_maxmemory"] = (
+                f"{ryzen_bytes / (1024 ** 3):.2f}GiB (no maxmemory ceiling set)")
     receipt["probes"]["sizing"] = sizing
 
     # ---------------- C. version-gap battery ----------------
@@ -252,60 +274,87 @@ def main() -> int:
     if vgap["setup_node_count"] != 2:
         failures.append(f"vgap setup created {vgap['setup_node_count']} nodes, expected 2 (MERGE pitfall)")
 
-    def form(name, fn):
+    def form(name, fn, expect=None):
+        """Probe one query form. ``expect``: True = the engine MUST accept
+        (a rejection is a failure), False = the engine MUST reject
+        (an acceptance is a failure), None = informational only.
+        Expected outcomes feed `failures` so the battery's verdict is
+        honest (audit9/L33) — informational probes are labeled as such."""
         try:
             out = fn()
             vgap[name] = {"ok": True, "result": str(out)[:200]}
             print(f"[C] {name}: OK -> {str(out)[:100]}")
+            if expect is False:
+                failures.append(
+                    f"version-gap probe {name}: engine ACCEPTED a form that must be rejected")
         except Exception as e:  # noqa: BLE001
             vgap[name] = {"ok": False, "error": str(e)[:220]}
             print(f"[C] {name}: FAIL -> {str(e)[:110]}")
+            if expect is True:
+                failures.append(
+                    f"version-gap probe {name}: engine rejected a form the product "
+                    f"ships ({str(e)[:80]})")
 
     pattern = cypher_traversal_pattern()
     form("canonical_shortestPath_WITH_form", lambda: gq(
-        CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern), {"oid": hero, "target": jewel}))
+        CANONICAL_PATH_QUERY_TEMPLATE.format(pattern=pattern), {"oid": hero, "target": jewel}),
+        expect=True)
     form("shortestPath_RETURN_form_documented_quirk", lambda: gq(
         "MATCH (o {objectid: $oid}), (t {objectid: $target}) "
-        "RETURN shortestPath((o)-" + pattern + "->(t)) AS p", {"oid": hero, "target": jewel}))
+        "RETURN shortestPath((o)-" + pattern + "->(t)) AS p", {"oid": hero, "target": jewel}),
+        expect=True)
     form("reachability_arm_Group", lambda: gq(
-        REACHABILITY_ARM_TEMPLATES[0].format(pattern=pattern)))
+        REACHABILITY_ARM_TEMPLATES[0].format(pattern=pattern)), expect=True)
     form("reachability_arm_AZUser", lambda: gq(
-        REACHABILITY_ARM_TEMPLATES[1].format(pattern=pattern)))
+        REACHABILITY_ARM_TEMPLATES[1].format(pattern=pattern)), expect=True)
     form("reachability_perpair_hit_form", lambda: gq(
-        REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern), {"oid": hero, "target": jewel}))
-    form("jewels_query", lambda: gq(JEWELS_QUERY))
-    form("owned_query", lambda: gq(OWNED_QUERY))
-    form("user_objectids_query", lambda: gq(USER_OBJECTIDS_QUERY))
+        REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern), {"oid": hero, "target": jewel}),
+        expect=True)
+    form("jewels_query", lambda: gq(JEWELS_QUERY), expect=True)
+    form("owned_query", lambda: gq(OWNED_QUERY), expect=True)
+    form("user_objectids_query", lambda: gq(USER_OBJECTIDS_QUERY), expect=True)
+    # the RAW template is shipped with a {$oid} placeholder where the engine
+    # expects a params header — both engines must REJECT it (product bug
+    # fixed on this branch; see cross_engine_parity below)
     form("spPaths_RAW_template_as_shipped_expect_reject", lambda: gq(
-        PATH_QUERY_TEMPLATE, {"oid": hero, "target": jewel}))
+        PATH_QUERY_TEMPLATE, {"oid": hero, "target": jewel}), expect=False)
     form("spPaths_relTypes_form_formatted", lambda: gq(
-        PATH_QUERY_TEMPLATE.format(), {"oid": hero, "target": jewel}))
+        PATH_QUERY_TEMPLATE.format(), {"oid": hero, "target": jewel}), expect=True)
     # relTypes honored: a CONTAINED_BY-only pair must return nothing under relTypes [traversal set]
     gq("CREATE (:User {objectid: 's-vg-cb'}), (:Group {objectid: 's-vg-tgt'})")
     gq("MATCH (s {objectid: 's-vg-cb'}), (t {objectid: 's-vg-tgt'}) "
        "MERGE (s)-[r:CONTAINED_BY]->(t) RETURN count(r) AS n")
     form("spPaths_relTypes_filter_honored_CONTAINED_BY_pair_yields_0", lambda: gq(
-        PATH_QUERY_TEMPLATE.format(), {"oid": "s-vg-cb", "target": "s-vg-tgt"}))
-    form("paths_to_jewels_canonical_via_port", lambda: vgp.paths_to_jewels(hero))
+        PATH_QUERY_TEMPLATE.format(), {"oid": "s-vg-cb", "target": "s-vg-tgt"}), expect=True)
+    form("paths_to_jewels_canonical_via_port", lambda: vgp.paths_to_jewels(hero),
+         expect=True)
+    # ties mode is engine-dependent (tests/test_live_semantics.py skips it on
+    # engines that lack the procedure) — informational, not a verdict input
     form("paths_to_jewels_ties_via_port_after_fix", lambda: vgp.paths_to_jewels(
         hero, ties=True))
     form("add_edge_MERGE_semantics", lambda: (
         gq(FalkorGraphPort.ADD_EDGE_QUERY.format(rel="GENERIC_ALL"),
            {"src": hero, "dst": jewel, "props": {"note": "vg"}}),
         gq(FalkorGraphPort.ADD_EDGE_QUERY.format(rel="GENERIC_ALL"),
-           {"src": hero, "dst": jewel, "props": {"note": "vg"}}))[-1])
-    form("cut_count_then_delete", lambda: (
-        gq(CUT_COUNT_QUERY_TEMPLATE.format(rel="GENERIC_ALL"), {"src": hero, "dst": jewel}),
-        gq(CUT_DELETE_QUERY_TEMPLATE.format(rel="GENERIC_ALL"), {"src": hero, "dst": jewel}))[-1])
-    form("mark_owned_SET", lambda: gq(MARK_OWNED_QUERY, {"oid": hero}))
+           {"src": hero, "dst": jewel, "props": {"note": "vg"}}))[-1], expect=True)
+    # the product ships ONE atomic delete-and-count statement (audit5/
+    # multi-client removed the count-then-delete TOCTOU pair) — probe the
+    # form that ships (audit9/H16)
+    form("cut_atomic_delete_and_count", lambda: gq(
+        CUT_ATOMIC_QUERY_TEMPLATE.format(rel="GENERIC_ALL"), {"src": hero, "dst": jewel}),
+        expect=True)
+    form("mark_owned_SET", lambda: gq(MARK_OWNED_QUERY, {"oid": hero}), expect=True)
     form("toLower_ENDS_WITH", lambda: gq(
-        "MATCH (u:User) WHERE toLower(u.name) ENDS WITH '-globaladministrator' RETURN u.objectid"))
-    form("create_index", lambda: gq("CREATE INDEX FOR (n:User) ON (n.objectid)"))
+        "MATCH (u:User) WHERE toLower(u.name) ENDS WITH '-globaladministrator' RETURN u.objectid"),
+        expect=True)
+    form("create_index", lambda: gq("CREATE INDEX FOR (n:User) ON (n.objectid)"),
+         expect=True)
     form("db_indexes_procedure", lambda: gq(
-        "CALL db.indexes() YIELD label, properties, status RETURN label, properties, status"))
+        "CALL db.indexes() YIELD label, properties, status RETURN label, properties, status"),
+        expect=True)
     form("OPTIONAL_MATCH_pre_count", lambda: gq(
         "MATCH (s {objectid: $a}), (t {objectid: $b}) OPTIONAL MATCH (s)-[r0:MEMBER_OF]->(t) "
-        "WITH s, t, count(r0) AS pre RETURN pre", {"a": hero, "b": jewel}))
+        "WITH s, t, count(r0) AS pre RETURN pre", {"a": hero, "b": jewel}), expect=True)
     copy_target = f"{THROWAWAY_PREFIX}_copy"
     def _copy_probe():
         try:
@@ -314,13 +363,15 @@ def main() -> int:
             pass  # no such key — the normal case
         return raw.execute_command("GRAPH.COPY", vg, copy_target)
 
-    form("GRAPH.COPY", _copy_probe)
+    form("GRAPH.COPY", _copy_probe, expect=True)
     if vgap["GRAPH.COPY"]["ok"]:
         cp = FalkorGraphPort(host=host, port=port_i, username=user, password=password,
                              graph_name=copy_target)
         vgap["GRAPH.COPY"]["nodes_in_copy"] = cp.node_count()
     form("PROFILE_params_header_transport", lambda: vgp.profile(
-        "MATCH (o {objectid: $oid}) RETURN o.objectid AS oid", {"oid": hero})[:120])
+        "MATCH (o {objectid: $oid}) RETURN o.objectid AS oid", {"oid": hero})[:120],
+        expect=True)
+    # unknown command on BOTH engines (see cross_engine_parity) — informational
     form("GRAPH.ROSTER_exists", lambda: raw.execute_command("GRAPH.ROSTER"))
     # cross-engine parity matrix, measured live on BOTH engines this audit
     # (cloud module 'graph' 42200; ryzen module 'graph' 60000):
