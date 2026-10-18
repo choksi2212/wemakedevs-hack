@@ -108,11 +108,20 @@ def test_attack_map_narrations_and_ids_are_wellformed():
         assert re.fullmatch(r"T\d{4}(?:\.\d{3})?", narrative.technique_id), kind
 
 
-def test_timeline_f003_targets_real_id_not_placeholder():
+def test_timeline_f003_carries_the_ace_target_argument():
+    """Renamed from ..._targets_real_id_not_placeholder (audit M77): that
+    name claimed a resolution check against the estate this DB-free test
+    never performed. What is actually pinned here: the deterministic
+    timeline's F-003 (ace_granted) carries the ``ace_target`` argument
+    through as its target. Real-id resolution is enforced elsewhere — the
+    console 400s unknown subjects/targets, and the engine suite pins the
+    grant on a live estate."""
     timeline = default_timeline(HERO, "B", "C")
     f003 = timeline[2]
-    assert f003.target == "B"
-    assert "placeholder" not in (f003.target or "")
+    assert f003.id == "F-003"
+    assert f003.kind == "ace_granted"
+    assert f003.target == "B"  # the ace_target argument, verbatim
+    assert f003.grants_edge is True
 
 
 # ---- DB-free: stream exhaustion + apply_finding rejection semantics ----
