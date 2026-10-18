@@ -87,6 +87,7 @@ from __future__ import annotations
 import os
 import re
 import socket
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -261,12 +262,6 @@ CANONICAL_PATH_QUERY_TEMPLATE = (
     "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
     "WITH shortestPath((o)-{pattern}->(t)) AS p "
     "RETURN p"
-)
-
-EDGE_FREQUENCY_STEP = (
-    "per (owned, jewel) pair: run the CANONICAL shortest-path query, walk the "
-    "returned path's edges, count occurrences app-side (see "
-    "sever/core/falkor_port.py)"
 )
 
 # Atomic delete-and-count: ONE engine-side statement removes the relationship
@@ -453,7 +448,8 @@ class _CountingClient:
 
     def execute_command(self, *args: Any, **kwargs: Any) -> Any:
         port = self._port
-        port._command_count += 1
+        with port._rt_lock:
+            port._command_count += 1
         port._note_rt(str(args[0]) if args else "?", "")
         port._invalidate()
         return self._inner.execute_command(*args, **kwargs)
@@ -485,7 +481,8 @@ class _CountingGraph:
 
     def query(self, *args: Any, **kwargs: Any) -> Any:
         port = self._port
-        port._query_count += 1
+        with port._rt_lock:
+            port._query_count += 1
         text = str(args[0]) if args else ""
         port._note_rt("GRAPH.QUERY", text)
         if _WRITE_CLAUSE_RE.search(text):
@@ -531,6 +528,10 @@ class FalkorGraphPort(GraphPort):
         client: Any | None = None,
     ) -> None:
         # audit7 instrumentation state first — the traffic proxy needs it.
+        # L59 (audit engine-reach): the counters and the round-trip log are
+        # mutated from the two concurrent arm threads as well as the main
+        # thread, so every read-modify-write goes through this lock.
+        self._rt_lock = threading.Lock()
         self._query_count = 0
         self._command_count = 0
         self._rt_log: list[str] = []
@@ -685,27 +686,30 @@ class FalkorGraphPort(GraphPort):
         self._snapshot = None
 
     def _note_rt(self, kind: str, head: str) -> None:
-        if len(self._rt_log) < 512:
-            # 160 chars keeps the arm queries identifiable through their
-            # shortestPath clause in receipts (the load-bearing token sits
-            # ~112 chars into the arm text)
-            self._rt_log.append(f"{kind} {head[:160]}")
+        with self._rt_lock:
+            if len(self._rt_log) < 512:
+                # 160 chars keeps the arm queries identifiable through their
+                # shortestPath clause in receipts (the load-bearing token sits
+                # ~112 chars into the arm text)
+                self._rt_log.append(f"{kind} {head[:160]}")
 
     def rt_reset(self) -> None:
         """Zero the round-trip counters (audit driver seam)."""
-        self._query_count = 0
-        self._command_count = 0
-        self._rt_log.clear()
+        with self._rt_lock:
+            self._query_count = 0
+            self._command_count = 0
+            self._rt_log.clear()
 
     def rt_receipt(self) -> dict[str, Any]:
         """Round-trip audit receipt: GRAPH.QUERY count, raw-command count,
         their sum, and the queries seen (heads only — no params ever)."""
-        return {
-            "query_count": self._query_count,
-            "command_count": self._command_count,
-            "roundtrips": self._query_count + self._command_count,
-            "queries": list(self._rt_log),
-        }
+        with self._rt_lock:
+            return {
+                "query_count": self._query_count,
+                "command_count": self._command_count,
+                "roundtrips": self._query_count + self._command_count,
+                "queries": list(self._rt_log),
+            }
 
     def _snapshot_fresh(self) -> dict[str, Any] | None:
         snap = self._snapshot
@@ -741,9 +745,16 @@ class FalkorGraphPort(GraphPort):
         try:
             res = self.graph.query(ESTATE_SNAPSHOT_QUERY, timeout=60000)
         except Exception as exc:
-            if _is_engine_form_error(exc):
-                self._fold_supported = False
-            raise
+            if not _is_engine_form_error(exc):
+                raise  # timeout/outage: never masked — the 503 lane stays honest
+            # M63 (audit engine-reach): mirror paths_to_jewels' honest
+            # capability fallback — the engine REJECTED the combined form,
+            # so latch the refusal and answer THIS read via the legacy
+            # per-query forms (None), exactly as the header promises,
+            # instead of failing node_count/owned_ids/crown_jewels — and
+            # with them /api/state — on the first rejection.
+            self._fold_supported = False
+            return None
         rows = res.result_set
         if not rows:
             # No row where the aggregate chain must always produce one: do
@@ -796,8 +807,22 @@ class FalkorGraphPort(GraphPort):
         for label in self.INDEXED_LABELS:
             try:
                 self.graph.query(f"CREATE INDEX FOR (n:{label}) ON (n.objectid)")
-            except Exception:
-                pass  # already indexed
+            except Exception as exc:
+                # L61 (audit engine-reach): CYPHER.md documents the load as
+                # idempotent ("an already-indexed label is skipped") — honor
+                # exactly that and nothing more: swallow ONLY the engine's
+                # already-indexed rejection (FalkorDB: "Attribute 'objectid'
+                # is already indexed"; family variants say "index already
+                # exists" / "equivalent index"); anything else (connection
+                # failure, parser error) re-raises, so a real index-creation
+                # failure can never silently ship a label without its
+                # objectid index.
+                msg = str(exc).lower()
+                already_indexed = "already indexed" in msg or (
+                    "index" in msg and ("already" in msg or "exist" in msg)
+                )
+                if not already_indexed:
+                    raise
         self._invalidate()  # index creation is a write too — drop any pre-load cache
 
     def _scalar(self, query: str, params: dict[str, Any] | None = None, timeout_ms: int = 60000) -> Any:
@@ -885,7 +910,8 @@ class FalkorGraphPort(GraphPort):
                     "GRAPH.QUERY", scratch_name, ESTATE_SNAPSHOT_QUERY,
                     "--compact", "timeout", 60000,
                 )
-                self._command_count += 1  # ONE round-trip, three commands
+                with self._rt_lock:
+                    self._command_count += 1  # ONE round-trip, three commands
                 self._note_rt("GRAPH.PIPELINE(delete+copy+snapshot)", scratch_name)
                 self._invalidate()
                 res = pipe.execute(raise_on_error=False)
@@ -1111,7 +1137,19 @@ class FalkorGraphPort(GraphPort):
                 paths.append(hops)
         return paths
 
-    def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:
+    def edge_frequency(
+        self, hop_cap: int = DEFAULT_HOP_CAP
+    ) -> dict[tuple[str, str, str], int]:
+        """Per-edge occurrence count across all owned->jewel paths (scoring
+        input). Semantics (formerly the dead EDGE_FREQUENCY_STEP constant,
+        audit L58): per (owned, jewel) pair the CANONICAL shortest-path
+        query runs, the returned path's edges are walked, and occurrences
+        are counted app-side. On engines the version probe vouches for the
+        owned x jewels fan-out is served by ONE batched statement
+        (EDGE_FREQ_BATCH_QUERY_TEMPLATE — same per-pair semantics,
+        insertion-order-identical dict); every other engine keeps the
+        per-pair loop below via paths_to_jewels.
+        """
         if self._fold_active and self._modern_engine:
             # (the owned-set batch is a cross-product shortestPath form —
             # falkordb-6.x-verified; older engines fall through to the legacy
@@ -1262,5 +1300,8 @@ def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:
             dst_oid = nodes[i + 1].properties.get("objectid", nodes[i + 1].id)
             hops.append((str(src_oid), str(getattr(e, "relation", "?")), str(dst_oid)))
     except Exception:
-        return hops
+        # L62 (audit engine-reach): a parse failure drops the row whole — a
+        # partial hop list would be a plausible-looking path that never
+        # existed on the engine.
+        return []
     return hops
