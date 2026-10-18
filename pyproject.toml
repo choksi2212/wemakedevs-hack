@@ -14,8 +14,15 @@ dependencies = [
 [project.optional-dependencies]
 agent = ["openai>=1.50"]
 console = ["fastapi>=0.115", "uvicorn>=0.32"]
-dev = ["pytest>=8.0", "httpx>=0.28"]
+# requests + pytest-timeout: the audit5 api-matrix scripts (scripts/audit5_api_matrix/)
+# import requests, and the test-suite receipts run `pytest --timeout=120`
+# (docs/receipts/test_suite_2026-10-1*.json), which needs pytest-timeout.
+dev = ["pytest>=8.0", "httpx>=0.28", "pytest-timeout>=2.3", "requests>=2.31"]
 memory = ["langchain-falkordb[langgraph]>=0.2"]
+# video extra: Playwright for scripts/demo_video.py (the README §8 backup take)
+# and the Playwright-gated UI tests (they skip cleanly without it).
+# After installing, fetch the browser binary with: playwright install chromium
+video = ["playwright>=1.40"]
 
 [build-system]
 requires = ["setuptools>=68"]
