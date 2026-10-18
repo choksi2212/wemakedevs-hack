@@ -11,7 +11,7 @@ import pytest
 
 from tests.conftest import make_live_port, requires_engine, requires_sample
 from sever.core.falkor_port import PATH_QUERY_TEMPLATE
-from sever.core.jewels import TRAVERSAL_RELS, cypher_traversal_pattern
+from sever.core.jewels import TRAVERSAL_RELS
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"  # T1_TONYMONTANA@PHANTOM.CORP
 
@@ -67,6 +67,8 @@ def test_edge_frequency_and_cut_collapses(port):
 
 
 def test_profile_returns_execution_plan(port):
-    q = PATH_QUERY_TEMPLATE.format(pattern=cypher_traversal_pattern(12))
+    # PATH_QUERY_TEMPLATE has no {pattern} slot — the traversal set rides
+    # server-side in relTypes (same as test_guard's shape pin)
+    q = PATH_QUERY_TEMPLATE.format()
     out = port.profile(q, {"oid": HERO, "target": "S-1-5-21-2697957641-2271029196-387917394-512"})
     assert "Project" in out and "ms" in out

@@ -1,8 +1,8 @@
 """FalkorGraphPort — live FalkorDB backend. THE engine (rule 3: remove it, product breaks).
 
 The exact Cypher SEVER depends on lives here as module constants — these are the
-queries reproduced in the README's "Cypher queries" section and shown with
-GRAPH.PROFILE receipts in the demo.
+queries reproduced in docs/CYPHER.md and shown with GRAPH.PROFILE receipts in
+the demo.
 
 Live-verified on falkordb 6.0.0 (self-hosted Docker) and on the managed
 FalkorDB Cloud instance (module 'graph' 4.22.0 — see
@@ -16,7 +16,11 @@ WAN hop + free-tier CPU; redundant queries are pure latency):
   and the second owned re-read) into ONE statement; the two-arm reachability
   stays byte-identical (REACHABILITY_ARM_TEMPLATES) and runs the two arms
   CONCURRENTLY on the connection pool (they're independent read queries).
-  /api/state: 11 sequential round-trips -> 3. Every accessor still returns
+  /api/state: 11 sequential round-trips -> 3 engine queries (the ONE
+  snapshot statement + the two CONCURRENT arms) = 2 wall-clock round-trips
+  when the arms share one batch — receipted "11 -> 2 RTs" in
+  docs/receipts/perf_audit7_client_roundtrips.json, the query count pinned
+  <= 3 by tests/test_perf_client_folds.py. Every accessor still returns
   exactly what its documented single-purpose query returned — pinned by
   tests/test_perf_client_folds.py against independent legacy re-queries on
   the real engine.
@@ -40,8 +44,10 @@ WAN hop + free-tier CPU; redundant queries are pure latency):
   reach 0 / paths [] with an owned principal while ryzen 6.0.0 was green —
   so every pre-6.0.0 engine now keeps the LEGACY PER-PAIR forms for
   reachability and paths (existence probe / canonical loop, both endpoints
-  $param-bound): the exact queries production ran for days pre-fleet-7.
-  Correctness beats round-trips.
+  $param-bound): the form the F900 reopen's raw wire test re-proved
+  against the live Cloud, and the only engine form both audits agree is
+  evaluated correctly on BOTH engine families. Correctness beats
+  round-trips.
 - Correctness of the per-request snapshot cache (the honest-cache contract):
   the estate only changes via (a) THIS port's own mutations — every one
   (load/mark_owned/add_edge/cut/drop/scratch_copy) explicitly invalidates;
@@ -81,6 +87,7 @@ from __future__ import annotations
 import os
 import re
 import socket
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -122,14 +129,17 @@ REACHABILITY_METHOD = (
     "two-arm all-pairs shortestPath existence (REACHABILITY_ARM_TEMPLATES) "
     "with the traversal relationship filter and hop cap of paths_to_jewels "
     "— issued CONCURRENTLY on engines the constructor-time MODULE LIST "
-    "probe vouches for (falkordb >= 6.0.0, fail-safe: any probe failure "
-    "means the old dialect), and SEQUENTIALLY in the exact pre-fleet-7 "
-    "form on every other engine (F900, production: the deployed Cloud "
-    "answered the fleet-7 per-owned arm form with nothing at all — "
-    "reach 0 with an owned principal, twice — while the pre-fleet-7 "
-    "two-arm form ran green on that estate for days); an owned principal "
-    "that is itself a crown jewel counts as reached (0-hop breach) on "
-    "both paths"
+    "probe vouches for (falkordb >= 6.0.0, live-verified there; fail-safe: "
+    "any probe failure means the old dialect); every engine the probe does "
+    "NOT vouch for runs the PER-PAIR EXISTENCE LOOP instead "
+    "(REACHABILITY_QUERY_TEMPLATE, both endpoints $param-bound, a "
+    "principal counted at its first hit) — the two-arm form's green "
+    "history on the deployed Cloud 4.22.0 covers only the SINGLE-OWNED "
+    "demo shape (reach 0->1 for days pre-fleet-7), and the repo's own "
+    "receipt measured it returning ZERO rows for 2 owned principals (one "
+    "reaching) on that engine where the per-pair probe sees one, so it is "
+    "not trusted there; an owned principal that is itself a crown jewel "
+    "counts as reached (0-hop breach) on every path"
 )
 
 # The two reachability arms: shortestPath is evaluated per (owned, jewel) row
@@ -185,10 +195,11 @@ REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
 # /api/state with reach 0 and /api/paths with [] while an owned principal
 # existed, and ryzen 6.0.0 stayed green — on that engine family this arm
 # form returns nothing for the estate shape. reachability() therefore no
-# longer selects these arms on old engines: every pre-6.0.0 engine takes
-# the legacy per-pair existence loop (REACHABILITY_QUERY_TEMPLATE — both
-# endpoints $param-bound, the one form production ran for days pre-
-# fleet-7 and both audits agree is evaluated correctly there). The
+# longer selects these arms on old engines: every engine the version probe
+# does not vouch for takes the legacy per-pair existence loop
+# (REACHABILITY_QUERY_TEMPLATE — both endpoints $param-bound, the form the
+# F900 reopen's raw wire test re-proved against the live Cloud and both
+# audits agree is evaluated correctly on both engine families). The
 # templates stay verbatim: tests pin their shape and their parity with
 # the per-pair reference ON MODERN ENGINES (where they evaluate correctly).
 # Correctness beats round-trips — the only engine form trusted below
@@ -251,12 +262,6 @@ CANONICAL_PATH_QUERY_TEMPLATE = (
     "MATCH (o {{objectid: $oid}}), (t {{objectid: $target}}) "
     "WITH shortestPath((o)-{pattern}->(t)) AS p "
     "RETURN p"
-)
-
-EDGE_FREQUENCY_STEP = (
-    "per (owned, jewel) pair: run the CANONICAL shortest-path query, walk the "
-    "returned path's edges, count occurrences app-side (see "
-    "sever/core/falkor_port.py)"
 )
 
 # Atomic delete-and-count: ONE engine-side statement removes the relationship
@@ -443,7 +448,8 @@ class _CountingClient:
 
     def execute_command(self, *args: Any, **kwargs: Any) -> Any:
         port = self._port
-        port._command_count += 1
+        with port._rt_lock:
+            port._command_count += 1
         port._note_rt(str(args[0]) if args else "?", "")
         port._invalidate()
         return self._inner.execute_command(*args, **kwargs)
@@ -475,7 +481,8 @@ class _CountingGraph:
 
     def query(self, *args: Any, **kwargs: Any) -> Any:
         port = self._port
-        port._query_count += 1
+        with port._rt_lock:
+            port._query_count += 1
         text = str(args[0]) if args else ""
         port._note_rt("GRAPH.QUERY", text)
         if _WRITE_CLAUSE_RE.search(text):
@@ -521,6 +528,10 @@ class FalkorGraphPort(GraphPort):
         client: Any | None = None,
     ) -> None:
         # audit7 instrumentation state first — the traffic proxy needs it.
+        # L59 (audit engine-reach): the counters and the round-trip log are
+        # mutated from the two concurrent arm threads as well as the main
+        # thread, so every read-modify-write goes through this lock.
+        self._rt_lock = threading.Lock()
         self._query_count = 0
         self._command_count = 0
         self._rt_log: list[str] = []
@@ -555,12 +566,13 @@ class FalkorGraphPort(GraphPort):
             # FalkorDB Cloud connection survives >=620s idle untouched
             # (server tcp-keepalive 300 helps), and redis-py applies
             # SO_KEEPALIVE + these options at connect time (verified against
-            # falkordb-py 6.x: FalkorDB.__init__ passes both straight into
-            # redis.Redis -> Connection). Options tuned so a dead peer is
-            # detected in ~60s (< the 30s socket timeout's worst case is
-            # unchanged; the OS probes instead of the request hanging on a
-            # socket nobody is answering). Linux (Render) accepts all three;
-            # Windows has no TCP_KEEPIDLE -> plain SO_KEEPALIVE there.
+            # falkordb-py 1.8.0, >= the pinned floor: FalkorDB.__init__
+            # passes both straight into redis.Redis -> Connection). Options
+            # tuned so a dead peer is detected in ~60s; the 30s socket
+            # timeout still bounds a hung request, and the OS probes
+            # instead of the request waiting on a socket nobody answers.
+            # Linux (Render) accepts all three; Windows has no TCP_KEEPIDLE
+            # -> plain SO_KEEPALIVE there.
             keepalive_options = {}
             if hasattr(socket, "TCP_KEEPIDLE"):
                 keepalive_options = {
@@ -674,27 +686,30 @@ class FalkorGraphPort(GraphPort):
         self._snapshot = None
 
     def _note_rt(self, kind: str, head: str) -> None:
-        if len(self._rt_log) < 512:
-            # 160 chars keeps the arm queries identifiable through their
-            # shortestPath clause in receipts (the load-bearing token sits
-            # ~112 chars into the arm text)
-            self._rt_log.append(f"{kind} {head[:160]}")
+        with self._rt_lock:
+            if len(self._rt_log) < 512:
+                # 160 chars keeps the arm queries identifiable through their
+                # shortestPath clause in receipts (the load-bearing token sits
+                # ~112 chars into the arm text)
+                self._rt_log.append(f"{kind} {head[:160]}")
 
     def rt_reset(self) -> None:
         """Zero the round-trip counters (audit driver seam)."""
-        self._query_count = 0
-        self._command_count = 0
-        self._rt_log.clear()
+        with self._rt_lock:
+            self._query_count = 0
+            self._command_count = 0
+            self._rt_log.clear()
 
     def rt_receipt(self) -> dict[str, Any]:
         """Round-trip audit receipt: GRAPH.QUERY count, raw-command count,
         their sum, and the queries seen (heads only — no params ever)."""
-        return {
-            "query_count": self._query_count,
-            "command_count": self._command_count,
-            "roundtrips": self._query_count + self._command_count,
-            "queries": list(self._rt_log),
-        }
+        with self._rt_lock:
+            return {
+                "query_count": self._query_count,
+                "command_count": self._command_count,
+                "roundtrips": self._query_count + self._command_count,
+                "queries": list(self._rt_log),
+            }
 
     def _snapshot_fresh(self) -> dict[str, Any] | None:
         snap = self._snapshot
@@ -730,9 +745,16 @@ class FalkorGraphPort(GraphPort):
         try:
             res = self.graph.query(ESTATE_SNAPSHOT_QUERY, timeout=60000)
         except Exception as exc:
-            if _is_engine_form_error(exc):
-                self._fold_supported = False
-            raise
+            if not _is_engine_form_error(exc):
+                raise  # timeout/outage: never masked — the 503 lane stays honest
+            # M63 (audit engine-reach): mirror paths_to_jewels' honest
+            # capability fallback — the engine REJECTED the combined form,
+            # so latch the refusal and answer THIS read via the legacy
+            # per-query forms (None), exactly as the header promises,
+            # instead of failing node_count/owned_ids/crown_jewels — and
+            # with them /api/state — on the first rejection.
+            self._fold_supported = False
+            return None
         rows = res.result_set
         if not rows:
             # No row where the aggregate chain must always produce one: do
@@ -785,8 +807,22 @@ class FalkorGraphPort(GraphPort):
         for label in self.INDEXED_LABELS:
             try:
                 self.graph.query(f"CREATE INDEX FOR (n:{label}) ON (n.objectid)")
-            except Exception:
-                pass  # already indexed
+            except Exception as exc:
+                # L61 (audit engine-reach): CYPHER.md documents the load as
+                # idempotent ("an already-indexed label is skipped") — honor
+                # exactly that and nothing more: swallow ONLY the engine's
+                # already-indexed rejection (FalkorDB: "Attribute 'objectid'
+                # is already indexed"; family variants say "index already
+                # exists" / "equivalent index"); anything else (connection
+                # failure, parser error) re-raises, so a real index-creation
+                # failure can never silently ship a label without its
+                # objectid index.
+                msg = str(exc).lower()
+                already_indexed = "already indexed" in msg or (
+                    "index" in msg and ("already" in msg or "exist" in msg)
+                )
+                if not already_indexed:
+                    raise
         self._invalidate()  # index creation is a write too — drop any pre-load cache
 
     def _scalar(self, query: str, params: dict[str, Any] | None = None, timeout_ms: int = 60000) -> Any:
@@ -874,7 +910,8 @@ class FalkorGraphPort(GraphPort):
                     "GRAPH.QUERY", scratch_name, ESTATE_SNAPSHOT_QUERY,
                     "--compact", "timeout", 60000,
                 )
-                self._command_count += 1  # ONE round-trip, three commands
+                with self._rt_lock:
+                    self._command_count += 1  # ONE round-trip, three commands
                 self._note_rt("GRAPH.PIPELINE(delete+copy+snapshot)", scratch_name)
                 self._invalidate()
                 res = pipe.execute(raise_on_error=False)
@@ -937,40 +974,61 @@ class FalkorGraphPort(GraphPort):
             res = self.graph.query(query, params, timeout=60000)
         return [str(row[0]) for row in res.result_set]
 
-    def _reachability_legacy(self, hop_cap: int) -> int:
-        # two-arm all-pairs form: identical semantics to the per-pair
-        # canonical probe (pattern + hop cap), but shortestPath is evaluated
-        # per (owned, jewel) row inside WITH — O(2) queries instead of
-        # O(owned x jewels). Self-pairs (an owned crown jewel = the breach
-        # itself, 0 hops) are invisible to shortestPath, so owned jewels are
-        # counted directly.
-        reached: set[str] = set()
+    def _reachability_per_pair(self, hop_cap: int) -> int:
+        # C1 (audit engine-reach): the per-pair existence loop —
+        # REACHABILITY_QUERY_TEMPLATE with BOTH endpoints $param-bound, a
+        # principal counted at its FIRST hit. Identical semantics to the
+        # two-arm cross-product form (same traversal pattern, same hop
+        # cap), but shortestPath is evaluated per (owned, jewel) pair: the
+        # form the F900 reopen's raw wire test re-proved against the live
+        # Cloud and the only form both audits agree is evaluated correctly
+        # on BOTH engine families (the all-owned arm is receipted to return
+        # ZERO rows for 2 owned principals on Cloud 4.22.0 —
+        # docs/receipts/perf_audit7_client_roundtrips.json). Self-pairs (an
+        # owned crown jewel = the breach itself, 0 hops) are invisible to
+        # shortestPath, so owned jewels are counted directly.
+        jewels = self.crown_jewels()
+        owned = self.owned_ids()
+        jewel_set = set(jewels)
         pattern = cypher_traversal_pattern(hop_cap)
-        for arm in REACHABILITY_ARM_TEMPLATES:
-            res = self.graph.query(arm.format(pattern=pattern), timeout=60000)
-            reached.update(str(row[0]) for row in res.result_set)
-        jewel_set = set(self.crown_jewels())
-        reached.update(o for o in self.owned_ids() if o in jewel_set)
+        query = REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern)
+        reached: set[str] = set()
+        for principal in owned:
+            if principal in jewel_set:
+                reached.add(principal)  # 0-hop breach: an owned crown jewel
+                continue
+            for jewel in jewels:
+                rows = self.graph.query(
+                    query, {"oid": principal, "target": jewel}, timeout=60000
+                ).result_set
+                if rows and rows[0][0]:
+                    reached.add(principal)  # counted at the FIRST hit
+                    break
         return len(reached)
 
     def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
-        # Old-engine dialect (F900, production reopen): restore the EXACT
-        # pre-fleet-7 form on engines the version probe does not vouch for.
-        # The two-arm all-pairs form (_reachability_legacy) is what production
-        # ran on the deployed Cloud estate for days pre-fleet-7 (reach 0->1
-        # verified repeatedly) — the fleet-7 $oid-bound per-owned arms that
-        # replaced it answered nothing on that engine family (prod deploys
-        # answered reach 0 with an owned principal, twice), and audit5
-        # measured the cross-form undercount with 2+ owned principals on the
-        # same engine. paths_to_jewels keeps the per-pair canonical loop there
-        # (pre-fleet-7 form, live-proven raw against the Cloud in the F900
-        # reopen). The version probe is consulted once per port
-        # (constructor-time MODULE LIST, fail-safe to the old dialect), so
-        # the branch is deterministic per engine. Folds off (stubs, TTL=0,
-        # a latched fold refusal) take the same two-arm legacy form every
-        # audit has pinned.
+        # Unvouched-engine dialect (C1, audit engine-reach): engines the
+        # version probe does not vouch for — every pre-6.0.0 engine, any
+        # failed probe, and every folds-off port (stubs, TTL=0, a latched
+        # fold refusal) — run the LEGACY PER-PAIR EXISTENCE LOOP
+        # (_reachability_per_pair: REACHABILITY_QUERY_TEMPLATE, both
+        # endpoints $param-bound, a principal counted at its first hit).
+        # The two-arm all-pairs form is NOT trusted there: it ran green on
+        # the deployed Cloud for days pre-fleet-7 in the SINGLE-OWNED demo
+        # shape (reach 0->1 verified repeatedly), but the repo's own
+        # receipt measured it returning ZERO rows for 2 owned principals
+        # (one reaching) on that same engine where the per-pair probe sees
+        # one (docs/receipts/perf_audit7_client_roundtrips.json,
+        # engine_finding_4_22_0_cross_shortestpath_bug) — so the moment a
+        # second finding lands, the undercounted form reads reach 0 while a
+        # breach exists. The per-pair loop is the exact form the module
+        # header promises and the F900 reopen's raw wire test re-proved
+        # against the live Cloud; paths_to_jewels keeps the per-pair
+        # canonical loop there. The version probe is consulted once per
+        # port (constructor-time MODULE LIST, fail-safe to the old
+        # dialect), so the branch is deterministic per engine.
         if not (self._fold_active and self._modern_engine):
-            return self._reachability_legacy(hop_cap)
+            return self._reachability_per_pair(hop_cap)
         # The arms are INDEPENDENT read queries — issue them concurrently over
         # the connection pool (one wall-clock instead of many) and overlap the
         # snapshot fetch with them. The arms are NEVER cached, so an
@@ -1079,7 +1137,19 @@ class FalkorGraphPort(GraphPort):
                 paths.append(hops)
         return paths
 
-    def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:
+    def edge_frequency(
+        self, hop_cap: int = DEFAULT_HOP_CAP
+    ) -> dict[tuple[str, str, str], int]:
+        """Per-edge occurrence count across all owned->jewel paths (scoring
+        input). Semantics (formerly the dead EDGE_FREQUENCY_STEP constant,
+        audit L58): per (owned, jewel) pair the CANONICAL shortest-path
+        query runs, the returned path's edges are walked, and occurrences
+        are counted app-side. On engines the version probe vouches for the
+        owned x jewels fan-out is served by ONE batched statement
+        (EDGE_FREQ_BATCH_QUERY_TEMPLATE — same per-pair semantics,
+        insertion-order-identical dict); every other engine keeps the
+        per-pair loop below via paths_to_jewels.
+        """
         if self._fold_active and self._modern_engine:
             # (the owned-set batch is a cross-product shortestPath form —
             # falkordb-6.x-verified; older engines fall through to the legacy
@@ -1230,5 +1300,8 @@ def _row_to_hops(row: Any) -> list[tuple[str, str, str]]:
             dst_oid = nodes[i + 1].properties.get("objectid", nodes[i + 1].id)
             hops.append((str(src_oid), str(getattr(e, "relation", "?")), str(dst_oid)))
     except Exception:
-        return hops
+        # L62 (audit engine-reach): a parse failure drops the row whole — a
+        # partial hop list would be a plausible-looking path that never
+        # existed on the engine.
+        return []
     return hops
