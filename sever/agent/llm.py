@@ -19,6 +19,11 @@ from abc import ABC, abstractmethod
 
 
 class LLM(ABC):
+    # Every narrator carries a name (receipts/logs; ResilientLLM reads
+    # live.name unguarded). Declaring it on the ABC keeps third-party
+    # subclasses safe from an AttributeError there (audit N16).
+    name: str = "llm"
+
     @abstractmethod
     def complete(self, system: str, user: str) -> str: ...
 
