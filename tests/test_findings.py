@@ -70,8 +70,16 @@ def test_every_timeline_kind_has_attack_map_entry():
 
 
 def test_narrate_falls_back_on_unknown_kind():
+    """Owner resolution #4 (audit M69): an unknown kind gets a kind-NEUTRAL
+    fallback — never a fabricated ATT&CK label. The pre-fix fallback narrated
+    any unmapped kind as 'T1595.002 Active Scanning: Vulnerability Scanning',
+    exactly the fabrication schemas.py documents (and the HTTP layer 422s)."""
     f = Finding("F-9", "mystery_kind", "A", detail="odd")
-    assert narrate(f).technique_id == "T1595.002"
+    story = narrate(f)
+    assert story.technique_id == "UNMAPPED"
+    assert story.technique == "Unmapped finding kind"
+    assert "mystery_kind" in story.narration  # the narration names the kind
+    assert "T1595" not in story.technique_id  # no fabricated technique id
 
 
 def test_attack_map_ids_and_names_match_mitre_enterprise():
