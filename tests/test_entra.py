@@ -4,7 +4,7 @@ engine.
 
 Sample-fidelity tests are gated per-test on the AzureHound example file;
 the adversarial tests below only need synthetic JSON, so CI gets full Entra
-parser coverage without the 62MB download.
+parser coverage without the 5.4MB sample download (62MB extracted).
 """
 from __future__ import annotations
 
@@ -33,6 +33,20 @@ requires_entrada = pytest.mark.skipif(
 
 
 # ---- sample fidelity (each test skips when the sample is absent) ----
+
+
+@requires_entrada
+def test_entra_official_sample_skip_ledger_is_honest():
+    """audit M66: the official sample's skip ledger used to read as ~9.7k
+    'malformed' records (edge_malformed_src: AZServicePrincipalOwner 6261,
+    AZAppOwner 3290, AZGroupOwner 57, AZGroupMember 38, AZDeviceOwner 27)
+    when every one of them was an ordinary ``owners``/``members``: null
+    record — the "no owners recorded" encoding, zero actually-malformed
+    data. Null is empty and uncounted now (mirroring the AD parser), so the
+    official-sample census must pin EMPTY: the ledger can never again fill
+    with false 'malformed' flags without this failing."""
+    az = parse_entra_file(ENTRA_FILE)
+    assert az.stats["skipped"] == {}
 
 
 @requires_entrada
@@ -299,6 +313,7 @@ def test_entra_hostile_non_string_kind_counted(tmp_path):
     g = parse_entra_file(f)
     assert g.nodes == {} and g.edges == {}
     assert g.stats["skipped"] == {"malformed_kind": 2}
+    _assert_entra_invariants(g)
 
 
 def test_entra_hostile_kind_data_not_dict_counted(tmp_path):
@@ -361,6 +376,26 @@ def test_entra_hostile_owners_string_not_list_no_garbage_edge(tmp_path):
     _assert_entra_invariants(g)
 
 
+def test_entra_null_owners_members_are_empty_not_malformed(tmp_path):
+    """audit M66: ``owners``/``members``: null is the ordinary "no owners
+    recorded" encoding (9,673 records in the official sample) — empty and
+    uncounted, exactly like the AD parser's _list_field treats the same
+    shape. Only genuinely wrong-typed values (string/dict/int) count as
+    edge_malformed_src; an ABSENT key is equally ordinary."""
+    f = _entra_file(tmp_path / "az.json", {"data": [
+        {"kind": "AZGroup", "data": {"id": "grp", "displayName": "G"}},
+        {"kind": "AZGroupOwner", "data": {"groupId": "grp", "owners": None}},
+        {"kind": "AZGroupMember", "data": {"groupId": "grp", "members": None}},
+        {"kind": "AZAppOwner", "data": {"appId": "app"}},          # key absent
+        {"kind": "AZGroupOwner", "data": {"groupId": "grp", "owners": "a string"}},
+        {"kind": "AZGroupOwner", "data": {"groupId": "grp", "owners": 42}},
+    ]})
+    g = parse_entra_file(f)
+    assert g.edges == {}
+    assert g.stats["skipped"] == {"edge_malformed_src:AZGroupOwner": 2}
+    _assert_entra_invariants(g)
+
+
 def test_entra_hostile_flat_principal_dict_no_garbage_src(tmp_path):
     """AZAppRoleAssignment's principalId must be a string; a dict there
     previously became str(dict) as the edge src."""
@@ -386,6 +421,7 @@ def test_entra_hostile_dst_wrong_type_counted(tmp_path):
     g = parse_entra_file(f)
     assert g.edges == {}
     assert g.stats["skipped"] == {"edge_missing_dst:AZVMOwner": 2}
+    _assert_entra_invariants(g)
 
 
 def test_entra_hostile_entry_shapes_never_crash_or_invent(tmp_path):
@@ -555,6 +591,40 @@ def test_entra_bridge_requires_exact_ad_user_match(tmp_path):
     assert set(az.nodes) == {"az-andy", "az-ghost", "az-nosid", "az-group"}
     assert len(az.edges) == 0
     _assert_entra_invariants(merged)
+
+
+def test_entra_merge_placeholder_collision_never_flags_resolved_principal(tmp_path):
+    """audit M69/L69: when an entra placeholder oid collides with a principal
+    the AD graph already RESOLVED, the placeholder's unresolved:True flag
+    used to leak onto the resolved node through add_node's setdefault merge.
+    The RESOLVED record wins — in both directions."""
+    ad = NormalizedGraph()
+    ad.add_node("S-1-5-21-x-1001", "User", {"name": "andy", "owned": False})
+    az = NormalizedGraph()
+    # an entra placeholder materialized for the same oid the AD side collected
+    az.add_node("S-1-5-21-x-1001", "AZPrincipal", {"unresolved": True})
+    # a second placeholder with NO collision stays honestly flagged
+    az.add_node("S-1-5-21-x-2002", "AZPrincipal", {"unresolved": True})
+
+    merged = merge_entra(ad, az)
+    # the resolved AD principal is not flagged unresolved by the collision
+    assert "unresolved" not in merged.nodes["S-1-5-21-x-1001"]["props"]
+    assert merged.nodes["S-1-5-21-x-1001"]["label"] == "User"   # AD label kept
+    assert merged.nodes["S-1-5-21-x-1001"]["props"]["name"] == "andy"
+    # the non-colliding placeholder keeps its honest flag
+    assert merged.nodes["S-1-5-21-x-2002"]["props"]["unresolved"] is True
+
+    # symmetric: a RESOLVED entra record colliding with an AD placeholder
+    # drops the AD side's stale flag too — the resolved record wins
+    ad2 = NormalizedGraph()
+    ad2.add_node("S-1-5-21-y-1001", "User", {"unresolved": True})
+    az2 = NormalizedGraph()
+    az2.add_node("S-1-5-21-y-1001", "AZUser", {"name": "cloud-andy", "owned": False})
+    merged2 = merge_entra(ad2, az2)
+    assert "unresolved" not in merged2.nodes["S-1-5-21-y-1001"]["props"]
+    assert merged2.nodes["S-1-5-21-y-1001"]["props"]["name"] == "cloud-andy"
+    _assert_entra_invariants(merged)
+    _assert_entra_invariants(merged2)
 
 
 def test_entra_merge_invariant_and_stats_on_hostile_graphs(tmp_path):

@@ -3,7 +3,8 @@
 The traversal relationship set is the load-bearing judgment of the whole
 product: these are the relationships an attacker can chain. It mirrors
 BloodHound's abuse semantics for the rights present in the CE sample data
-and is documented explicitly in the README (rule 10).
+and is documented explicitly in the README §5 (Graph data model) and
+byte-for-byte in docs/CYPHER.md's inline list.
 """
 from __future__ import annotations
 
@@ -38,6 +39,12 @@ TRAVERSAL_RELS: tuple[str, ...] = (
     "READ_LAPSPASSWORD",
     "MANAGE_CA",
     "MANAGE_CERTIFICATES",
+    # cert-template ACL flag writes (owner resolution #3): BloodHound CE
+    # treats WritePKIEnrollmentFlag / WritePKINameFlag as abusable
+    # (ESC-adjacent enrollment control); the sample emits 2+2 such edges,
+    # which must be chainable, not invisible to path enumeration.
+    "WRITE_PKIENROLLMENT_FLAG",
+    "WRITE_PKINAME_FLAG",
     "GENERIC_RIGHT",          # container-inherited generic control
     "EXTENDED_RIGHT",
     # ---- hybrid Entra surface (only traversed when present) ----
