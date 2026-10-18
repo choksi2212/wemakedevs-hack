@@ -114,7 +114,14 @@ class Investigator:
     def _ledger_entry(self, event: dict[str, Any]) -> dict[str, Any]:
         """Every ledger step carries a unique sequential id and an ISO-8601
         UTC timestamp (with offset) — the receipts trail is auditable
-        end-to-end: complete steps, unique ids, unambiguous times."""
+        end-to-end: complete steps, unique ids, unambiguous times.
+
+        Event payloads use the ``event`` key for their KIND ("plan",
+        "plan_gate_refused", ...) so they can never clobber the sequential
+        ``step`` id or the ``ts`` stamp this method guarantees (audit M46/
+        X39/X71: a payload ``step`` key used to overwrite the counter id via
+        the ``**event`` spread, silently skipping ids and making ``step``
+        mixed-type across the ledger)."""
         self._step += 1
         return {
             "step": self._step,
@@ -199,7 +206,9 @@ class Investigator:
             self.port, k=k, hop_cap=self.hop_cap,
             benign_sample_size=benign_sample_size, scratch_name=scratch_name,
         )
-        self.case_log.append(self._ledger_entry({"step": "plan", "plan": plan}))
+        # the plan lands on the ledger with an EVENT-kind key: "step" stays
+        # the unique sequential id _ledger_entry stamps on every entry
+        self.case_log.append(self._ledger_entry({"event": "plan", "plan": plan}))
         return plan
 
     def execute_plan(
@@ -228,8 +237,9 @@ class Investigator:
         for step in plan.get("steps", []):
             if gate is not None and gate(step) is not True:
                 status = "gate_refused_at_step"
+                # event-kind key: the sequential step id stays an int (M46)
                 self.case_log.append(self._ledger_entry({
-                    "step": "plan_gate_refused",
+                    "event": "plan_gate_refused",
                     "plan_step": step.get("step"),
                     "cut": step.get("cut"),
                 }))
