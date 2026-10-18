@@ -26,16 +26,24 @@ taskkill), never a thread:
     python scripts/audit3_memory_audit.py caselog-live --graph sever_audit3_mem --ports 8181 8182
         Two CONSOLE PROCESSES appending to the same tenant CaseLog
         concurrently (real parallel, not threads): every line valid JSON,
-        no interleaved partials, no lost events.
+        no interleaved partials, no lost events. Asserts on TRANSITIONS
+        (audit9/H13): the console logs /api/state only when the estate key
+        CHANGES, so identical polls are guaranteed non-writes and the
+        counted writes are one authorized finding post per request plus
+        the deterministic settle lines.
 
     python scripts/audit3_memory_audit.py cleanup --graph sever_audit3_mem
         Delete every sever_audit3_mem* graph key and verify KEYS is empty.
+
+The hard kill is taskkill /F /T on Windows (the documented demo substrate);
+on any other platform _taskkill falls back to os.kill(SIGKILL).
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -85,8 +93,11 @@ def _saver(graph: str) -> FalkorDBSaver:
 
 
 def _client(graph: str):
+    # SEVER_FALKOR_USER/PASSWORD forwarded exactly as _port/_saver do (audit9/L22)
     fdb = FalkorDB(host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
-                   port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")))
+                   port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
+                   username=os.environ.get("SEVER_FALKOR_USER"),
+                   password=os.environ.get("SEVER_FALKOR_PASSWORD"))
     return fdb.select_graph(graph).client
 
 
@@ -146,14 +157,25 @@ def _check(cond: bool, label: str, failures: list[str]) -> None:
 def _launch_console(graph: str, port: int, logname: str):
     env = {**os.environ, "SEVER_FALKOR_GRAPH": graph}
     OUT.mkdir(parents=True, exist_ok=True)
+    # the child holds its own duplicated handle — close ours so the beat
+    # never leaks an open logfile per console (audit9/N9)
     logfile = open(OUT / logname, "wb")
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "sever.console.app:app",
-         "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
-        cwd=str(Path(__file__).resolve().parents[1]),
-        env=env, stdout=logfile, stderr=subprocess.STDOUT,
-    )
-    _wait_http(port, 45.0)
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "sever.console.app:app",
+             "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
+            cwd=str(Path(__file__).resolve().parents[1]),
+            env=env, stdout=logfile, stderr=subprocess.STDOUT,
+        )
+    finally:
+        logfile.close()
+    try:
+        _wait_http(port, 45.0)
+    except Exception:
+        # readiness failed: never leak the console process (audit9/N9)
+        proc.kill()
+        proc.wait(timeout=10)
+        raise
     return proc
 
 
@@ -179,11 +201,33 @@ def _get_receipts(port: int) -> list:
         return json.loads(r.read().decode("utf-8"))
 
 
+def _post_json(portno: int, path: str, obj: dict) -> dict:
+    """POST a JSON body to one of the beat's own consoles (authorized
+    no-op/idempotent mutations only) and return {status, body}."""
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{portno}{path}",
+        data=json.dumps(obj).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return {"status": r.status, "body": json.loads(r.read().decode("utf-8"))}
+
+
 def _taskkill(pid: int) -> dict:
-    proc = subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                           capture_output=True, text=True)
-    return {"pid": pid, "returncode": proc.returncode,
-            "stdout": proc.stdout.strip(), "stderr": proc.stderr.strip()}
+    """Hard-kill: taskkill /F /T on Windows, os.kill(SIGKILL) elsewhere —
+    a platform guard, never a silent no-op (audit9/L23)."""
+    if os.name == "nt":
+        proc = subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                              capture_output=True, text=True)
+        return {"pid": pid, "returncode": proc.returncode,
+                "stdout": proc.stdout.strip(), "stderr": proc.stderr.strip()}
+    try:
+        os.kill(pid, signal.SIGKILL)
+        return {"pid": pid, "returncode": 0,
+                "stdout": f"os.kill(pid, SIGKILL) on {sys.platform}", "stderr": ""}
+    except ProcessLookupError:
+        return {"pid": pid, "returncode": 1, "stdout": "", "stderr": "no such process"}
 
 
 def _pick_subject_b(port: FalkorGraphPort, hero: str) -> tuple[str | None, dict]:
@@ -319,7 +363,9 @@ def do_isolate(args: argparse.Namespace) -> int:
     # ---- fleet-2 rule 1: truthy stand-in closes the gate (live re-verify) ----
     start_c = _sub(["start", "--thread", "case-C", "--graph", args.graph,
                     "--finding-id", "F-C", "--subject", subject_b])
-    receipt["start_c"] = {k: start_c[k] for k in ("returncode", "stdout")}
+    # stderr included like start_a/start_b — a failed start C must leave its
+    # error text in the receipt (audit9/N10)
+    receipt["start_c"] = {k: start_c[k] for k in ("returncode", "stdout", "stderr")}
     _check(start_c["returncode"] == 0, "start C (stand-in pin) exited 0", failures)
     before_stand = port.reachability()
     cfg = {"configurable": {"thread_id": "case-C"}}
@@ -372,24 +418,48 @@ def do_durability(args: argparse.Namespace) -> int:
     # my own console instance, running while the case is opened
     console = _launch_console(args.graph, args.port, "console_durability_1.log")
     receipt["console_pid"] = console.pid
-    prekill_events = [_get_state(args.port) for _ in range(3)]  # ledger appends
+    # change-only state logging (audit5, sever/console/app.py): identical
+    # /api/state polls append NOTHING after the boot-time transition, so the
+    # pre-kill ledger only grows on real events. Drive one authorized
+    # finding (1 ledger line) plus the estate transition it causes on the
+    # next poll (1 line) so the >=3 pre-kill events below are real receipted
+    # events, not poll noise (audit9/M32).
+    prekill_events = [_get_state(args.port) for _ in range(3)]  # readiness + identical polls
+    receipts_after_polls = _get_receipts(args.port)
+    try:
+        prekill_finding = _post_json(args.port, "/api/finding",
+                                     {"kind": "credential_breach", "subject": HERO})
+    except Exception as exc:  # the beat must fail loud, never crash mid-receipt
+        prekill_finding = {"status": 0, "body": {"error": str(exc)[:120]}}
+    receipt["prekill_finding"] = {"status": prekill_finding["status"],
+                                   "applied": prekill_finding["body"].get("applied")}
+    _check(prekill_finding["status"] == 200, "pre-kill authorized finding accepted", failures)
+    transition_state = _get_state(args.port)  # reach 0->1: the console logs the transition
     receipts_before = _get_receipts(args.port)
-    receipt["console_prekill"] = {"state_events": len(prekill_events),
+    receipt["console_prekill"] = {"state_polls": len(prekill_events),
+                                  "ledger_events_after_polls": len(receipts_after_polls),
                                   "ledger_events": len(receipts_before),
-                                  "reachability": prekill_events[-1]["reachability"]}
-    _check(len(receipts_before) >= 3, "console appended >=3 ledger events pre-kill", failures)
+                                  "reachability": transition_state["reachability"]}
+    _check(len(receipts_before) >= 3,
+           "console appended >=3 ledger events pre-kill "
+           "(boot state + finding + state transition)", failures)
 
     # pause at the gate and HOLD (a real operator session with the case open)
     OUT.mkdir(parents=True, exist_ok=True)
     pidfile = "out/audit3_mem/holder_case-DUR.pid"
+    # close our copy of the log handle after Popen — the child owns its own
+    # duplicate (audit9/N9)
     holder_log = open(OUT / "holder_case-DUR.log", "wb")
-    holder = subprocess.Popen(
-        [sys.executable, str(SCRIPT), "start", "--thread", "case-DUR", "--graph", args.graph,
-         "--finding-id", "F-DUR", "--subject", HERO, "--hold-seconds", "900",
-         "--pidfile", pidfile],
-        cwd=str(Path(__file__).resolve().parents[1]),
-        stdout=holder_log, stderr=subprocess.STDOUT,
-    )
+    try:
+        holder = subprocess.Popen(
+            [sys.executable, str(SCRIPT), "start", "--thread", "case-DUR", "--graph", args.graph,
+             "--finding-id", "F-DUR", "--subject", HERO, "--hold-seconds", "900",
+             "--pidfile", pidfile],
+            cwd=str(Path(__file__).resolve().parents[1]),
+            stdout=holder_log, stderr=subprocess.STDOUT,
+        )
+    finally:
+        holder_log.close()
     pid_path = Path(__file__).resolve().parents[1] / pidfile
     deadline = time.time() + 240
     while not pid_path.exists() and time.time() < deadline:
@@ -551,9 +621,10 @@ def do_delfail(args: argparse.Namespace) -> int:
 def do_caselog_live(args: argparse.Namespace) -> int:
     failures: list[str] = []
     receipt: dict = {"beat": "CaseLog under two CONSOLE PROCESSES (live)", "graph": args.graph}
-    port = _port(args.graph)
-    if port.node_count() == 0:  # consoles auto-load, but keep the beat honest
-        _hard_reset(args.graph)
+    # fresh estate like every other beat (audit9/H13): the settle transition
+    # below must be deterministic — a reused estate could already carry an
+    # owned principal and reachability > 0
+    _hard_reset(args.graph)
 
     ledger = Path(__file__).resolve().parents[1] / "out" / "cases" / f"{args.graph}.jsonl"
     for stale in (ledger, Path(str(ledger) + ".lock")):
@@ -561,50 +632,97 @@ def do_caselog_live(args: argparse.Namespace) -> int:
             stale.unlink()
 
     p1, p2 = args.ports
-    console1 = _launch_console(args.graph, p1, f"console_caselog_{p1}.log")
-    console2 = _launch_console(args.graph, p2, f"console_caselog_{p2}.log")
-    receipt["console_pids"] = [console1.pid, console2.pid]
+    console1 = console2 = None
+    try:
+        console1 = _launch_console(args.graph, p1, f"console_caselog_{p1}.log")
+        console2 = _launch_console(args.graph, p2, f"console_caselog_{p2}.log")
+        receipt["console_pids"] = [console1.pid, console2.pid]
 
-    # the readiness poll itself appends state events — start the ledger fresh
-    # NOW, with both console processes already live and healthy
-    for stale in (ledger, Path(str(ledger) + ".lock")):
-        if stale.exists():
-            stale.unlink()
+        # the readiness poll logged each console's boot-time state transition;
+        # start the ledger fresh NOW, with both console processes already live
+        for stale in (ledger, Path(str(ledger) + ".lock")):
+            if stale.exists():
+                stale.unlink()
 
-    def hammer(portno: int) -> list[int]:
-        codes = []
-        for _ in range(args.requests):
-            try:
-                with urllib.request.urlopen(f"http://127.0.0.1:{portno}/api/state", timeout=30) as r:
-                    codes.append(r.status)
-            except Exception as exc:
-                codes.append(str(exc)[:80])
-        return codes
+        # ---- settle the estate through BOTH consoles (audit9/H13): one
+        # authorized finding appends 1 line, and one /api/state poll per
+        # console logs that console's OWN copy of the estate transition (the
+        # console logs state only when the key CHANGES). After this both
+        # processes' keys are current and identical polls append NOTHING.
+        settle = _post_json(p1, "/api/finding",
+                            {"kind": "credential_breach", "subject": HERO})
+        receipt["settle_finding"] = {"status": settle["status"],
+                                     "applied": settle["body"].get("applied")}
+        _check(settle["status"] == 200, "settle finding accepted (real transition)", failures)
+        for portno in (p1, p2):
+            _get_state(portno)
+        expected_lines = 3  # 1 finding + 1 state transition per console process
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        fut1 = pool.submit(hammer, p1)
-        fut2 = pool.submit(hammer, p2)
-        codes1, codes2 = fut1.result(), fut2.result()
-    receipt["requests"] = {"port1": {"count": len(codes1), "all_200": all(c == 200 for c in codes1)},
-                           "port2": {"count": len(codes2), "all_200": all(c == 200 for c in codes2)}}
-    _check(all(c == 200 for c in codes1 + codes2), "all console requests 200", failures)
+        # ---- the concurrent beat: per iteration one /api/state poll (a
+        # guaranteed NON-write under change-only logging) and one finding
+        # post (a guaranteed single ledger line), from two real PROCESSES
+        def hammer(portno: int) -> list:
+            codes = []
+            for _ in range(args.requests):
+                try:
+                    with urllib.request.urlopen(
+                            f"http://127.0.0.1:{portno}/api/state", timeout=30) as r:
+                        codes.append(r.status)
+                except Exception as exc:
+                    codes.append(str(exc)[:80])
+                try:
+                    codes.append(_post_json(portno, "/api/finding",
+                                            {"kind": "credential_breach",
+                                             "subject": HERO})["status"])
+                except Exception as exc:
+                    codes.append(str(exc)[:80])
+            return codes
 
-    receipt["stop_consoles"] = [_taskkill(console1.pid), _taskkill(console2.pid)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut1 = pool.submit(hammer, p1)
+            fut2 = pool.submit(hammer, p2)
+            codes1, codes2 = fut1.result(), fut2.result()
+        receipt["requests"] = {"port1": {"count": len(codes1), "all_200": all(c == 200 for c in codes1)},
+                               "port2": {"count": len(codes2), "all_200": all(c == 200 for c in codes2)}}
+        _check(all(c == 200 for c in codes1 + codes2), "all console requests 200", failures)
+        expected_lines += 2 * args.requests  # exactly one finding line per post
 
-    # verify with BOTH readers: the product's own CaseLog reader and raw text
-    from sever.memory.flow import CaseLog
+        # ---- verify with BOTH readers: the product's own CaseLog reader and
+        # raw text. Guard the file first (audit9/H13): the ledger is only
+        # recreated by an append, so a beat that wrote nothing must fail the
+        # check instead of crashing on read_text.
+        from sever.memory.flow import CaseLog
 
-    events = CaseLog(args.graph).read()
-    raw_lines = ledger.read_text(encoding="utf-8").splitlines()
-    receipt["ledger"] = {"path": str(ledger), "raw_lines": len(raw_lines),
-                         "events_read": len(events)}
-    _check(len(raw_lines) == 2 * args.requests,
-           f"ledger holds exactly {2 * args.requests} lines (no loss, no dup)", failures)
-    _check(len(events) == len(raw_lines), "CaseLog.read() parses EVERY line", failures)
-    bad = [i for i, ev in enumerate(events)
-           if ev.get("step") != "state" or "ts" not in ev or "reachability" not in ev]
-    _check(not bad, "every ledger line is a complete valid state event", failures)
-    receipt["ledger_first_last"] = {"first": events[0], "last": events[-1]}
+        if not ledger.exists():
+            _check(False, "ledger file exists after the concurrent beat", failures)
+            events: list = []
+            raw_lines: list = []
+        else:
+            events = CaseLog(args.graph).read()
+            raw_lines = ledger.read_text(encoding="utf-8").splitlines()
+        receipt["ledger"] = {"path": str(ledger), "raw_lines": len(raw_lines),
+                             "events_read": len(events), "expected_lines": expected_lines}
+        _check(len(raw_lines) == expected_lines,
+               f"ledger holds exactly {expected_lines} lines "
+               f"({2 * args.requests} concurrent finding posts + 3 settle lines; "
+               "no loss, no dup, no poll noise)", failures)
+        _check(len(events) == len(raw_lines), "CaseLog.read() parses EVERY line", failures)
+        bad = [i for i, ev in enumerate(events)
+               if ev.get("step") not in ("state", "finding") or "ts" not in ev]
+        _check(not bad, "every ledger line is a complete valid event", failures)
+        n_state = sum(1 for ev in events if ev.get("step") == "state")
+        n_finding = sum(1 for ev in events if ev.get("step") == "finding")
+        receipt["ledger_breakdown"] = {"state": n_state, "finding": n_finding}
+        _check(n_finding == 2 * args.requests + 1,
+               f"exactly {2 * args.requests + 1} finding lines (one per post)", failures)
+        _check(n_state == 2,
+               "exactly 2 state lines (settle transitions only — change-only logging held)", failures)
+        receipt["ledger_first_last"] = {"first": events[0], "last": events[-1]} if events else None
+    finally:
+        # audit9/H13: both consoles are always stopped, even when the beat
+        # dies mid-run — no leaked uvicorn processes
+        receipt["stop_consoles"] = [_taskkill(c.pid) for c in (console1, console2)
+                                   if c is not None]
 
     receipt["failures"] = failures
     receipt["all_pass"] = not failures
