@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- favicon: a minimal severed-S cut from the same geometry as the pending
-     docs/assets/logo_v4.svg (halo dropped, tuned for 16px), embedded as a
-     data URI so it needs no route and no extra file. When the owner approves
-     the final mark, swap this href for the served SVG. -->
+<!-- favicon: a minimal severed-S cut from the same geometry as the inline
+     header logo (halo dropped, tuned for 16px), embedded as a data URI so it
+     needs no route and no extra file — the same mark ships externally as
+     docs/assets/favicon.svg and docs/assets/logo-mark.svg (L49: this comment
+     used to point at a pending asset file that never existed). -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiIgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IlNFVkVSIOKAlCB0aGUgc2V2ZXJlZCByaW5nIj4NCiAgPCEtLSBTRVZFUjogVEhFIFNFVkVSRUQgUklORy4NCiAgICAgICBUaGUgYXR0YWNrIHBhdGggaXMgdGhlIHJpbmcuIFRoZSBibGFkZSBkcml2ZXMgdGhyb3VnaCBpdDsgdGhlIHJpbmcncw0KICAgICAgIHN1YnN0YW5jZSBlbmRzIGluc2lkZSB0aGUgcmVkIOKAlCB0aGUgZ2FwcyBBUkUgdGhlIGJsYWRlLiBUaGUgY3Jvd24NCiAgICAgICBqZXdlbCByaWRlcyB0aGUgc3Vydml2aW5nIGFyYydzIHJpbSwgZmFyIGZyb20gdGhlIGN1dDogcHJvdGVjdGVkLg0KICAgICAgIE9uZSBnbHlwaCA9IHRoZSBwcm9kdWN0OiBzZXZlciB0aGUgcGF0aCwgc3BhcmUgdGhlIGpld2VsLiAtLT4NCiAgPGRlZnM+DQogICAgPG1hc2sgaWQ9ImJsYWRlLWN1dCI+DQogICAgICA8cmVjdCB4PSItMTAiIHk9Ii0xMCIgd2lkdGg9IjExNiIgaGVpZ2h0PSIxMTYiIGZpbGw9IndoaXRlIi8+DQogICAgICA8cGF0aCBkPSJNIDIyLjkwIDYyLjUwIEwgNzIuNDAgMTMuMDAgTCA3My4xMCAzMy41MCBMIDIzLjYwIDgzLjAwIFoiIGZpbGw9ImJsYWNrIi8+DQogICAgPC9tYXNrPg0KICA8L2RlZnM+DQogIDxnIG1hc2s9InVybCgjYmxhZGUtY3V0KSI+DQogICAgPHBhdGggZD0iTSAyOS42MiA2Ni4zOCBMIDI4Ljk4IDY1LjczIEwgMjguMzggNjUuMDYgTCAyNy43OSA2NC4zNiBMIDI3LjI0IDYzLjY1IEwgMjYuNzAgNjIuOTEgTCAyNi4xOSA2Mi4xNiBMIDI1LjcxIDYxLjM5IEwgMjUuMjYgNjAuNjEgTCAyNC44MyA1OS44MCBMIDI0LjQ0IDU4Ljk5IEwgMjQuMDcgNTguMTYgTCAyMy43MyA1Ny4zMiBMIDIzLjQyIDU2LjQ2IEwgMjMuMTQgNTUuNjAgTCAyMi44OSA1NC43MyBMIDIyLjY3IDUzLjg1IEwgMjIuNDggNTIuOTYgTCAyMi4zMiA1Mi4wNyBMIDIyLjE5IDUxLjE3IEwgMjIuMTAgNTAuMjcgTCAyMi4wNCA0OS4zNiBMIDIyLjAwIDQ4LjQ1IEwgMjIuMDAgNDcuNTUgTCAyMi4wNCA0Ni42NCBMIDIyLjEwIDQ1LjczIEwgMjIuMTkgNDQuODMgTCAyMi4zMiA0My45MyBMIDIyLjQ4IDQzLjA0IEwgMjIuNjcgNDIuMTUgTCAyMi44OSA0MS4yNyBMIDIzLjE0IDQwLjQwIEwgMjMuNDIgMzkuNTQgTCAyMy43MyAzOC42OCBMIDI0LjA3IDM3Ljg0IEwgMjQuNDQgMzcuMDEgTCAyNC44MyAzNi4yMCBMIDI1LjI2IDM1LjM5IEwgMjUuNzEgMzQuNjEgTCAyNi4xOSAzMy44NCBMIDI2LjcwIDMzLjA5IEwgMjcuMjQgMzIuMzUgTCAyNy43OSAzMS42NCBMIDI4LjM4IDMwLjk0IEwgMjguOTggMzAuMjcgTCAyOS42MiAyOS42MiBMIDMwLjI3IDI4Ljk4IEwgMzAuOTQgMjguMzggTCAzMS42NCAyNy43OSBMIDMyLjM1IDI3LjI0IEwgMzMuMDkgMjYuNzAgTCAzMy44NCAyNi4xOSBMIDM0LjYxIDI1LjcxIEwgMzUuMzkgMjUuMjYgTCAzNi4yMCAyNC44MyBMIDM3LjAxIDI0LjQ0IEwgMzcuODQgMjQuMDcgTCAzOC42OCAyMy43MyBMIDM5LjU0IDIzLjQyIEwgNDAuNDAgMjMuMTQgTCA0MS4yNyAyMi44OSBMIDQyLjE1IDIyLjY3IEwgNDMuMDQgMjIuNDggTCA0My45MyAyMi4zMiBMIDQ0LjgzIDIyLjE5IEwgNDUuNzMgMjIuMTAgTCA0Ni42NCAyMi4wNCBMIDQ3LjU1IDIyLjAwIEwgNDguNDUgMjIuMDAgTCA0OS4zNiAyMi4wNCBMIDUwLjI3IDIyLjEwIEwgNTEuMTcgMjIuMTkgTCA1Mi4wNyAyMi4zMiBMIDUyLjk2IDIyLjQ4IEwgNTMuODUgMjIuNjcgTCA1NC43MyAyMi44OSBMIDU1LjYwIDIzLjE0IEwgNTYuNDYgMjMuNDIgTCA1Ny4zMiAyMy43MyBMIDU4LjE2IDI0LjA3IEwgNTguOTkgMjQuNDQgTCA1OS44MCAyNC44MyBMIDYwLjYxIDI1LjI2IEwgNjEuMzkgMjUuNzEgTCA2Mi4xNiAyNi4xOSBMIDYyLjkxIDI2LjcwIEwgNjMuNjUgMjcuMjQgTCA2NC4zNiAyNy43OSBMIDY1LjA2IDI4LjM4IEwgNjUuNzMgMjguOTggTCA2Ni4zOCAyOS42MiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRThFQUVEIiBzdHJva2Utd2lkdGg9IjkuMCIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz4NCiAgICA8cGF0aCBkPSJNIDY2LjM4IDI5LjYyIEwgNjcuMDIgMzAuMjcgTCA2Ny42MiAzMC45NCBMIDY4LjIxIDMxLjY0IEwgNjguNzYgMzIuMzUgTCA2OS4zMCAzMy4wOSBMIDY5LjgxIDMzLjg0IEwgNzAuMjkgMzQuNjEgTCA3MC43NCAzNS4zOSBMIDcxLjE3IDM2LjIwIEwgNzEuNTYgMzcuMDEgTCA3MS45MyAzNy44NCBMIDcyLjI3IDM4LjY4IEwgNzIuNTggMzkuNTQgTCA3Mi44NiA0MC40MCBMIDczLjExIDQxLjI3IEwgNzMuMzMgNDIuMTUgTCA3My41MiA0My4wNCBMIDczLjY4IDQzLjkzIEwgNzMuODEgNDQuODMgTCA3My45MCA0NS43MyBMIDczLjk2IDQ2LjY0IEwgNzQuMDAgNDcuNTUgTCA3NC4wMCA0OC40NSBMIDczLjk2IDQ5LjM2IEwgNzMuOTAgNTAuMjcgTCA3My44MSA1MS4xNyBMIDczLjY4IDUyLjA3IEwgNzMuNTIgNTIuOTYgTCA3My4zMyA1My44NSBMIDczLjExIDU0LjczIEwgNzIuODYgNTUuNjAgTCA3Mi41OCA1Ni40NiBMIDcyLjI3IDU3LjMyIEwgNzEuOTMgNTguMTYgTCA3MS41NiA1OC45OSBMIDcxLjE3IDU5LjgwIEwgNzAuNzQgNjAuNjEgTCA3MC4yOSA2MS4zOSBMIDY5LjgxIDYyLjE2IEwgNjkuMzAgNjIuOTEgTCA2OC43NiA2My42NSBMIDY4LjIxIDY0LjM2IEwgNjcuNjIgNjUuMDYgTCA2Ny4wMiA2NS43MyBMIDY2LjM4IDY2LjM4IEwgNjUuNzMgNjcuMDIgTCA2NS4wNiA2Ny42MiBMIDY0LjM2IDY4LjIxIEwgNjMuNjUgNjguNzYgTCA2Mi45MSA2OS4zMCBMIDYyLjE2IDY5LjgxIEwgNjEuMzkgNzAuMjkgTCA2MC42MSA3MC43NCBMIDU5LjgwIDcxLjE3IEwgNTguOTkgNzEuNTYgTCA1OC4xNiA3MS45MyBMIDU3LjMyIDcyLjI3IEwgNTYuNDYgNzIuNTggTCA1NS42MCA3Mi44NiBMIDU0LjczIDczLjExIEwgNTMuODUgNzMuMzMgTCA1Mi45NiA3My41MiBMIDUyLjA3IDczLjY4IEwgNTEuMTcgNzMuODEgTCA1MC4yNyA3My45MCBMIDQ5LjM2IDczLjk2IEwgNDguNDUgNzQuMDAgTCA0Ny41NSA3NC4wMCBMIDQ2LjY0IDczLjk2IEwgNDUuNzMgNzMuOTAgTCA0NC44MyA3My44MSBMIDQzLjkzIDczLjY4IEwgNDMuMDQgNzMuNTIgTCA0Mi4xNSA3My4zMyBMIDQxLjI3IDczLjExIEwgNDAuNDAgNzIuODYgTCAzOS41NCA3Mi41OCBMIDM4LjY4IDcyLjI3IEwgMzcuODQgNzEuOTMgTCAzNy4wMSA3MS41NiBMIDM2LjIwIDcxLjE3IEwgMzUuMzkgNzAuNzQgTCAzNC42MSA3MC4yOSBMIDMzLjg0IDY5LjgxIEwgMzMuMDkgNjkuMzAgTCAzMi4zNSA2OC43NiBMIDMxLjY0IDY4LjIxIEwgMzAuOTQgNjcuNjIgTCAzMC4yNyA2Ny4wMiBMIDI5LjYyIDY2LjM4IiBmaWxsPSJub25lIiBzdHJva2U9IiNFOEVBRUQiIHN0cm9rZS13aWR0aD0iOS4wIiBzdHJva2UtbGluZWNhcD0iYnV0dCIvPg0KICA8L2c+DQogIDxwYXRoIGQ9Ik0gMjIuOTAgNjIuNTAgTCA3Mi40MCAxMy4wMCBMIDczLjEwIDMzLjUwIEwgMjMuNjAgODMuMDAgWiIgZmlsbD0iI0RDMjYyNiIvPg0KICA8Y2lyY2xlIGN4PSIyOS42MiIgY3k9IjI5LjYyIiByPSI1LjYyIiBmaWxsPSIjNDZBNzU4Ii8+DQo8L3N2Zz4NCg==">
 <title>SEVER — interdiction console</title>
 <style>
@@ -74,11 +75,10 @@
     --r-m: 6px;   /* containers: cards                      */
 
     --t-fast: 120ms; /* the only motion: hover/focus skin changes */
+    --motion: 150ms; /* audit6/ui-polish: the one-beat state-change animations */
   }
 
   /* base */
-    --motion: 150ms;
-  }
   /* Motion standard (audit6/ui-polish): every animation is 120-180ms and
      animates ONLY transform/opacity — state changes read as crisp, never as
      bounce/slide circus. prefers-reduced-motion collapses all of them to a
@@ -93,7 +93,8 @@
      warn/bg 7.9, warn/surface 7.4, success/surface 6.1 (value.ok),
      #7ED08C/surface-2 9.5, #7ED08C/#14231A 8.8. Indicators: chip dots
      success/warn/danger on bg 6.5/7.9/5.0, :focus-visible ring on bg/surface
-     7.3/6.9, badge.cut border 3.1, approve/confirm border 5.8. Neutral .btn
+     7.3/6.9, badge.cut border 3.1, approve border 5.8, confirm border 4.49
+     (the solid danger fill lowers its own border's effective contrast). Neutral .btn
      borders (~1.35 on surface-2) carry no state: the visible label identifies
      the control, so they fall under the 1.4.11 identification exception. */
   * { box-sizing: border-box; margin: 0; }
@@ -104,16 +105,17 @@
   ::selection { background: color-mix(in srgb, var(--focus) 28%, transparent); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-  /* header + wordmark/logo lockup */
-  header { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
-  .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: var(--fs-m); }
+  /* header + wordmark/logo lockup (audit6/L51 dedupe: one generation — the
+     earlier token-valued header/.wordmark rules were property-for-property
+     overridden by these and are gone) */
   header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
   .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: 14px; }
   .wordmark b { color: var(--danger); font-weight: 700; }
-  /* logo lockup: the header slot for the pending severed-S mark
-     (docs/assets/logo_v4.svg). The markup keeps the slot commented out
-     until the owner approves; this rule is the only wiring and stays
-     inert while the slot is empty. */
+  /* logo lockup: the severed-S mark ships INLINE as a data URI on the
+     header img.logo — no external asset, no route (L49: this comment used
+     to describe a pending external mark that never existed; the inline mark
+     IS the shipped identity, mirrored by docs/assets/logo-mark.svg +
+     favicon.svg for external use). */
   .logo { display: block; width: 24px; height: 24px; flex: 0 0 auto; }
   /* One chip grammar for every header chip: [state dot][content]. The dot is
      the ONLY liveness claim and its color is never ambiguous:
@@ -123,16 +125,10 @@
        gray  (.idle)    advisory or informational — explicitly NOT a liveness
                         claim (simulation label, operator name, estate chip
                         before its first successful read) */
-  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; background: var(--bg); }
-  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
-  .chip.paused .dot { background: var(--warn); }
-  .chip.down .dot { background: var(--danger); }
-  .chip.idle .dot { background: var(--text-3); }
   /* audit6/ui-polish: chip state flips (live/paused/down) — the state dot
      fades in over 150ms when the class actually changes, never on re-render */
   .chip.flip .dot { animation: chip-flip var(--motion) ease; }
   @keyframes chip-flip { from { opacity: .3; } }
-  .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .spacer { flex: 1; }
   .tagline { font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); }
   .tagline b { color: var(--text-2); font-weight: 600; }
@@ -147,6 +143,7 @@
   .chip.paused { border-color: var(--warn-dim); }
   .chip.down .dot { background: var(--state-down); }
   .chip.down { border-color: var(--danger-dim); color: var(--danger); }
+  .chip.idle .dot { background: var(--text-3); }
   #sim-chip { border-style: dashed; color: var(--warn); }
   .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .chip-btn:hover { color: var(--text); }
@@ -194,7 +191,7 @@
      danger — the one irreversible button on the page), cancel = the quiet
      escape. Text, classes, Escape and focus behavior are contract, pinned. */
   .btn.confirm { border-color: var(--danger); background: var(--danger); color: #0A0C10; font-weight: 700; }
-  .btn.confirm:hover { background: var(--danger); border-color: var(--danger); filter: brightness(1.12); }
+  .btn.confirm:not([disabled]):hover { background: var(--danger); border-color: var(--danger); filter: brightness(1.12); }
   .btn.cancel { border-color: var(--border); background: none; color: var(--text-3); }
   .btn.cancel:hover { background: none; border-color: var(--border-strong); color: var(--text-2); }
   .gate-flag { display: inline-flex; align-items: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); border: 1px solid #5C4A22; background: #1A160C; border-radius: 3px; padding: 2px 8px; }
@@ -221,6 +218,15 @@
   .banner[data-flag="down"] { border-color: var(--danger-dim); border-left-color: var(--state-down); }
   .banner .technique { color: var(--warn); font-family: var(--mono); font-size: 11px; display: block; margin-bottom: 4px; }
   .banner .res { color: var(--text); font-family: var(--mono); font-size: 11.5px; display: block; margin-top: 4px; }
+  /* audit6/ui-telemetry receipt hierarchy, styled (M57): the MEASURED
+     verdict is the hero line (mono, uppercase, colored ONLY through the
+     closed v-ok/v-warn/v-idle class map — never from the value), and the
+     finding narration reads as narrative body beneath it. */
+  .banner .verdict { display: block; font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 2px 0; color: var(--text-2); }
+  .verdict.v-ok { color: var(--success-strong); }
+  .verdict.v-warn { color: var(--warn); }
+  .verdict.v-idle { color: var(--text-2); }
+  .banner .narration { display: block; color: var(--text); font-size: var(--fs-r); line-height: var(--lh-copy); margin: 2px 0; }
   /* audit6/ui-flow — each path renders as ONE flowing kill chain: chips for
      principals (attacker chip red-tinted, crown-jewel chip green-tinted),
      small mono rel arrows between, raw objectid on hover. A 3-hop chain
@@ -239,12 +245,6 @@
   .hop .rel { color: var(--text-3); font-size: 10px; }
   .hop .jewel { border-color: #2E5138; background: #121D15; }
   .hop .jewel::before { background: var(--success); }
-  .hops { margin-top: 6px; border-left: 2px solid var(--border-strong); }
-  .hop { display: flex; gap: 10px; align-items: baseline; padding: 4px 0 4px 12px; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; overflow-wrap: anywhere; }
-  .hop .node { color: var(--text); }
-  .hop .node.mut { color: var(--warn); }
-  .hop .rel { color: var(--text-3); font-size: 11px; }
-  .hop .jewel { color: var(--danger); }
   .empty { color: var(--text-3); font-size: 12.5px; padding: 8px 0; }
   /* audit6/ui-flow — the ranked-cut card: endpoint names + rel badge, the
      paths_on coverage count as a prominence bar (full width = top-ranked
@@ -264,18 +264,9 @@
   .covbar .num { color: var(--text-3); font-size: 10.5px; }
   .covbar .num b { color: var(--text-2); font-weight: 600; }
   .prop-cta { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-  .ledger { max-height: 300px; overflow-y: auto; }
-  .entry { display: flex; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
-  .ledger { max-height: 300px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
   .ledger::-webkit-scrollbar { width: 10px; }
   .ledger::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-s); border: 2px solid var(--surface); }
   .ledger::-webkit-scrollbar-track { background: transparent; }
-  .entry:last-child { border-bottom: none; }
-  .badge { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: .08em; border: 1px solid var(--border-strong); color: var(--text-2); border-radius: var(--r-xs); padding: 1px 6px; flex-shrink: 0; text-transform: uppercase; }
-  .badge.cut { border-color: var(--danger-dim); color: var(--danger); }
-  .badge.finding { border-color: #4A5A2E; color: var(--warn); }
-  .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
   /* audit6/ui-flow — the remediation plan: numbered step sequence, per-step
      verdict chips (projected before the gate, live re-measured after), the
      drift-stop state visually distinct (skipped steps + drift note), and
@@ -298,7 +289,7 @@
   .sys-note { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; margin-top: 12px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); line-height: 1.6; }
   /* Receipts ledger — an audit timeline, newest first (audit6/ui-telemetry).
      accent so an honest failure never reads as a success. */
-  .ledger { max-height: 320px; overflow-y: auto; }
+  .ledger { max-height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
   .entry { display: flex; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
   .entry:last-child { border-bottom: none; }
   .entry.sys { background: var(--bg); }
@@ -310,14 +301,30 @@
   .badge.plan { border-color: var(--focus); color: var(--focus); }
   .badge.sys { border-color: var(--border); color: var(--text-3); }
   .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
-  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; }
+  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
   .entry.ledger-down .line { color: var(--warn); }
+  /* M57: the measured before→after delta chip the receipts renderer emits
+     (d-down collapse green / d-up regression red / d-flat muted — the same
+     state language as .vchip, never the value itself) and the operator
+     attribution chip. */
+  .delta { flex-shrink: 0; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 6px; color: var(--text-2); }
+  .delta.d-down { border-color: #2E5138; color: #7ED08C; }
+  .delta.d-up { border-color: #5E2A2E; color: var(--danger); }
+  .delta.d-flat { border-color: var(--border); color: var(--text-3); }
+  .op { flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
   /* audit6/ui-polish: a ledger entry that actually ARRIVED (count grew) eases
      in from 2px above over 150ms — re-renders of unchanged entries stay still */
   .entry.arrival { animation: arrive var(--motion) ease; }
   @keyframes arrive { from { opacity: 0; transform: translateY(-2px); } }
-  /* audit6/ui-polish: each completed refresh tick dips the timestamp once */
-  .hint.tick { animation: tick-dip var(--motion) ease; }
+  /* a gate restored to its APPROVE state (disarm / stray-armed-CTA sweep)
+     eases back in on the same one-beat grammar (M57: the class the JS adds
+     now has a rule) */
+  .btn.restore { animation: arrive var(--motion) ease; }
+  /* audit6/ui-polish: each completed refresh tick dips the timestamp once.
+     L53: tickText() adds .tick to the #updated-at span (which carries no
+     class of its own), so the rule targets the id — the old selector could
+     never match anything. */
+  #updated-at.tick { animation: tick-dip var(--motion) ease; }
   @keyframes tick-dip { from { opacity: .45; } }
   /* audit7/perf-ui: the honest wait affordance for multi-second engine waits
      (plan / cut / grant / finding re-score). audit6's 6px dot took one 150ms
@@ -327,7 +334,9 @@
      perceivable AND honest: a 3px indeterminate bar (transform-only loop —
      the same motion grammar as the armed-gate pulse) beside LIVE elapsed
      seconds, so the banner visibly changes every second the engine does not;
-     at 10s+ a note sets expectations ('~15s on the free-tier engine'). Bar
+     at 10s+ a note sets expectations (L55, post-fold: a plan takes seconds —
+     the note says the engine may be cold or stalled; the pre-fold '~15s on
+     the free-tier engine' figure died with the 197->11 round-trip fold). Bar
      and counter are decorative (aria-hidden) — the stage copy and the note
      carry the state for assistive tech. prefers-reduced-motion freezes the
      bar to a static filled track; the counting seconds are text, not motion,
@@ -362,7 +371,6 @@
      type tokens above belong to the design system; nothing here redefines
      them — this block only adds structure. */
   .brand { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-  .logo-slot { width: 22px; height: 22px; flex: 0 0 auto; border: 1px dashed var(--border-strong); border-radius: 5px; }
   .brand-role { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); text-transform: uppercase; white-space: nowrap; }
   .hero { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px 24px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 16px 20px; min-width: 0; }
   .hero.exposed { border-left-color: var(--danger); }
@@ -377,13 +385,17 @@
   .stat { border-left: 1px solid var(--border-strong); padding-left: 12px; min-width: 0; }
   .stat-value { display: block; font-family: var(--mono); font-size: 20px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
   .stat-label { display: block; font-size: 10.5px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+  /* H18: engine-down flips the hero's estate readout to its stale (amber)
+     state via a .paused class toggle — the 4-stat grid layout survives the
+     outage intact and the next successful refresh clears the class. */
+  .hero-facts.paused .stat-value { color: var(--warn); }
   .hero-meta { grid-column: 1 / -1; display: flex; gap: 6px 18px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
   .hero .banner { grid-column: 1 / -1; margin-top: 2px; }
   .ribbon { grid-column: 1 / -1; display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px 20px; min-width: 0; }
   .ribbon-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .ribbon-title { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
   .ribbon-sub { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
-  .steps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .steps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 0; }
   .step { display: flex; gap: 10px; align-items: flex-start; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; min-width: 0; }
   .step-n { flex: 0 0 auto; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: 50%; font-family: var(--mono); font-size: 11px; color: var(--text-2); }
   .step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -434,9 +446,9 @@
 </head>
 <body>
 <header class="app-header">
-  <!-- audit6/ui-ia: product identity slot — .logo-slot is the reserved drop
-       point for the approved logo asset (pending owner review); the wordmark
-       beside it is the placeholder identity until then. -->
+  <!-- audit6/ui-ia: product identity slot — the severed-S mark ships inline on
+       the img.logo below (data URI; no external asset to fetch), and the
+       wordmark beside it carries the name. -->
   <div class="brand">
     <img class="logo" id="logo-slot" alt="" aria-hidden="true" width="24" height="24" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiIgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IlNFVkVSIOKAlCB0aGUgc2V2ZXJlZCByaW5nIj4NCiAgPCEtLSBTRVZFUjogVEhFIFNFVkVSRUQgUklORy4NCiAgICAgICBUaGUgYXR0YWNrIHBhdGggaXMgdGhlIHJpbmcuIFRoZSBibGFkZSBkcml2ZXMgdGhyb3VnaCBpdDsgdGhlIHJpbmcncw0KICAgICAgIHN1YnN0YW5jZSBlbmRzIGluc2lkZSB0aGUgcmVkIOKAlCB0aGUgZ2FwcyBBUkUgdGhlIGJsYWRlLiBUaGUgY3Jvd24NCiAgICAgICBqZXdlbCByaWRlcyB0aGUgc3Vydml2aW5nIGFyYydzIHJpbSwgZmFyIGZyb20gdGhlIGN1dDogcHJvdGVjdGVkLg0KICAgICAgIE9uZSBnbHlwaCA9IHRoZSBwcm9kdWN0OiBzZXZlciB0aGUgcGF0aCwgc3BhcmUgdGhlIGpld2VsLiAtLT4NCiAgPGRlZnM+DQogICAgPG1hc2sgaWQ9ImJsYWRlLWN1dCI+DQogICAgICA8cmVjdCB4PSItMTAiIHk9Ii0xMCIgd2lkdGg9IjExNiIgaGVpZ2h0PSIxMTYiIGZpbGw9IndoaXRlIi8+DQogICAgICA8cGF0aCBkPSJNIDIyLjkwIDYyLjUwIEwgNzIuNDAgMTMuMDAgTCA3My4xMCAzMy41MCBMIDIzLjYwIDgzLjAwIFoiIGZpbGw9ImJsYWNrIi8+DQogICAgPC9tYXNrPg0KICA8L2RlZnM+DQogIDxnIG1hc2s9InVybCgjYmxhZGUtY3V0KSI+DQogICAgPHBhdGggZD0iTSAyOS42MiA2Ni4zOCBMIDI4Ljk4IDY1LjczIEwgMjguMzggNjUuMDYgTCAyNy43OSA2NC4zNiBMIDI3LjI0IDYzLjY1IEwgMjYuNzAgNjIuOTEgTCAyNi4xOSA2Mi4xNiBMIDI1LjcxIDYxLjM5IEwgMjUuMjYgNjAuNjEgTCAyNC44MyA1OS44MCBMIDI0LjQ0IDU4Ljk5IEwgMjQuMDcgNTguMTYgTCAyMy43MyA1Ny4zMiBMIDIzLjQyIDU2LjQ2IEwgMjMuMTQgNTUuNjAgTCAyMi44OSA1NC43MyBMIDIyLjY3IDUzLjg1IEwgMjIuNDggNTIuOTYgTCAyMi4zMiA1Mi4wNyBMIDIyLjE5IDUxLjE3IEwgMjIuMTAgNTAuMjcgTCAyMi4wNCA0OS4zNiBMIDIyLjAwIDQ4LjQ1IEwgMjIuMDAgNDcuNTUgTCAyMi4wNCA0Ni42NCBMIDIyLjEwIDQ1LjczIEwgMjIuMTkgNDQuODMgTCAyMi4zMiA0My45MyBMIDIyLjQ4IDQzLjA0IEwgMjIuNjcgNDIuMTUgTCAyMi44OSA0MS4yNyBMIDIzLjE0IDQwLjQwIEwgMjMuNDIgMzkuNTQgTCAyMy43MyAzOC42OCBMIDI0LjA3IDM3Ljg0IEwgMjQuNDQgMzcuMDEgTCAyNC44MyAzNi4yMCBMIDI1LjI2IDM1LjM5IEwgMjUuNzEgMzQuNjEgTCAyNi4xOSAzMy44NCBMIDI2LjcwIDMzLjA5IEwgMjcuMjQgMzIuMzUgTCAyNy43OSAzMS42NCBMIDI4LjM4IDMwLjk0IEwgMjguOTggMzAuMjcgTCAyOS42MiAyOS42MiBMIDMwLjI3IDI4Ljk4IEwgMzAuOTQgMjguMzggTCAzMS42NCAyNy43OSBMIDMyLjM1IDI3LjI0IEwgMzMuMDkgMjYuNzAgTCAzMy44NCAyNi4xOSBMIDM0LjYxIDI1LjcxIEwgMzUuMzkgMjUuMjYgTCAzNi4yMCAyNC44MyBMIDM3LjAxIDI0LjQ0IEwgMzcuODQgMjQuMDcgTCAzOC42OCAyMy43MyBMIDM5LjU0IDIzLjQyIEwgNDAuNDAgMjMuMTQgTCA0MS4yNyAyMi44OSBMIDQyLjE1IDIyLjY3IEwgNDMuMDQgMjIuNDggTCA0My45MyAyMi4zMiBMIDQ0LjgzIDIyLjE5IEwgNDUuNzMgMjIuMTAgTCA0Ni42NCAyMi4wNCBMIDQ3LjU1IDIyLjAwIEwgNDguNDUgMjIuMDAgTCA0OS4zNiAyMi4wNCBMIDUwLjI3IDIyLjEwIEwgNTEuMTcgMjIuMTkgTCA1Mi4wNyAyMi4zMiBMIDUyLjk2IDIyLjQ4IEwgNTMuODUgMjIuNjcgTCA1NC43MyAyMi44OSBMIDU1LjYwIDIzLjE0IEwgNTYuNDYgMjMuNDIgTCA1Ny4zMiAyMy43MyBMIDU4LjE2IDI0LjA3IEwgNTguOTkgMjQuNDQgTCA1OS44MCAyNC44MyBMIDYwLjYxIDI1LjI2IEwgNjEuMzkgMjUuNzEgTCA2Mi4xNiAyNi4xOSBMIDYyLjkxIDI2LjcwIEwgNjMuNjUgMjcuMjQgTCA2NC4zNiAyNy43OSBMIDY1LjA2IDI4LjM4IEwgNjUuNzMgMjguOTggTCA2Ni4zOCAyOS42MiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRThFQUVEIiBzdHJva2Utd2lkdGg9IjkuMCIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz4NCiAgICA8cGF0aCBkPSJNIDY2LjM4IDI5LjYyIEwgNjcuMDIgMzAuMjcgTCA2Ny42MiAzMC45NCBMIDY4LjIxIDMxLjY0IEwgNjguNzYgMzIuMzUgTCA2OS4zMCAzMy4wOSBMIDY5LjgxIDMzLjg0IEwgNzAuMjkgMzQuNjEgTCA3MC43NCAzNS4zOSBMIDcxLjE3IDM2LjIwIEwgNzEuNTYgMzcuMDEgTCA3MS45MyAzNy44NCBMIDcyLjI3IDM4LjY4IEwgNzIuNTggMzkuNTQgTCA3Mi44NiA0MC40MCBMIDczLjExIDQxLjI3IEwgNzMuMzMgNDIuMTUgTCA3My41MiA0My4wNCBMIDczLjY4IDQzLjkzIEwgNzMuODEgNDQuODMgTCA3My45MCA0NS43MyBMIDczLjk2IDQ2LjY0IEwgNzQuMDAgNDcuNTUgTCA3NC4wMCA0OC40NSBMIDczLjk2IDQ5LjM2IEwgNzMuOTAgNTAuMjcgTCA3My44MSA1MS4xNyBMIDczLjY4IDUyLjA3IEwgNzMuNTIgNTIuOTYgTCA3My4zMyA1My44NSBMIDczLjExIDU0LjczIEwgNzIuODYgNTUuNjAgTCA3Mi41OCA1Ni40NiBMIDcyLjI3IDU3LjMyIEwgNzEuOTMgNTguMTYgTCA3MS41NiA1OC45OSBMIDcxLjE3IDU5LjgwIEwgNzAuNzQgNjAuNjEgTCA3MC4yOSA2MS4zOSBMIDY5LjgxIDYyLjE2IEwgNjkuMzAgNjIuOTEgTCA2OC43NiA2My42NSBMIDY4LjIxIDY0LjM2IEwgNjcuNjIgNjUuMDYgTCA2Ny4wMiA2NS43MyBMIDY2LjM4IDY2LjM4IEwgNjUuNzMgNjcuMDIgTCA2NS4wNiA2Ny42MiBMIDY0LjM2IDY4LjIxIEwgNjMuNjUgNjguNzYgTCA2Mi45MSA2OS4zMCBMIDYyLjE2IDY5LjgxIEwgNjEuMzkgNzAuMjkgTCA2MC42MSA3MC43NCBMIDU5LjgwIDcxLjE3IEwgNTguOTkgNzEuNTYgTCA1OC4xNiA3MS45MyBMIDU3LjMyIDcyLjI3IEwgNTYuNDYgNzIuNTggTCA1NS42MCA3Mi44NiBMIDU0LjczIDczLjExIEwgNTMuODUgNzMuMzMgTCA1Mi45NiA3My41MiBMIDUyLjA3IDczLjY4IEwgNTEuMTcgNzMuODEgTCA1MC4yNyA3My45MCBMIDQ5LjM2IDczLjk2IEwgNDguNDUgNzQuMDAgTCA0Ny41NSA3NC4wMCBMIDQ2LjY0IDczLjk2IEwgNDUuNzMgNzMuOTAgTCA0NC44MyA3My44MSBMIDQzLjkzIDczLjY4IEwgNDMuMDQgNzMuNTIgTCA0Mi4xNSA3My4zMyBMIDQxLjI3IDczLjExIEwgNDAuNDAgNzIuODYgTCAzOS41NCA3Mi41OCBMIDM4LjY4IDcyLjI3IEwgMzcuODQgNzEuOTMgTCAzNy4wMSA3MS41NiBMIDM2LjIwIDcxLjE3IEwgMzUuMzkgNzAuNzQgTCAzNC42MSA3MC4yOSBMIDMzLjg0IDY5LjgxIEwgMzMuMDkgNjkuMzAgTCAzMi4zNSA2OC43NiBMIDMxLjY0IDY4LjIxIEwgMzAuOTQgNjcuNjIgTCAzMC4yNyA2Ny4wMiBMIDI5LjYyIDY2LjM4IiBmaWxsPSJub25lIiBzdHJva2U9IiNFOEVBRUQiIHN0cm9rZS13aWR0aD0iOS4wIiBzdHJva2UtbGluZWNhcD0iYnV0dCIvPg0KICA8L2c+DQogIDxwYXRoIGQ9Ik0gMjIuOTAgNjIuNTAgTCA3Mi40MCAxMy4wMCBMIDczLjEwIDMzLjUwIEwgMjMuNjAgODMuMDAgWiIgZmlsbD0iI0RDMjYyNiIvPg0KICA8Y2lyY2xlIGN4PSIyOS42MiIgY3k9IjI5LjYyIiByPSI1LjYyIiBmaWxsPSIjNDZBNzU4Ii8+DQo8L3N2Zz4NCg==">
     <span class="wordmark">SE<b>VER</b></span>
@@ -556,13 +568,13 @@
       </header>
       <div class="card-body" id="proposal"><div class="empty" style="padding:12px 16px">Nothing to propose.</div></div>
     </section>
-    <div class="card" id="plan-card" style="display:none">
+    <section class="card" id="plan-card" style="display:none" aria-labelledby="plan-card-title">
       <header class="sec-head">
         <h2 id="plan-card-title"><span class="sec-n" aria-hidden="true">3b</span> Remediation plan</h2>
         <p class="sec-caption">k-cut sequence &mdash; projections measured on an isolated copy; execution re-measures each step live and stops at the first drift.</p>
       </header>
       <div class="card-body" id="plan-body"></div>
-    </div>
+    </section>
     <section class="card" id="sec-receipts" aria-labelledby="sec-receipts-title">
       <header class="sec-head">
         <h2 id="sec-receipts-title"><span class="sec-n" aria-hidden="true">4</span> Receipts</h2>
@@ -596,7 +608,9 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const state = { auto: !new URLSearchParams(location.search).get('static'), pending: null, lastAt: null };
+  // L54: a BARE '?static' must disable auto-refresh too — .has() matches the
+  // flag with or without a value ('?static' and '?static=1' both pause polling).
+  const state = { auto: !new URLSearchParams(location.search).has('static'), pending: null, lastAt: null };
   // audit6/ui-polish: honor prefers-reduced-motion everywhere (lost in the union, restored)
   const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const short = (id) => id.length > 34 ? '\u2026' + id.slice(-8) : id;
@@ -686,7 +700,7 @@
       const secs = Math.floor((performance.now() - t0) / 1000);
       if (el) el.textContent = secs + 's elapsed';
       if (note && secs >= 10 && !note.textContent)
-        note.textContent = '(this can take ~15s on the free-tier engine)';
+        note.textContent = '(if this exceeds 10s the engine may be cold or stalled)';
     }, 1000);
   }
   function banner(html, flag) {
@@ -831,7 +845,13 @@
       // is last-known and must never read as fresh.
       // (audit7/perf-ui: conditional write — same-value class writes still
       // invalidate style on every failing tick.)
-      if ($('estate-chip').className !== 'chip paused') $('estate-chip').className = 'chip paused';
+      // H18: toggle the stale state on the hero's estate readout WITHOUT
+      // destroying its layout class — the old 'chip paused' className write
+      // replaced 'hero-facts' with 'chip' and crammed the 4-stat grid into a
+      // tiny inline chip, forever. classList keeps the grid; the .paused rule
+      // tints the stat values amber and the next successful refresh clears it.
+      const ec = $('estate-chip');
+      if (ec && !ec.classList.contains('paused')) ec.classList.add('paused');
       // audit6 merge: the estate readout lives in the hero now (ui-ia) — the
       // last-known/unavailable line goes to the hero's estate detail, never
       // to the removed header-chip label.
@@ -859,6 +879,16 @@
     setText('stat-edges', s.edges.toLocaleString());
     setText('stat-jewels', s.jewels.length.toLocaleString());
     setText('stat-owned', s.owned.length.toLocaleString());
+    // H18: a successful refresh clears the stale (paused) state on the hero
+    // facts grid — the outage marker must never outlive the outage.
+    const ec = $('estate-chip');
+    if (ec && ec.classList.contains('paused')) ec.classList.remove('paused');
+    // M54: capture the last-known estate facts on every successful refresh so
+    // the engine-down lane can say WHAT the stale numbers below are (the
+    // estateFacts branch used to be dead — never assigned anywhere).
+    state.estateFacts = s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges · ' +
+                        s.jewels.length + ' crown jewel' + (s.jewels.length === 1 ? '' : 's') + ' · ' +
+                        s.owned.length + ' owned';
     const at = new Date().toLocaleTimeString();
     state.lastAt = at;
     // audit7/perf-ui: one conditional write — the old setText+tickText pair
@@ -1021,37 +1051,59 @@
       const badgeFor = (s) => s === 'cut' || s === 'cut_failed' ? 'cut'
         : (s === 'finding' || s === 'finding_failed' ? 'finding'
         : (s === 'plan' || s.indexOf('plan') === 0 ? 'plan'
-        : (s === 'state' || s === 'estate_loaded' || s === 'estate_missing' || s === 'ledger_repair' ? 'sys' : '')));
+        : (s === 'state' || s === 'estate_loaded' || s === 'estate_missing' || s === 'ledger_repair' || s === 'console_boot_failed' ? 'sys' : '')));
       // system events (poll noise, estate lifecycle, ledger self-repair) sit
       // in a quieter lane; failed attempts carry a danger accent — an honest
-      // failure must never read the same as a success.
+      // failure must never read the same as a success (M56: that includes
+      // plan_failed / console_boot_failed, and the agent lane's
+      // plan_gate_refused — a refusal is not a success either).
       const sysEv = step === 'state' || step === 'estate_loaded' || step === 'estate_missing' || step === 'ledger_repair';
-      const failedEv = /_failed$/.test(step);
+      const failedEv = /_failed$/.test(step) || step === 'plan_gate_refused';
       let line = '', delta = null, op = null;
       if (step === 'cut' && e.receipt) {
-        const rc = e.receipt;
+        // M55: a torn/partial ledger entry must render as '?', never
+        // TypeError inside refresh()'s receipts map — guard every nested
+        // deref the need() shape-check does not cover.
+        const rc = e.receipt || {};
+        const cut = rc.cut || {};
         delta = { before: (rc.before ? rc.before.reachability : null), after: (rc.after ? rc.after.reachability : null) };
         op = rc.approved_by || null;
-        line = 'cut ' + short(rc.cut.src) + ' -[' + rc.cut.rel + ']-> ' + short(rc.cut.dst) +
-               ' · removed ' + rc.cut.relationships_removed +
-               ' · re-query ' + rc.requery_ms + 'ms · verdict ' + rc.verdict + ' · by ' + rc.approved_by;
+        line = 'cut ' + short(cut.src || '?') + ' -[' + (cut.rel || '?') + ']-> ' + short(cut.dst || '?') +
+               ' · removed ' + (cut.relationships_removed ?? '?') +
+               ' · re-query ' + (rc.requery_ms ?? '?') + 'ms · verdict ' + (rc.verdict ?? '?') + ' · by ' + (rc.approved_by ?? '?');
       } else if (step === 'plan' && e.plan) {
         const pl = e.plan;
         line = 'plan · k=' + (pl.k ?? '?') + ' · ' + (pl.steps ? pl.steps.length : 0) + ' step(s)' +
-               ' · base reachability ' + (pl.base ? pl.base.reachability : '?') +
+               ' · base reachability ' + (pl.base ? (pl.base.reachability ?? '?') : '?') +
                ' · projections measured on an isolated copy';
       } else if (step === 'plan_execute' && e.result) {
         const rr = e.result;
         const steps = rr.steps || [];
         const lastStep = steps.length ? steps[steps.length - 1] : null;
-        delta = { before: steps.length ? steps[0].before.reachability : null, after: lastStep ? lastStep.after.reachability : null };
-        op = steps.length ? (steps[0].approved_by || null) : null;
+        // M55: torn step receipts render '?' instead of crashing the render
+        delta = { before: steps.length ? (steps[0]?.before?.reachability ?? null) : null, after: lastStep ? (lastStep?.after?.reachability ?? null) : null };
+        op = steps.length ? (steps[0]?.approved_by || null) : null;
         line = 'plan execute · ' + String(rr.status).replace(/_/g, ' ') + ' · ' + rr.executed_steps + ' step(s)' +
                (String(rr.status).indexOf('drift') >= 0 ? ' · projection drift — re-plan needed' : '') +
                (lastStep && lastStep.plan_drift ? ' · step ' + lastStep.plan_step + ' diverged from its projection' : '');
       } else if (step === 'plan_execute_failed') {
         line = 'plan execute failed · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
         op = e.approved_by || null;
+      } else if (step === 'plan_failed' || step === 'console_boot_failed') {
+        // M56: outage/lifecycle failures the server ledgers deliberately
+        // (plan_failed, console_boot_failed) used to fall to the generic
+        // 'state · reachability ? · ? nodes' line — the failure the ledger
+        // recorded for exactly this purpose was invisible. Render the
+        // recorded error + outcome with the failed accent instead.
+        line = (step === 'plan_failed' ? 'plan failed' : 'console boot failed') +
+               ' · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
+      } else if (step === 'plan_gate_refused') {
+        // M56, agent lane: the per-step human gate was not satisfied — the
+        // refusal shows the attempted step/cut, never a phantom success and
+        // never as poll noise.
+        line = 'plan gate refused · step ' + (e.plan_step ?? '?') +
+               ' · the human gate was not satisfied, nothing was executed' +
+               (e.cut ? ' · attempted ' + short(e.cut.src || '?') + ' -[' + (e.cut.rel || '?') + ']-> ' + short(e.cut.dst || '?') : '');
       } else if (step === 'finding' && e.triage) {
         delta = { before: (e.triage.before ? e.triage.before.reachability : null), after: (e.triage.after ? e.triage.after.reachability : null) };
         line = 'finding ' + e.finding + ' · ' + e.kind;
@@ -1136,10 +1188,12 @@
     state.pending = null;
     removeEscape();
     if (!p) return;
-    // INVARIANT: at most ONE armed gate may exist in the DOM. Under load the
-    // refresh swap + re-arm can overlap (ryzen full-suite caught two armed
-    // generations resolving at once) — sweep EVERY armed CTA, not just the
-    // querySelector-first match, so a stray second confirm can never linger.
+    // INVARIANT: at most ONE armed gate may exist in the DOM. Per card this
+    // sweep retires every armed single-cut CTA (under load the refresh swap +
+    // re-arm can overlap — ryzen full-suite caught two armed generations
+    // resolving at once — so sweep EVERY armed CTA, not just the
+    // querySelector-first match); across cards armGate/armPlanGate disarm
+    // each other (L56), so two CONFIRM buttons can never be armed at once.
     document.querySelectorAll('#proposal .prop-cta .confirm').forEach((cf) => {
       const cta = cf.closest('.prop-cta');
       const hadFocus = cf === document.activeElement || cta.contains(document.activeElement);
@@ -1227,6 +1281,10 @@
   }
   function armGate(src, dst, rel) {
     disarmGate();
+    // L56: cross-card disarm — arming a single-cut gate retires an armed
+    // plan gate (renderPlan restores the APPROVE PLAN button), keeping the
+    // one-armed-gate invariant page-wide.
+    if (document.querySelector('#plan-body .confirm')) renderPlan();
     state.pending = { src, dst, rel };
     if (!renderGate(state.pending, true)) { state.pending = null; return; }
     removeEscape();
@@ -1268,17 +1326,28 @@
     // audit6/ui-flow: a fresh plan invalidates any prior execution's
     // per-step verdicts — the card starts from a clean projection state.
     state.planResult = null;
-    // audit7/perf-ui: the live-elapsed honest wait — on the free-tier cloud
-    // engine this GET sat with a visually static banner for 13-14s and read
-    // as a frozen console (owner-reported); now every second ticks the
-    // elapsed counter and 10s+ sets the ~15s expectation.
+    // audit7/perf-ui: the live-elapsed honest wait — pre-fold this GET sat
+    // with a visually static banner for 13-14s on the free-tier cloud engine
+    // and read as a frozen console (owner-reported); the audit7 fold cut the
+    // plan's round-trips, so a plan now takes seconds — every second still
+    // ticks the elapsed counter and 10s+ sets the honest 'engine may be cold
+    // or stalled' expectation (L55).
     beginWait('planning a k=3 cut sequence — measuring projections on an isolated copy');
     try {
       state.plan = need(await api('/api/plan'), (b) => b && typeof b === 'object'
         && (typeof b.note === 'string'
             || (Array.isArray(b.steps) && b.steps.every((x) => x && x.cut
                 && typeof x.cut.src === 'string' && typeof x.cut.rel === 'string'
-                && typeof x.cut.dst === 'string'))), '/api/plan response');
+                && typeof x.cut.dst === 'string')))
+        // M55: renderPlan dereferences these too — validate them BEFORE the
+        // render so a wrong-shape plan surfaces as an honest malformed line
+        // (both plan_cut_sequence shapes always carry k/method/base and the
+        // per-step projection fields).
+        && typeof b.k === 'number' && typeof b.method === 'string'
+        && b.base && typeof b.base.reachability === 'number'
+        && (b.steps ? b.steps.every((x) => x && typeof x.paths_on === 'number'
+                && typeof x.projected_reachability === 'number') : true),
+        '/api/plan response');
       // audit7/perf-ui: the wait ends in a receipt, not silence — pre-fix
       // the 'planning…' line outlived the plan (the card appeared below
       // while the banner still said 'planning', the exact stale read the
@@ -1287,7 +1356,7 @@
       const steps = (state.plan.steps) || [];
       banner('<span class="technique">PLAN READY</span>' +
              '<span class="res">' + (steps.length
-               ? 'k=' + esc(state.plan.k) + ' · ' + steps.length + ' step sequence ranked · projections measured on an isolated copy — review and approve it in the remediation plan card'
+               ? 'k=' + esc(state.plan.k ?? '?') + ' · ' + steps.length + ' step sequence ranked · projections measured on an isolated copy — review and approve it in the remediation plan card'
                : esc(state.plan.note || 'nothing to plan — the estate surface is already collapsed')) + '</span>');
       renderPlan();
     } catch (e) {
@@ -1322,13 +1391,13 @@
         '<span class="rel">-[' + esc(s.cut.rel) + ']-></span>' +
         '<span class="ep" title="' + esc(rawTitle(s.cut.dst)) + '">' + esc(disp(s.cut.dst)) + '</span>' +
         '</div>' +
-        '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences' +
+        '<span class="quiet">kills ' + esc(s.paths_on ?? '?') + ' path-edge occurrences' +
         // benign_usage null = NOT measured (the fast-path proposal shape) — the
         // plan card must never print the literal 'null' (audit5/live-e2e); 0
         // is a real measurement (attacker-only edge) and renders as such.
         (s.benign_usage != null ? ' · benign ' + esc(s.benign_usage) + ' of ' + esc(plan.benign_sample_size != null ? plan.benign_sample_size : '?') + ' sampled' : ' · benign not measured') +
-        ' · projected reachability ' + esc(s.projected_reachability) +
-        (done && done.after ? ' → measured ' + esc(done.after.reachability) : '') +
+        ' · projected reachability ' + esc(s.projected_reachability ?? '?') +
+        (done && done.after ? ' → measured ' + esc(done.after.reachability ?? '?') : '') +
         '</span>' +
       '</div>' +
       (notRun
@@ -1340,7 +1409,7 @@
       '</div>';
     }).join('');
     const drift = result ? String(result.status).indexOf('drift') >= 0 : false;
-    const finalReach = result && result.steps && result.steps.length ? result.steps[result.steps.length - 1].after.reachability : '?';
+    const finalReach = result && result.steps && result.steps.length ? (result.steps[result.steps.length - 1]?.after?.reachability ?? '?') : '?';
     const summary = !result ? '' :
       (drift
         ? '<div class="plan-result drift-note"><b>drift-stop at step ' + esc(result.executed_steps) + '</b> — the live re-measure diverged from the projection, so the remaining step(s) were not executed: they were computed on a surface that no longer exists. Re-plan from the current estate.</div>'
@@ -1352,16 +1421,20 @@
       ? rows + summary + (result ? '' : '<div class="actions"><button class="btn approve" id="btn-plan-approve" type="button" aria-label="Approve the whole cut sequence">APPROVE PLAN</button></div>')
       : '<div class="empty" style="padding:12px 16px">' + esc(plan.note || 'nothing to plan — surface collapsed') + '</div>';
     $('plan-body').innerHTML =
-      '<div class="plan-meta">k=' + esc(plan.k) +
-      ' · base reachability ' + esc(plan.base ? plan.base.reachability : '?') +
-      ' · ' + esc(plan.method) + ' · projections measured on an isolated copy, re-measured live at execution</div>' +
+      '<div class="plan-meta">k=' + esc(plan.k ?? '?') +
+      ' · base reachability ' + esc(plan.base ? (plan.base.reachability ?? '?') : '?') +
+      ' · ' + esc(plan.method ?? '?') + ' · projections measured on an isolated copy, re-measured live at execution</div>' +
       body +
       '<div class="sys-note">' + esc(plan.honesty || '') + '</div>';
     const b = $('btn-plan-approve');
     if (b) b.addEventListener('click', armPlanGate);
   }
   function armPlanGate() {
-    // two-step gate, same contract as a single cut's APPROVE → CONFIRM
+    // two-step gate, same contract as a single cut's APPROVE → CONFIRM.
+    // L56: page-wide armed-gate invariant — arming the plan gate disarms any
+    // armed single-cut gate (and armGate disarms this one), so at most ONE
+    // CONFIRM button is ever armed in the DOM, across both cards.
+    cancelGate();
     const cta = document.querySelector('#plan-body .actions');
     // audit6/ui-flow: same staged language as the single-cut gate — amber
     // armed flag, solid-danger CONFIRM, quiet cancel. (No Escape hint here:
@@ -1371,7 +1444,14 @@
       '<button class="btn confirm" id="btn-plan-confirm" type="button" aria-label="Confirm the plan">CONFIRM PLAN</button>' +
       '<button class="btn cancel" id="btn-plan-cancel" type="button" aria-label="Cancel the plan">cancel</button>';
     $('btn-plan-confirm').addEventListener('click', executePlan);
-    $('btn-plan-cancel').addEventListener('click', renderPlan);
+    $('btn-plan-cancel').addEventListener('click', () => {
+      // L57: the rebuild destroys the focused cancel button — restore focus
+      // to the re-rendered APPROVE PLAN button, mirroring the single-cut
+      // gate's pinned focus restoration (never drop focus to <body>).
+      renderPlan();
+      const b = $('btn-plan-approve');
+      if (b) b.focus();
+    });
     $('btn-plan-confirm').focus();
   }
   async function executePlan() {
@@ -1395,23 +1475,27 @@
           })),
         }),
       }), (b) => b && typeof b === 'object' && typeof b.status === 'string'
-        && typeof b.executed_steps === 'number' && Array.isArray(b.steps),
+        && typeof b.executed_steps === 'number' && Array.isArray(b.steps)
+        // M55: the renderers dereference steps[0].before / lastStep.after —
+        // validate the nested step shape (or its absence) up front so a torn
+        // result renders as a malformed line, never a JS stack fragment.
+        && b.steps.every((x) => x == null || (typeof x === 'object'
+            && (x.before == null || (x.before && typeof x.before.reachability === 'number'))
+            && (x.after == null || (x.after && typeof x.after.reachability === 'number')))),
         'plan result');
-      const last = r.steps && r.steps.length ? r.steps[r.steps.length - 1].after.reachability : '?';
+      const last = r.steps && r.steps.length ? (r.steps[r.steps.length - 1]?.after?.reachability ?? '?') : '?';
       // audit6/ui-flow: keep the measured per-step receipts — renderPlan
       // flips the verdict chips to live re-measures, dims the steps the
       // drift-stop skipped, and retires the APPROVE button (the sequence
       // is history once executed; a stale sequence is what drift exists
       // to prevent).
       state.planResult = r;
-      banner('<span class="technique">PLAN RECEIPT · ' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
-             'executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
-             (String(r.status).indexOf('drift') >= 0
-               ? ' · projection drift — later steps NOT executed, re-plan needed'
-               : ' · every step matched its live re-measure'));
       renderPlan();
-      // same receipt hierarchy as the single cut: the status is the hero
-      // line; the executed count and end reachability sit beneath it.
+      // same receipt hierarchy as the single cut (M58: ONE banner — the dead
+      // first banner call this render used to precede was merge debris the
+      // same-task overwrite made unseeable, and its byte string only ever
+      // existed in that dead call): the status is the hero line; the executed
+      // count and end reachability sit beneath it.
       banner('<span class="technique">PLAN RECEIPT</span>' +
              '<span class="verdict ' + (String(r.status) === 'completed' ? 'v-ok' : 'v-warn') + '">' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
              '<span class="res">executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
