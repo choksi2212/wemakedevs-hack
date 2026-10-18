@@ -744,7 +744,8 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # probe IS the cache check).
         # The fold refuses itself and falls back to the original path on any
         # dialect mismatch; an engine outage propagates to the 503 handler
-        # exactly as before. F900: on engines < 6.0.0 the arms undercount
+        # exactly as before.
+        # F900: on engines < 6.0.0 the arms undercount
         # (production served reach 0 with an owned principal) — those
         # engines answer through the port methods, exactly pre-fleet-7.
         probe = _estate_probe(port)
@@ -1193,15 +1194,23 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         return receipt
 
     @app.get("/api/receipts")
-    async def receipts(limit: int = 200) -> list[dict[str, Any]]:
-        # Bounded tail (audit5/live-e2e): the ledger is append-only and grows
-        # with every poll — every /api/state appends a line, so a day of
-        # auto-refresh plus operator traffic makes the full-ledger response
-        # grow without bound until the public deployment's worker died on it
-        # (live 502s, Oct 16 06:15Z). The UI renders the newest 40; the API
-        # ships the newest ``limit`` events (newest-last, unchanged order).
-        # The full file stays on disk for forensics — it is never the HTTP
-        # payload.
+    def receipts(limit: int = 200) -> list[dict[str, Any]]:
+        # audit M52: a plain sync def — like every other route — so FastAPI
+        # runs this in the threadpool. Pre-fix this was the ONE async
+        # handler, so log.read()'s blocking work (the cross-process sidecar
+        # flock + a full-file read of a ledger that keeps growing) stalled
+        # the single event loop for every concurrent request — including
+        # /api/health, which exists to answer inside Render's 5-second
+        # window — and contended on the same flock the /api/state appends
+        # hold. Response contract unchanged.
+        # Bounded tail (audit5/live-e2e): the ledger is append-only and
+        # grows with every state TRANSITION (change-only logging — not with
+        # every poll), so a day of auto-refresh plus operator traffic makes
+        # the full-ledger response grow without bound until the public
+        # deployment's worker died on it (live 502s, Oct 16 06:15Z). The UI
+        # renders the newest 40; the API ships the newest ``limit`` events
+        # (newest-last, unchanged order). The full file stays on disk for
+        # forensics — it is never the HTTP payload.
         limit = max(1, min(limit, 5000))
         events = log.read()
         return events[-limit:] if limit < len(events) else events
