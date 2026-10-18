@@ -5,6 +5,7 @@ staged-batch tests — one emission path, one engine.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -47,22 +48,26 @@ def node_batches(g: NormalizedGraph, batch_rows: int = DEFAULT_BATCH_ROWS) -> li
 
 
 def edge_batches(g: NormalizedGraph, batch_rows: int = DEFAULT_BATCH_ROWS) -> list[dict[str, Any]]:
-    """Group edges by relationship type -> UNWIND ... MATCH/MERGE batches."""
+    """Group edges by relationship type -> UNWIND ... MATCH/MERGE batches.
+
+    A rel group may be MIXED: MEMBER_OF, for instance, carries prop-less
+    Members-derived rows and prop-carrying PrimaryGroupSID-derived rows
+    ({"primary": True}) in one group. The query shape is therefore chosen
+    per SUB-BATCH, never from rows[0] alone: each rel group splits into a
+    has-props and a no-props sub-batch so a prop-less first row can never
+    select the no-props MERGE for prop-carrying rows (audit M65 — that
+    shape silently dropped every later row's props at Cypher load, gated
+    only on edge insertion order).
+    """
     by_rel: dict[str, list[dict[str, Any]]] = {}
     for edge in g.edges.values():
         row = {"src": edge["src"], "dst": edge["dst"], "props": edge["props"]}
         by_rel.setdefault(edge["rel"], []).append(row)
 
     batches: list[dict[str, Any]] = []
-    for rel, rows in sorted(by_rel.items()):
-        if not _is_safe_rel(rel):
-            # fail loud: a collector data file that produces a rel outside the
-            # identifier charset is either corrupt or hostile — never load it.
-            raise ValueError(
-                f"unsafe relationship type in collector data (rejected before "
-                f"Cypher interpolation): {rel!r}"
-            )
-        if rows and rows[0]["props"]:
+
+    def _emit(rel: str, rows: list[dict[str, Any]], with_props: bool) -> None:
+        if with_props:
             query = (
                 f"UNWIND $rows AS e "
                 f"MATCH (s {{objectid: e.src}}), (t {{objectid: e.dst}}) "
@@ -71,9 +76,7 @@ def edge_batches(g: NormalizedGraph, batch_rows: int = DEFAULT_BATCH_ROWS) -> li
             )
             for row in rows:
                 # canonical key so duplicate prop-variants stay distinct rels
-                import json as _json
-
-                row["props_key"] = _json.dumps(row["props"], sort_keys=True, default=str)
+                row["props_key"] = json.dumps(row["props"], sort_keys=True, default=str)
         else:
             query = (
                 f"UNWIND $rows AS e "
@@ -82,6 +85,21 @@ def edge_batches(g: NormalizedGraph, batch_rows: int = DEFAULT_BATCH_ROWS) -> li
             )
         for i in range(0, len(rows), batch_rows):
             batches.append({"kind": "edge", "query": query, "params": {"rows": rows[i : i + batch_rows]}})
+
+    for rel, rows in sorted(by_rel.items()):
+        if not _is_safe_rel(rel):
+            # fail loud: a collector data file that produces a rel outside the
+            # identifier charset is either corrupt or hostile — never load it.
+            raise ValueError(
+                f"unsafe relationship type in collector data (rejected before "
+                f"Cypher interpolation): {rel!r}"
+            )
+        with_props = [row for row in rows if row["props"]]
+        without_props = [row for row in rows if not row["props"]]
+        if with_props:
+            _emit(rel, with_props, True)
+        if without_props:
+            _emit(rel, without_props, False)
     return batches
 
 

@@ -17,8 +17,6 @@ from typing import Any
 
 from sever.etl.ad_collectors import NormalizedGraph
 
-GA_HOLDER_SUFFIX = "-GlobalAdministrator"
-
 # kind -> (label, id_field)
 _KIND_LABELS: dict[str, tuple[str, str]] = {
     "AZUser": ("AZUser", "id"),
@@ -295,8 +293,14 @@ def parse_entra_file(path: str | Path) -> NormalizedGraph:
                 g.add_edge(src, dst, rel, {"source_kind": kind})
             else:
                 # list-shaped kind with a non-list value: str() would emit a
-                # garbage edge — count it instead
-                skipped[f"edge_malformed_src:{kind}"] = skipped.get(f"edge_malformed_src:{kind}", 0) + 1
+                # garbage edge — count it instead. NULL (or an absent key) is
+                # NOT that case: it is the ordinary "no owners/members
+                # recorded" encoding (9,673 records in the official sample
+                # carry owners/members: null) — empty and uncounted, exactly
+                # like the AD parser's _list_field treats the same shape
+                # (audit M66: these were miscounted as edge_malformed_src).
+                if entries is not None:
+                    skipped[f"edge_malformed_src:{kind}"] = skipped.get(f"edge_malformed_src:{kind}", 0) + 1
 
     g.stats = {
         "records": len(records),
@@ -333,7 +337,18 @@ def merge_entra(ad: NormalizedGraph, entra: NormalizedGraph, bidirectional: bool
 
     for oid, node in entra.nodes.items():
         if oid in merged.nodes:
-            merged.add_node(oid, node["label"], node["props"])  # merge props
+            # collision: merge props, but an ``unresolved`` flag must never
+            # leak onto a principal the other side resolved (audit L69: an
+            # entra placeholder colliding with a resolved AD principal used
+            # to flag that principal unresolved). The RESOLVED record wins
+            # in both directions: strip the placeholder's flag before
+            # merging, and drop a stale AD-side flag when the entra record
+            # is itself resolved.
+            props = dict(node.get("props", {}))
+            entra_unresolved = props.pop("unresolved", None)
+            merged.add_node(oid, node["label"], props)
+            if entra_unresolved is None:
+                merged.nodes[oid]["props"].pop("unresolved", None)
         else:
             merged.nodes[oid] = {"objectid": oid, "label": node["label"], "props": dict(node["props"])}
     for edge in entra.edges.values():
