@@ -649,8 +649,11 @@ def do_caselog_live(args: argparse.Namespace) -> int:
         # console logs that console's OWN copy of the estate transition (the
         # console logs state only when the key CHANGES). After this both
         # processes' keys are current and identical polls append NOTHING.
-        settle = _post_json(p1, "/api/finding",
-                            {"kind": "credential_breach", "subject": HERO})
+        try:
+            settle = _post_json(p1, "/api/finding",
+                                {"kind": "credential_breach", "subject": HERO})
+        except Exception as exc:  # the beat fails loud, never crashes mid-receipt
+            settle = {"status": 0, "body": {"error": str(exc)[:120]}}
         receipt["settle_finding"] = {"status": settle["status"],
                                      "applied": settle["body"].get("applied")}
         _check(settle["status"] == 200, "settle finding accepted (real transition)", failures)

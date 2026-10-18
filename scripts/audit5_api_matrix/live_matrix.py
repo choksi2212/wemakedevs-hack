@@ -120,21 +120,23 @@ r = check("get_proposal", "GET", "/api/proposal", 200, "GET /api/proposal ranked
 
 # security headers on every response (audit3/pentest-external contract) —
 # through call() like every other probe, so one Render free-tier flap cannot
-# crash the whole sweep before the result is recorded (audit9/M33)
-r = call("GET", "/api/state")
+# crash the whole sweep before the result is recorded (audit9/M33); even a
+# total transport failure records an honest FAIL instead of raising
+try:
+    r = call("GET", "/api/state")
 
+    def _hdr(k):
+        return r.headers.get(k)
 
-def _hdr(k):
-    return r.headers.get(k)
-
-
-hdr_ok = {
-    "X-Content-Type-Options": _hdr("X-Content-Type-Options") == "nosniff",
-    "X-Frame-Options": _hdr("X-Frame-Options") == "DENY",
-    "Referrer-Policy": _hdr("Referrer-Policy") == "no-referrer",
-    "CSP": bool(_hdr("Content-Security-Policy")),
-    "HSTS": bool(_hdr("Strict-Transport-Security")),
-}
+    hdr_ok = {
+        "X-Content-Type-Options": _hdr("X-Content-Type-Options") == "nosniff",
+        "X-Frame-Options": _hdr("X-Frame-Options") == "DENY",
+        "Referrer-Policy": _hdr("Referrer-Policy") == "no-referrer",
+        "CSP": bool(_hdr("Content-Security-Policy")),
+        "HSTS": bool(_hdr("Strict-Transport-Security")),
+    }
+except Exception as e:
+    hdr_ok = {"transport_error": str(e)[:200]}
 results.append({"id": "security_headers", "desc": "hardening headers on /api/state", "expected": "all", "actual": hdr_ok, "pass": all(hdr_ok.values())})
 print("security_headers", hdr_ok, flush=True)
 
