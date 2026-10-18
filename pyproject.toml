@@ -1,6 +1,6 @@
 [project]
 name = "sever"
-version = "0.1.0"
+version = "1.0.0"
 description = "SEVER — attack-path interdiction agent for identity graphs on FalkorDB"
 readme = "README.md"
 license = {text = "MIT"}
