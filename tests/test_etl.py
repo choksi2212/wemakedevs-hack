@@ -42,9 +42,13 @@ def stats(graph):
 
 @requires_sample
 def test_parses_all_files(stats):
+    # exact pins: the docs (README §12, JUDGE_QA) attribute the estate's
+    # 1,480 nodes / 12,450 edges to THIS file — loose bounds would let the
+    # estate drift silently (audit M76/X10; values live-verified against the
+    # official SpecterOps sample and also engine-pinned in tests/test_ports.py)
     assert stats["files"] == 31
-    assert stats["node_count"] > 1400
-    assert stats["edge_count"] > 12000
+    assert stats["node_count"] == 1480
+    assert stats["edge_count"] == 12450
 
 
 @requires_sample
@@ -69,7 +73,7 @@ def test_domains_include_three_sample_domains(stats):
 
 
 @requires_sample
-def test_unresolved_principal_nodes_created_only_for_missing_refs(graph):
+def test_unresolved_principal_count_in_expected_band(graph):
     unresolved = [n for n in graph.nodes.values() if n["props"].get("unresolved")]
     assert 5 <= len(unresolved) <= 20
 
@@ -111,7 +115,7 @@ def test_abusable_rels_intersect_parsed_rels(stats):
 
 
 @requires_sample
-def test_parse_is_deterministic():
+def test_parse_is_deterministic_nodes():
     g1 = parse_ad_dir(SAMPLE_DIR)
     g2 = parse_ad_dir(SAMPLE_DIR)
     s1 = json.dumps(
@@ -127,18 +131,9 @@ def test_parse_is_deterministic():
 def test_parse_is_deterministic_edge_set_hash():
     """Two parses of the same directory must yield an identical EDGE set —
     hashed, not just node-compared: the edge dict is the attack-path substrate."""
-    import hashlib
-
-    def edge_hash(g):
-        payload = sorted(
-            (e["src"], e["dst"], e["rel"], json.dumps(e["props"], sort_keys=True, default=str))
-            for e in g.edges.values()
-        )
-        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
-
     g1 = parse_ad_dir(SAMPLE_DIR)
     g2 = parse_ad_dir(SAMPLE_DIR)
-    assert edge_hash(g1) == edge_hash(g2)
+    assert _edge_hash(g1) == _edge_hash(g2)
     assert len(g1.edges) == len(g2.edges) > 0
 
 
@@ -152,7 +147,7 @@ def test_local_admin_edges_derived_from_localgroups_results(graph):
     semantics — sample also lists Users/Guests/RemoteDesktopUsers)."""
     admin_to = [e for e in graph.edges.values() if e["rel"] == "ADMIN_TO"]
     assert len(admin_to) >= 10
-    # concrete: BUILTIN Administrator (RID -500) is local admin of DC01
+    # concrete: the domain Administrator (RID -500) is local admin of DC01
     dc01 = "S-1-5-21-2697957641-2271029196-387917394-1000"
     assert any(
         e["src"].endswith("-500") and e["dst"] == dc01 for e in admin_to
@@ -196,6 +191,43 @@ def test_abusable_rels_cover_every_emitted_traversable_rel(graph):
 
     emitted = set(graph.stats["rel_counts"])
     assert emitted & TRAVERSAL_RELS_SET <= ABUSABLE_RELS
+    # owner resolution #3: the sample's cert-template PKI flag writes
+    # (WRITE_PKIENROLLMENT_FLAG / WRITE_PKINAME_FLAG, 2+2 edges) now chain —
+    # they must be in BOTH enums
+    assert {"WRITE_PKIENROLLMENT_FLAG", "WRITE_PKINAME_FLAG"} <= (
+        TRAVERSAL_RELS_SET & ABUSABLE_RELS
+    )
+    assert "WRITE_PKIENROLLMENT_FLAG" in emitted and "WRITE_PKINAME_FLAG" in emitted
+
+
+def test_traversal_and_abusable_enums_are_two_way_aligned():
+    """Owner resolution #3 (audit M64/X14/L94): the traversal set and the
+    ETL's documented abusable enum are aligned BOTH ways, DB-free and
+    sample-free —
+
+    - every AD-side rel the engine can chain is listed in ABUSABLE_RELS
+      (the one-directional sample test above cannot catch omissions the
+      sample happens not to emit, e.g. EXTENDED_RIGHT/GENERIC_RIGHT);
+    - every abusable rel is attacker-chainable in TRAVERSAL_RELS except
+      the one documented exception (ENROLL — BloodHound CE marks the
+      Enroll edge non-traversable too);
+    - the traversal set counts 45 (43 + the two PKI flag rights) — the
+      number README §1 / GRAPH_MODEL / CYPHER.md publish.
+    """
+    from sever.core.jewels import TRAVERSAL_RELS, TRAVERSAL_RELS_SET
+
+    assert len(TRAVERSAL_RELS) == 45
+    hybrid = {r for r in TRAVERSAL_RELS if r.startswith("AZ")} | {"SYNCED_TO"}
+    ad_traversal = TRAVERSAL_RELS_SET - hybrid
+    # traversable (AD-side) => abusable/documented
+    assert ad_traversal <= ABUSABLE_RELS, sorted(ad_traversal - ABUSABLE_RELS)
+    # abusable => chainable, minus the documented non-traversable exception
+    non_traversable = ABUSABLE_RELS - TRAVERSAL_RELS_SET
+    assert non_traversable == {"ENROLL"}, sorted(non_traversable)
+    # the four audit-flagged rels are in both enums
+    assert {"WRITE_PKIENROLLMENT_FLAG", "WRITE_PKINAME_FLAG",
+            "EXTENDED_RIGHT", "GENERIC_RIGHT"} <= ABUSABLE_RELS
+    assert {"WRITE_PKIENROLLMENT_FLAG", "WRITE_PKINAME_FLAG"} <= TRAVERSAL_RELS_SET
 
 
 # ---- Cypher batch emission ----
@@ -224,6 +256,57 @@ def test_batch_query_shapes(graph):
 @requires_sample
 def test_no_empty_batches(graph):
     assert all(len(b["params"]["rows"]) > 0 for b in build_batches(graph))
+
+
+def test_mixed_prop_rel_group_preserves_props_regardless_of_row_order(tmp_path):
+    """audit M65: the per-rel query shape used to be chosen from rows[0]
+    alone, so a mixed rel group whose FIRST row has empty props silently
+    dropped every later row's props at Cypher load. MEMBER_OF is inherently
+    mixed; the groups file sorts before users, so the prop-less
+    Members-derived edge is row 0 here — the exact shape the official
+    sample escapes only by luck (a computer's primary-group edge sorts
+    first there).
+    """
+    _collector_file(
+        tmp_path, "20240101000000_groups.json",
+        {"data": [
+            {"ObjectIdentifier": "S-g1", "Properties": {"name": "g1"}, "Members": [
+                {"ObjectIdentifier": "S-u2", "ObjectType": "User"},
+            ]},
+        ]},
+    )
+    _collector_file(
+        tmp_path, "20240101000000_users.json",
+        {"data": [
+            {"ObjectIdentifier": "S-u2", "Properties": {"name": "u2"},
+             "PrimaryGroupSID": "S-g1"},
+        ]},
+    )
+    g = parse_ad_dir(tmp_path)
+    mo = [e for e in g.edges.values() if e["rel"] == "MEMBER_OF"]
+    assert len(mo) == 2  # the prop-less member edge AND the primary edge
+    batches = [b for b in edge_batches(g) if b["kind"] == "edge"
+               and "MEMBER_OF" in b["query"]]
+    assert len(batches) == 2  # split: one has-props sub-batch, one no-props
+    # the prop-carrying row rides the props_key MERGE with its props intact
+    props_batch = next(b for b in batches if "props_key" in b["query"])
+    assert len(props_batch["params"]["rows"]) == 1
+    row = props_batch["params"]["rows"][0]
+    assert row["props"] == {"primary": True}
+    assert row["props_key"] == '{"primary": true}'
+    # the prop-less row keeps the plain MERGE — no props_key invented for it
+    plain_batch = next(b for b in batches if "props_key" not in b["query"])
+    assert len(plain_batch["params"]["rows"]) == 1
+    assert "props_key" not in plain_batch["params"]["rows"][0]
+    # every emitted batch is homogeneous (all rows carry props_key or none do)
+    # and the split still covers every edge exactly once
+    for b in edge_batches(g):
+        if b["kind"] != "edge":
+            continue
+        rows = b["params"]["rows"]
+        assert all("props_key" in r for r in rows) or all(
+            "props_key" not in r for r in rows), b["query"]
+    assert sum(len(b["params"]["rows"]) for b in batches) == len(g.edges)
 
 
 # ---- edge cases on synthetic collector dirs (fast, deterministic, DB-free) ----
@@ -306,6 +389,37 @@ def test_file_type_detection_is_case_insensitive_and_tolerates_bare_stems(tmp_pa
     _collector_file(tmp_path, "gibberish.json", {"data": []})
     g = parse_ad_dir(tmp_path)
     assert g.stats["skipped"] == {"unknown_type:gibberish": 1}  # bare unknown stem counted too
+
+
+def test_meta_type_mismatch_is_counted_filename_stays_authoritative(tmp_path):
+    """audit L66: the document's meta.type was never read or cross-checked
+    against the filename-derived collector type. A divergence between the
+    two is now visible under ``type_mismatch:{file}`` — and the FILENAME
+    stays authoritative, so typing never changes."""
+    _collector_file(
+        tmp_path, "20240101000000_users.json",
+        {"meta": {"type": "computers", "version": 6},
+         "data": [{"ObjectIdentifier": "S-u1", "Properties": {"name": "u1"}}]},
+    )
+    _collector_file(
+        tmp_path, "20240101000000_groups.json",
+        {"meta": {"type": "groups", "version": 6},
+         "data": [{"ObjectIdentifier": "S-g1", "Properties": {"name": "g1"}}]},
+    )
+    g = parse_ad_dir(tmp_path)
+    # the users file's meta claims computers -> exactly one visible mismatch
+    assert g.stats["skipped"] == {"type_mismatch:20240101000000_users.json": 1}
+    # typing stays filename-derived: the record is still a User
+    assert g.nodes["S-u1"]["label"] == "User"
+    assert g.nodes["S-g1"]["label"] == "Group"
+    # an unknown meta type (not in TYPE_LABEL) is NOT a mismatch: the
+    # filename remains the only typing authority for unrecognized meta
+    _collector_file(
+        tmp_path, "20240101000000_computers.json",
+        {"meta": {"type": "gibberish-meta", "version": 6}, "data": []},
+    )
+    g = parse_ad_dir(tmp_path)
+    assert g.stats["skipped"] == {"type_mismatch:20240101000000_users.json": 1}
 
 
 def test_records_missing_objectid_are_counted(tmp_path):
