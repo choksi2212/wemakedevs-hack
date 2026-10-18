@@ -36,12 +36,28 @@ Remove-Item Env:\SEVER_CONSOLE_NO_BOOTSTRAP -ErrorAction SilentlyContinue
 $clean = @'
 import redis
 r = redis.Redis(host="127.0.0.1", port=6379)
-for g in ("sever_audit5_apimatrix", "sever_audit5_apimatrix_plan_scratch"):
+for g in ("sever_audit5_apimatrix",):
     try:
         r.execute_command("GRAPH.DELETE", g)
         print("deleted:", g)
     except Exception as e:
         print("skip:", g, type(e).__name__)
+# plan scratch keys carry a random hex suffix ("{graph}_plan_scratch_<hex>",
+# sever/core/scoring.py) — enumerate and delete each; the old FIXED key name
+# could never match a key the product actually creates (audit9/L31)
+cur, keys = r.scan(cursor=0, match="sever_audit5_apimatrix_plan_scratch*")
+while True:
+    for k in keys:
+        name = k.decode() if isinstance(k, bytes) else k
+        try:
+            r.execute_command("GRAPH.DELETE", name)
+            print("deleted:", name)
+        except Exception:
+            r.delete(name)
+            print("del:", name)
+    if cur == 0:
+        break
+    cur, keys = r.scan(cursor=cur, match="sever_audit5_apimatrix_plan_scratch*")
 '@
 $clean | Set-Content -Encoding ASCII "$env:TEMP\audit5_clean.py"
 $poll = @'
@@ -76,24 +92,31 @@ Remove-Item "$Wt\out\cases\sever_audit5_apimatrix*" -Force -ErrorAction Silently
 Remove-Item "$Wt\out\audit5_own_results.jsonl*" -Force -ErrorAction SilentlyContinue
 
 "=== boot console A (8305) ==="
-$p1 = Start-Process -FilePath $Py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8305' -WorkingDirectory $Wt -PassThru -WindowStyle Hidden -RedirectStandardError "$Wt\uvicorn_a.err.log" -RedirectStandardOutput "$Wt\uvicorn_a.out.log"
-& $Py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8305
-if ($LASTEXITCODE -ne 0) { throw 'console A not ready' }
+# audit9/L32: boot->run->stop is wrapped in try/finally — a failed readiness
+# poll used to throw with console A already started, orphaning the uvicorn
+# process; the finally always stops both consoles
+$p1 = $null
+$p2 = $null
+try {
+    $p1 = Start-Process -FilePath $Py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8305' -WorkingDirectory $Wt -PassThru -WindowStyle Hidden -RedirectStandardError "$Wt\uvicorn_a.err.log" -RedirectStandardOutput "$Wt\uvicorn_a.out.log"
+    & $Py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8305
+    if ($LASTEXITCODE -ne 0) { throw 'console A not ready' }
 
-"=== boot console B (8306) ==="
-$p2 = Start-Process -FilePath $Py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8306' -WorkingDirectory $Wt -PassThru -WindowStyle Hidden -RedirectStandardError "$Wt\uvicorn_b.err.log" -RedirectStandardOutput "$Wt\uvicorn_b.out.log"
-& $Py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8306
-if ($LASTEXITCODE -ne 0) { throw 'console B not ready' }
+    "=== boot console B (8306) ==="
+    $p2 = Start-Process -FilePath $Py -ArgumentList '-m','uvicorn','sever.console.app:app','--host','127.0.0.1','--port','8306' -WorkingDirectory $Wt -PassThru -WindowStyle Hidden -RedirectStandardError "$Wt\uvicorn_b.err.log" -RedirectStandardOutput "$Wt\uvicorn_b.out.log"
+    & $Py "$env:TEMP\audit5_poll.py" http://127.0.0.1:8306
+    if ($LASTEXITCODE -ne 0) { throw 'console B not ready' }
 
-"=== run destructive matrix ==="
-& $Py "$PSScriptRoot\own_matrix.py"
-$mx = $LASTEXITCODE
-"matrix exit code: $mx"
-
-"=== stop consoles ==="
-Stop-Process -Id $p1.Id -Force -ErrorAction SilentlyContinue
-Stop-Process -Id $p2.Id -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 1
+    "=== run destructive matrix ==="
+    & $Py "$PSScriptRoot\own_matrix.py"
+    $mx = $LASTEXITCODE
+    "matrix exit code: $mx"
+} finally {
+    "=== stop consoles ==="
+    if ($p1) { Stop-Process -Id $p1.Id -Force -ErrorAction SilentlyContinue }
+    if ($p2) { Stop-Process -Id $p2.Id -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 1
+}
 
 "=== cleanup graph + ledger ==="
 & $Py "$env:TEMP\audit5_clean.py"

@@ -12,6 +12,8 @@ Phases:
   5 drift-stop with tampered projections on REAL steps
   6 cross-process concurrent ledger storm (two consoles, one ledger)
   7 engine-stall -> 503 everywhere + honest cut_failed ledger record
+    (Windows-only: NtSuspendProcess + netstat/tasklist — guarded on other
+    platforms so the ledger/summary still get written)
   8 final ledger integrity (append-only, parseable, ordered)
 """
 from __future__ import annotations
@@ -31,6 +33,13 @@ HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 GMSA = "S-1-5-21-2697957641-2271029196-387917394-2102"
 GHOST = "S-1-5-21-2697957641-2271029196-387917394-9999"
 OUT = sys.argv[1] if len(sys.argv) > 1 else "audit5_own_results.jsonl"
+RECEIPTS_WINDOW = 5000  # /api/receipts documented max (the handler clamps 1..5000)
+
+# fresh run, fresh jsonl (audit9/L28): a re-run must not silently double the
+# results file while the summary reflects only the last run
+with open(OUT, "w", encoding="utf-8"):
+    pass
+
 results: list[dict] = []
 
 
@@ -82,7 +91,10 @@ def get(cid, url, expected, desc, expect_pred=None, timeout=45):
 
 
 def receipts(base=A):
-    r = call("GET", base + "/api/receipts", timeout=60)
+    # limit-aware read (audit9/M36): the default window is only the newest 200
+    # events — with a ledger past 200 every count below would clamp at the
+    # window and the storm delta could never be measured
+    r = call("GET", base + f"/api/receipts?limit={RECEIPTS_WINDOW}", timeout=60)
     return r.json() if r.status_code == 200 else None
 
 
@@ -125,7 +137,15 @@ base_count = len(base_receipts)
 print("baseline state:", {k: base_state[k] for k in ("nodes", "edges", "reachability", "owned")}, "| receipts:", base_count, flush=True)
 with open(OUT + ".baseline", "w", encoding="utf-8") as f:
     json.dump({"state": base_state, "receipts": base_receipts}, f)
-assert base_state["reachability"] == 0, "fresh graph must start collapsed"
+# audit9/L28: recorded FAIL + exit 2 instead of a bare assert — a reused graph
+# makes every later mutation assertion a lie, and the clean slate is the
+# runbook's job (run_own_ryzen.ps1)
+if base_state["reachability"] != 0:
+    record({"id": "o_fresh_estate_collapsed", "desc": "fresh graph must start collapsed",
+            "expected": 0, "actual": base_state["reachability"], "pass": False,
+            "body": "graph is not fresh — run run_own_ryzen.ps1 (clean slate) before own_matrix.py"})
+    print(f"{'o_fresh_estate_collapsed':36} reach={base_state['reachability']} FAIL graph is not fresh", flush=True)
+    sys.exit(2)
 
 # ---------------------------------------------------------------- phase 2
 print("=== PHASE 2: rejection matrix ===", flush=True)
@@ -178,8 +198,12 @@ def sized(n):
     return b
 
 
-raw("o_c_body_999999", C, sized(999_999), 422, "999999B body under cap reaches schema")
-raw("o_c_body_1000000", C, sized(1_000_000), 422, "1000000B body at cap reaches schema")
+# audit9/M35: CutRequest drops unknown extras (no extra="forbid"), so these
+# sized bodies are VALID cuts with approved=false — the schema passes them,
+# the human gate refuses: 403, not 422. (live_matrix's c_body_just_under_1mb
+# asserts the same 403 on the same shape — the two harnesses now agree.)
+raw("o_c_body_999999", C, sized(999_999), 403, "999999B valid cut under cap -> gate 403")
+raw("o_c_body_1000000", C, sized(1_000_000), 403, "1000000B valid cut at cap -> gate 403")
 raw("o_c_body_1000001", C, sized(1_000_001), 413, "1000001B body over cap -> 413")
 raw("o_c_body_2mb", C, b'{"pad":"' + b"x" * 2_100_000 + b'"}', 413, "2MB junk body -> 413")
 
@@ -215,6 +239,12 @@ def chunked_413(url, total=1_600_000, chunk=100_000):
 
 
 code, sample = chunked_413(A)
+# audit9/N11: on a REAL uvicorn socket (both this own-instance run and the
+# deployed console — live-measured 2026-10-18) the middleware's own 413
+# wins the race, so the expectation stays strict 413. FastAPI's TestClient
+# surfaces the same aborted body-read as its own 400, which is why
+# tests/test_body_size_limit.py pins status in (400, 413) — documented in
+# the README so the two artifacts cannot be read as contradicting each other.
 rec = {"id": "o_c_chunked_413", "desc": "chunked 1.6MB -> 413 (streaming path)", "expected": ["413"], "actual": code, "pass": code == "413"}
 if code != "413":
     rec["body"] = sample.decode("utf-8", "replace")
@@ -245,7 +275,9 @@ print(f"{'o_state_after_breach':36} reach={s1['reachability']} {'ok ' if rec['pa
 record(rec)
 
 r = call("GET", A + "/api/paths")
-REALDST = r.json()["paths"][0]["hops"][0]["dst"]
+# dst_id, not the display NAME (audit9/L29) — live_matrix reads dst_id for
+# the same field, and the value is only printed as a diagnostic here
+REALDST = r.json()["paths"][0]["hops"][0]["dst_id"]
 print("REALDST:", REALDST, flush=True)
 
 jpost("o_f_ace_adds_edge", F, {"kind": "ace_granted", "subject": HERO, "target": GMSA, "rel": "GENERIC_ALL"}, 200,
@@ -373,6 +405,12 @@ record(rec)
 
 # ---------------------------------------------------------------- phase 6
 print("=== PHASE 6: cross-process concurrent ledger storm ===", flush=True)
+# settle BOTH consoles' change-only state keys BEFORE counting (audit9/M36):
+# a console appends a state line only when the (reachability, nodes, edges)
+# key CHANGES, so a console whose last poll saw a stale estate would log ONE
+# transition line mid-storm and break the exact delta below
+call("GET", A + "/api/state")
+call("GET", B + "/api/state")
 pre_storm = len(receipts(A))
 errors: list = []
 
@@ -402,7 +440,12 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
     f2.result()
 
 post_storm = len(receipts(A))
-expected_new = 2 * (25 + 15)  # hostile 422s write nothing
+# audit9/M36: count only the GUARANTEED writes — one ledger line per accepted
+# finding post (2 x 15). Identical /api/state polls append nothing under the
+# console's change-only state logging (audit5), and hostile 422s write
+# nothing; the old 2*(25+15)=80 expectation counted state polls as writes
+# and failed as shipped (delta was 30, or 30..32 with stale keys).
+expected_new = 2 * 15
 ok6, notes6 = ledger_integrity([A, B])
 rec = {"id": "o_concurrent_ledger", "desc": "two consoles, concurrent writers, one append-only ledger",
        "expected": f"+{expected_new} entries, parseable, ordered, both views equal",
@@ -413,61 +456,85 @@ print(f"{'o_concurrent_ledger':36} {pre_storm}->{post_storm} (exp +{expected_new
 record(rec)
 
 # ---------------------------------------------------------------- phase 7
-print("=== PHASE 7: engine stall -> 503 ===", flush=True)
-pid_out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
-pid = None
-for line in pid_out.splitlines():
-    if ":6379" in line and "LISTENING" in line and ("0.0.0.0" in line or "127.0.0.1" in line):
-        pid = int(line.split()[-1])
-        break
-name_out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True).stdout
-print("falkordb pid:", pid, "|", " ".join(name_out.split()[-2:]), flush=True)
+print("=== PHASE 7: engine stall -> 503 (Windows-only: NtSuspendProcess) ===", flush=True)
+# audit9/L30: the whole phase is guarded so a missing pid (or a non-Windows
+# host) records an honest FAIL and phases 8 + the summary ALWAYS run — the
+# old code flowed pid=None into tasklist/OpenProcess and the escaped
+# OSError killed the run before the ledger/summary were written.
+if sys.platform != "win32":
+    rec = {"id": "o503_windows_only", "desc": "induced engine stall needs Windows (NtSuspendProcess)",
+           "expected": "run via run_own_ryzen.ps1 on Windows", "actual": sys.platform, "pass": False}
+    print(f"{'o503_windows_only':36} {sys.platform} FAIL phase 7 is Windows-only", flush=True)
+    record(rec)
+else:
+    pid_out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
+    pid = None
+    for line in pid_out.splitlines():
+        if ":6379" in line and "LISTENING" in line and ("0.0.0.0" in line or "127.0.0.1" in line):
+            pid = int(line.split()[-1])
+            break
+    if pid is None:
+        # fail FAST with a clear message before touching any handle
+        rec = {"id": "o503_engine_pid", "desc": "resolve the FalkorDB pid (netstat :6379 LISTENING)",
+               "expected": "a LISTENING pid on :6379", "actual": "none found", "pass": False,
+               "body": "no LISTENING :6379 line matched — is the engine up on this host?"}
+        print(f"{'o503_engine_pid':36} FAIL no LISTENING pid on :6379 — stall probes skipped", flush=True)
+        record(rec)
+    else:
+        name_out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True).stdout
+        print("falkordb pid:", pid, "|", " ".join(name_out.split()[-2:]), flush=True)
 
-k32 = ctypes.windll.kernel32
-ntdll = ctypes.windll.ntdll
-PROCESS_SUSPEND_RESUME = 0x0800
-handle = k32.OpenProcess(PROCESS_SUSPEND_RESUME, False, pid)
-suspended = False
-try:
-    if not handle:
-        raise OSError(f"OpenProcess({pid}) failed")
-    ntdll.NtSuspendProcess(handle)
-    suspended = True
-    time.sleep(0.5)
-    print("engine SUSPENDED", flush=True)
+        k32 = ctypes.windll.kernel32
+        ntdll = ctypes.windll.ntdll
+        PROCESS_SUSPEND_RESUME = 0x0800
+        handle = k32.OpenProcess(PROCESS_SUSPEND_RESUME, False, pid)
+        suspended = False
+        try:
+            if not handle:
+                raise OSError(f"OpenProcess({pid}) failed")
+            ntdll.NtSuspendProcess(handle)
+            suspended = True
+            time.sleep(0.5)
+            print("engine SUSPENDED", flush=True)
 
-    def stall_pred(r):
-        return {"elapsed_s": round(r.elapsed.total_seconds(), 1),
-                "json_body": r.text.strip().startswith("{"),
-                "engine_detail": "engine unreachable" in r.text}
+            def stall_pred(r):
+                return {"elapsed_s": round(r.elapsed.total_seconds(), 1),
+                        "json_body": r.text.strip().startswith("{"),
+                        "engine_detail": "engine unreachable" in r.text}
 
-    get("o503_state", A + "/api/state", 503, "stalled engine: GET /api/state -> 503 JSON", expect_pred=stall_pred)
-    jpost("o503_cut_midflight", C, {"src": HERO, "dst": GHOST, "rel": "GENERIC_ALL", "approved": True}, 503,
-          "stalled engine: approved cut mid-flight -> 503 (honest unknown)", expect_pred=stall_pred)
-    jpost("o503_finding", F, {"kind": "credential_breach", "subject": HERO}, 503,
-          "stalled engine: finding -> 503 (pre-mutation probe)", expect_pred=stall_pred)
-    get("o503_receipts_200", A + "/api/receipts", 200,
-        "stalled engine: ledger file stays readable (200), trail survives outage",
-        expect_pred=lambda r: {"parseable": isinstance(r.json(), list)})
-finally:
-    if suspended and handle:
-        ntdll.NtResumeProcess(handle)
-        print("engine RESUMED", flush=True)
-    if handle:
-        k32.CloseHandle(handle)
+            get("o503_state", A + "/api/state", 503, "stalled engine: GET /api/state -> 503 JSON", expect_pred=stall_pred)
+            jpost("o503_cut_midflight", C, {"src": HERO, "dst": GHOST, "rel": "GENERIC_ALL", "approved": True}, 503,
+                  "stalled engine: approved cut mid-flight -> 503 (honest unknown)", expect_pred=stall_pred)
+            jpost("o503_finding", F, {"kind": "credential_breach", "subject": HERO}, 503,
+                  "stalled engine: finding -> 503 (pre-mutation probe)", expect_pred=stall_pred)
+            get("o503_receipts_200", A + "/api/receipts", 200,
+                "stalled engine: ledger file stays readable (200), trail survives outage",
+                expect_pred=lambda r: {"parseable": isinstance(r.json(), list)})
+        except OSError as e:
+            rec = {"id": "o503_suspend_failed", "desc": "NtSuspendProcess on the engine pid",
+                   "expected": "engine suspended for the 503 probes", "actual": str(e)[:200], "pass": False}
+            print(f"{'o503_suspend_failed':36} FAIL {e}", flush=True)
+            record(rec)
+        finally:
+            if suspended and handle:
+                ntdll.NtResumeProcess(handle)
+                print("engine RESUMED", flush=True)
+            if handle:
+                k32.CloseHandle(handle)
 
-time.sleep(1.0)
-get("o503_recovery_state", A + "/api/state", 200, "engine resumed: console recovers -> 200",
-    expect_pred=lambda r: {"backend_ok": r.json().get("backend") == "falkordb"})
+        if suspended:
+            time.sleep(1.0)
+            get("o503_recovery_state", A + "/api/state", 200, "engine resumed: console recovers -> 200",
+                expect_pred=lambda r: {"backend_ok": r.json().get("backend") == "falkordb"})
 
-recs_after_stall = receipts(A)
-cut_failed = [e for e in recs_after_stall if e.get("step") == "cut_failed"]
-rec = {"id": "o503_cut_failed_ledger", "desc": "mid-flight cut recorded as cut_failed outcome=unknown",
-       "expected": ">=1 cut_failed entry with outcome unknown + approved_by",
-       "actual": cut_failed[-1] if cut_failed else None,
-       "pass": bool(cut_failed) and cut_failed[-1].get("outcome") == "unknown" and bool(cut_failed[-1].get("approved_by"))}
-print(f"{'o503_cut_failed_ledger':36} {'ok ' if rec['pass'] else 'FAIL'} {json.dumps(cut_failed[-1], default=str)[:160] if cut_failed else 'NONE'}", flush=True)
-record(rec)
+            recs_after_stall = receipts(A)
+            cut_failed = [e for e in recs_after_stall if e.get("step") == "cut_failed"]
+            rec = {"id": "o503_cut_failed_ledger", "desc": "mid-flight cut recorded as cut_failed outcome=unknown",
+                   "expected": ">=1 cut_failed entry with outcome unknown + approved_by",
+                   "actual": cut_failed[-1] if cut_failed else None,
+                   "pass": bool(cut_failed) and cut_failed[-1].get("outcome") == "unknown" and bool(cut_failed[-1].get("approved_by"))}
+            print(f"{'o503_cut_failed_ledger':36} {'ok' if rec['pass'] else 'FAIL'} {json.dumps(cut_failed[-1], default=str)[:160] if cut_failed else 'NONE'}", flush=True)
+            record(rec)
 
 # ---------------------------------------------------------------- phase 8
 print("=== PHASE 8: final ledger integrity ===", flush=True)

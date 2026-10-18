@@ -8,13 +8,21 @@ loads each as its own graph key (FalkorDB native multi-tenancy), then measures:
   - canonical shortest-path query latency sampled across tenants (flatness)
   - the interdiction re-query latency inside a sampled tenant
 Receipts -> out/scale_wall.json (README material).
+
+Precision note (audit9/M44): GRAPH.MEMORY USAGE reports integer MB —
+sub-MB graphs read 0 on falkordb 6.0.0 (audit5's cross-engine parity note),
+so the receipt records the RAW MB values and also carries the engine's
+INFO used_memory bytes as the precise instance figure; docker stats RSS is
+the third, host-side view.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import statistics
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -34,6 +42,41 @@ HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 DA = "S-1-5-21-2697957641-2271029196-387917394-512"
 
 
+def _docker_rss(container: str | None = None) -> str | None:
+    """RSS of the engine container (audit9/M43): docker-compose.yml declares
+    service ``falkordb`` with NO container_name, so the old hardcoded
+    'sever-falkordb' matched nothing a ``docker compose up -d`` creates and
+    the receipt's docker_rss was unreproducible via README §9. Resolve the
+    container from compose first, then any falkordb-named container, then a
+    --container override; subprocess.run, never the deprecated os.popen."""
+    try:
+        cid = container or None
+        if not cid:
+            out = subprocess.run(
+                ["docker", "compose", "ps", "-q", "falkordb"],
+                capture_output=True, text=True, timeout=60,
+                cwd=str(Path(__file__).resolve().parents[1]))
+            if out.returncode == 0 and out.stdout.strip():
+                cid = out.stdout.strip().splitlines()[0].strip()
+        if not cid:
+            out = subprocess.run(
+                ["docker", "ps", "--filter", "name=falkordb", "--format", "{{.ID}}"],
+                capture_output=True, text=True, timeout=60)
+            if out.returncode == 0 and out.stdout.strip():
+                cid = out.stdout.strip().splitlines()[0].strip()
+        if not cid:
+            print("[scale] docker stats: no falkordb container resolved "
+                  "(docker absent, or engine not compose-booted) — docker_rss omitted")
+            return None
+        out = subprocess.run(
+            ["docker", "stats", "--no-stream", "--format", "{{.MemUsage}}", cid],
+            capture_output=True, text=True, timeout=120)
+        return out.stdout.strip() or None
+    except Exception as exc:
+        print(f"[scale] docker stats unavailable ({type(exc).__name__}: {str(exc)[:60]})")
+        return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tenants", type=int, default=300)
@@ -42,6 +85,8 @@ def main() -> int:
         "SEVER_SAMPLE_DIR",
         str(Path(__file__).resolve().parents[1] / "data" / "ad_sample")))
     parser.add_argument("--skip-load", action="store_true", help="graphs already loaded — measurement only")
+    parser.add_argument("--container", default=None,
+                        help="engine container id/name for docker stats (default: resolved from compose)")
     args = parser.parse_args()
 
     print(f"[scale] base sample: {args.sample_dir}")
@@ -69,8 +114,15 @@ def main() -> int:
         return 2
     raw = falkor.graph.client
 
-    # per-tenant hero/jewel remap for the latency sample (same transform as make_tenant)
-    from sever.synth.tenants import _remap_sid
+    # per-tenant hero/jewel remap for the latency sample (same transform as
+    # make_tenant). sever/synth/tenants.py is owned by the agent-loop shard,
+    # so the public wrapper lives HERE (audit9/N14) instead of reaching for
+    # the underscore name at every call site.
+    from sever.synth.tenants import _remap_sid as _tenant_remap_sid
+
+    def remap_sid(oid: str, tenant_index: int) -> str:
+        """Public in-script alias for the tenant identity remap (see make_tenant)."""
+        return _tenant_remap_sid(oid, tenant_index)
 
     load_times: list[float] = []
     t_all = time.time()
@@ -126,8 +178,15 @@ def main() -> int:
     for i in range(1, args.tenants + 1, step):
         gg = fdb.select_graph(f"{args.graph_prefix}{i:03d}")
         t0 = time.time()
-        gg.query(q, {"oid": _remap_sid(HERO, i), "target": _remap_sid(DA, i)})
+        gg.query(q, {"oid": remap_sid(HERO, i), "target": remap_sid(DA, i)})
         latencies.append((time.time() - t0) * 1000)
+
+    # precise instance memory from the engine itself (INFO used_memory) —
+    # GRAPH.MEMORY's integer-MB sums under-report (audit9/M44)
+    try:
+        instance_used_memory_bytes = raw.info("memory")["used_memory"]
+    except Exception:
+        instance_used_memory_bytes = None
 
     receipts = {
         "beat": "multi-tenant scale wall",
@@ -138,15 +197,22 @@ def main() -> int:
         "total_edges": args.tenants * base.stats["edge_count"],
         "total_load_seconds": round(total_load, 2),
         "mean_load_per_tenant_s": round(statistics.mean(load_times), 3),
-        "instance_ram_mb": round(mem_bytes / (1024 * 1024), 1),
+        "instance_ram_mb": round(mem_bytes / (1024 * 1024), 1),  # GRAPH.MEMORY integer-MB sum — precision-limited (audit9/M44)
+        "instance_used_memory_bytes": instance_used_memory_bytes,  # engine INFO — the precise figure
         "per_graph_mb_mean": round(sum(per_graph_mb) / len(per_graph_mb), 2) if per_graph_mb else None,
-        "docker_rss": os.popen("docker stats --no-stream --format {{.MemUsage}} sever-falkordb").read().strip() or None,
-        "sample_graph_memories_mb": [(i, round(m / (1024 * 1024), 2)) for i, m in sample_mems],
+        "docker_rss": _docker_rss(args.container),
+        # raw GRAPH.MEMORY MB values, NOT divided again (audit9/M44: the old
+        # code divided MB figures by 1MiB a second time and every sample
+        # recorded as 0.0 — a field that could never show a real number)
+        "sample_graph_memories_mb": list(sample_mems),
         "query_latency_ms": {
             "samples": len(latencies),
             "mean": round(statistics.mean(latencies), 2) if latencies else None,
             "median": round(statistics.median(latencies), 2) if latencies else None,
-            "p95": round(sorted(latencies)[int(len(latencies) * 0.95) - 1], 2) if latencies else None,
+            # nearest-rank p95 (audit9/M45): the old int(n*0.95)-1 index
+            # under-reported (30 samples -> index 27 = the 90th percentile;
+            # the shipped receipt's 4.81ms p95 came from that off-by-one)
+            "p95": round(sorted(latencies)[math.ceil(0.95 * len(latencies)) - 1], 2) if latencies else None,
             "max": round(max(latencies), 2) if latencies else None,
             "flat": (max(latencies) - min(latencies)) < 50 if latencies else None,
         },

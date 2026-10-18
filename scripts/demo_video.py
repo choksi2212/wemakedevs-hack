@@ -12,6 +12,7 @@ hardware encoding on the build host.
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from time import sleep
 
@@ -25,7 +26,21 @@ def main() -> int:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    from playwright.sync_api import sync_playwright
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        # audit9/M42: playwright is imported by this README §8-documented
+        # command but declared nowhere in pyproject.toml (another agent's
+        # file — a [video]/dev extra is tracked for security-infra). Fail
+        # with the actionable install instead of a raw ModuleNotFoundError.
+        print(
+            "playwright is not installed — the demo backup take needs it:\n"
+            "  pip install playwright\n"
+            "  playwright install chromium\n"
+            "(see README §8; pyproject extra tracked as audit9/M42)",
+            file=sys.stderr,
+        )
+        return 2
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
