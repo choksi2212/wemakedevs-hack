@@ -74,11 +74,10 @@
     --r-m: 6px;   /* containers: cards                      */
 
     --t-fast: 120ms; /* the only motion: hover/focus skin changes */
+    --motion: 150ms; /* audit6/ui-polish: the one-beat state-change animations */
   }
 
   /* base */
-    --motion: 150ms;
-  }
   /* Motion standard (audit6/ui-polish): every animation is 120-180ms and
      animates ONLY transform/opacity — state changes read as crisp, never as
      bounce/slide circus. prefers-reduced-motion collapses all of them to a
@@ -93,7 +92,8 @@
      warn/bg 7.9, warn/surface 7.4, success/surface 6.1 (value.ok),
      #7ED08C/surface-2 9.5, #7ED08C/#14231A 8.8. Indicators: chip dots
      success/warn/danger on bg 6.5/7.9/5.0, :focus-visible ring on bg/surface
-     7.3/6.9, badge.cut border 3.1, approve/confirm border 5.8. Neutral .btn
+     7.3/6.9, badge.cut border 3.1, approve border 5.8, confirm border 4.49
+     (the solid danger fill lowers its own border's effective contrast). Neutral .btn
      borders (~1.35 on surface-2) carry no state: the visible label identifies
      the control, so they fall under the 1.4.11 identification exception. */
   * { box-sizing: border-box; margin: 0; }
@@ -104,16 +104,17 @@
   ::selection { background: color-mix(in srgb, var(--focus) 28%, transparent); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-  /* header + wordmark/logo lockup */
-  header { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
-  .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: var(--fs-m); }
+  /* header + wordmark/logo lockup (audit6/L51 dedupe: one generation — the
+     earlier token-valued header/.wordmark rules were property-for-property
+     overridden by these and are gone) */
   header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
   .wordmark { font-family: var(--mono); font-weight: 700; letter-spacing: .18em; font-size: 14px; }
   .wordmark b { color: var(--danger); font-weight: 700; }
-  /* logo lockup: the header slot for the pending severed-S mark
-     (docs/assets/logo_v4.svg). The markup keeps the slot commented out
-     until the owner approves; this rule is the only wiring and stays
-     inert while the slot is empty. */
+  /* logo lockup: the severed-S mark ships INLINE as a data URI on the
+     header img.logo — no external asset, no route (L49: this comment used
+     to describe a pending external mark that never existed; the inline mark
+     IS the shipped identity, mirrored by docs/assets/logo-mark.svg +
+     favicon.svg for external use). */
   .logo { display: block; width: 24px; height: 24px; flex: 0 0 auto; }
   /* One chip grammar for every header chip: [state dot][content]. The dot is
      the ONLY liveness claim and its color is never ambiguous:
@@ -123,16 +124,10 @@
        gray  (.idle)    advisory or informational — explicitly NOT a liveness
                         claim (simulation label, operator name, estate chip
                         before its first successful read) */
-  .chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; background: var(--bg); }
-  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
-  .chip.paused .dot { background: var(--warn); }
-  .chip.down .dot { background: var(--danger); }
-  .chip.idle .dot { background: var(--text-3); }
   /* audit6/ui-polish: chip state flips (live/paused/down) — the state dot
      fades in over 150ms when the class actually changes, never on re-render */
   .chip.flip .dot { animation: chip-flip var(--motion) ease; }
   @keyframes chip-flip { from { opacity: .3; } }
-  .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .spacer { flex: 1; }
   .tagline { font-size: var(--fs-s); color: var(--text-3); font-family: var(--mono); }
   .tagline b { color: var(--text-2); font-weight: 600; }
@@ -147,6 +142,7 @@
   .chip.paused { border-color: var(--warn-dim); }
   .chip.down .dot { background: var(--state-down); }
   .chip.down { border-color: var(--danger-dim); color: var(--danger); }
+  .chip.idle .dot { background: var(--text-3); }
   #sim-chip { border-style: dashed; color: var(--warn); }
   .chip-btn { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .chip-btn:hover { color: var(--text); }
@@ -194,7 +190,7 @@
      danger — the one irreversible button on the page), cancel = the quiet
      escape. Text, classes, Escape and focus behavior are contract, pinned. */
   .btn.confirm { border-color: var(--danger); background: var(--danger); color: #0A0C10; font-weight: 700; }
-  .btn.confirm:hover { background: var(--danger); border-color: var(--danger); filter: brightness(1.12); }
+  .btn.confirm:not([disabled]):hover { background: var(--danger); border-color: var(--danger); filter: brightness(1.12); }
   .btn.cancel { border-color: var(--border); background: none; color: var(--text-3); }
   .btn.cancel:hover { background: none; border-color: var(--border-strong); color: var(--text-2); }
   .gate-flag { display: inline-flex; align-items: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); border: 1px solid #5C4A22; background: #1A160C; border-radius: 3px; padding: 2px 8px; }
@@ -221,6 +217,15 @@
   .banner[data-flag="down"] { border-color: var(--danger-dim); border-left-color: var(--state-down); }
   .banner .technique { color: var(--warn); font-family: var(--mono); font-size: 11px; display: block; margin-bottom: 4px; }
   .banner .res { color: var(--text); font-family: var(--mono); font-size: 11.5px; display: block; margin-top: 4px; }
+  /* audit6/ui-telemetry receipt hierarchy, styled (M57): the MEASURED
+     verdict is the hero line (mono, uppercase, colored ONLY through the
+     closed v-ok/v-warn/v-idle class map — never from the value), and the
+     finding narration reads as narrative body beneath it. */
+  .banner .verdict { display: block; font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 2px 0; color: var(--text-2); }
+  .verdict.v-ok { color: var(--success-strong); }
+  .verdict.v-warn { color: var(--warn); }
+  .verdict.v-idle { color: var(--text-2); }
+  .banner .narration { display: block; color: var(--text); font-size: var(--fs-r); line-height: var(--lh-copy); margin: 2px 0; }
   /* audit6/ui-flow — each path renders as ONE flowing kill chain: chips for
      principals (attacker chip red-tinted, crown-jewel chip green-tinted),
      small mono rel arrows between, raw objectid on hover. A 3-hop chain
@@ -239,12 +244,6 @@
   .hop .rel { color: var(--text-3); font-size: 10px; }
   .hop .jewel { border-color: #2E5138; background: #121D15; }
   .hop .jewel::before { background: var(--success); }
-  .hops { margin-top: 6px; border-left: 2px solid var(--border-strong); }
-  .hop { display: flex; gap: 10px; align-items: baseline; padding: 4px 0 4px 12px; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; overflow-wrap: anywhere; }
-  .hop .node { color: var(--text); }
-  .hop .node.mut { color: var(--warn); }
-  .hop .rel { color: var(--text-3); font-size: 11px; }
-  .hop .jewel { color: var(--danger); }
   .empty { color: var(--text-3); font-size: 12.5px; padding: 8px 0; }
   /* audit6/ui-flow — the ranked-cut card: endpoint names + rel badge, the
      paths_on coverage count as a prominence bar (full width = top-ranked
@@ -264,18 +263,9 @@
   .covbar .num { color: var(--text-3); font-size: 10.5px; }
   .covbar .num b { color: var(--text-2); font-weight: 600; }
   .prop-cta { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-  .ledger { max-height: 300px; overflow-y: auto; }
-  .entry { display: flex; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
-  .ledger { max-height: 300px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
   .ledger::-webkit-scrollbar { width: 10px; }
   .ledger::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-s); border: 2px solid var(--surface); }
   .ledger::-webkit-scrollbar-track { background: transparent; }
-  .entry:last-child { border-bottom: none; }
-  .badge { font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: .08em; border: 1px solid var(--border-strong); color: var(--text-2); border-radius: var(--r-xs); padding: 1px 6px; flex-shrink: 0; text-transform: uppercase; }
-  .badge.cut { border-color: var(--danger-dim); color: var(--danger); }
-  .badge.finding { border-color: #4A5A2E; color: var(--warn); }
-  .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
   /* audit6/ui-flow — the remediation plan: numbered step sequence, per-step
      verdict chips (projected before the gate, live re-measured after), the
      drift-stop state visually distinct (skipped steps + drift note), and
@@ -298,7 +288,7 @@
   .sys-note { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; margin-top: 12px; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); line-height: 1.6; }
   /* Receipts ledger — an audit timeline, newest first (audit6/ui-telemetry).
      accent so an honest failure never reads as a success. */
-  .ledger { max-height: 320px; overflow-y: auto; }
+  .ledger { max-height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
   .entry { display: flex; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
   .entry:last-child { border-bottom: none; }
   .entry.sys { background: var(--bg); }
@@ -310,14 +300,30 @@
   .badge.plan { border-color: var(--focus); color: var(--focus); }
   .badge.sys { border-color: var(--border); color: var(--text-3); }
   .entry .line { color: var(--text-2); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
-  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; }
+  .entry .ts { color: var(--text-3); font-size: 10.5px; flex-shrink: 0; margin-left: auto; }
   .entry.ledger-down .line { color: var(--warn); }
+  /* M57: the measured before→after delta chip the receipts renderer emits
+     (d-down collapse green / d-up regression red / d-flat muted — the same
+     state language as .vchip, never the value itself) and the operator
+     attribution chip. */
+  .delta { flex-shrink: 0; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 6px; color: var(--text-2); }
+  .delta.d-down { border-color: #2E5138; color: #7ED08C; }
+  .delta.d-up { border-color: #5E2A2E; color: var(--danger); }
+  .delta.d-flat { border-color: var(--border); color: var(--text-3); }
+  .op { flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
   /* audit6/ui-polish: a ledger entry that actually ARRIVED (count grew) eases
      in from 2px above over 150ms — re-renders of unchanged entries stay still */
   .entry.arrival { animation: arrive var(--motion) ease; }
   @keyframes arrive { from { opacity: 0; transform: translateY(-2px); } }
-  /* audit6/ui-polish: each completed refresh tick dips the timestamp once */
-  .hint.tick { animation: tick-dip var(--motion) ease; }
+  /* a gate restored to its APPROVE state (disarm / stray-armed-CTA sweep)
+     eases back in on the same one-beat grammar (M57: the class the JS adds
+     now has a rule) */
+  .btn.restore { animation: arrive var(--motion) ease; }
+  /* audit6/ui-polish: each completed refresh tick dips the timestamp once.
+     L53: tickText() adds .tick to the #updated-at span (which carries no
+     class of its own), so the rule targets the id — the old selector could
+     never match anything. */
+  #updated-at.tick { animation: tick-dip var(--motion) ease; }
   @keyframes tick-dip { from { opacity: .45; } }
   /* audit7/perf-ui: the honest wait affordance for multi-second engine waits
      (plan / cut / grant / finding re-score). audit6's 6px dot took one 150ms
@@ -327,7 +333,9 @@
      perceivable AND honest: a 3px indeterminate bar (transform-only loop —
      the same motion grammar as the armed-gate pulse) beside LIVE elapsed
      seconds, so the banner visibly changes every second the engine does not;
-     at 10s+ a note sets expectations ('~15s on the free-tier engine'). Bar
+     at 10s+ a note sets expectations (L55, post-fold: a plan takes seconds —
+     the note says the engine may be cold or stalled; the pre-fold '~15s on
+     the free-tier engine' figure died with the 197->11 round-trip fold). Bar
      and counter are decorative (aria-hidden) — the stage copy and the note
      carry the state for assistive tech. prefers-reduced-motion freezes the
      bar to a static filled track; the counting seconds are text, not motion,
@@ -362,7 +370,6 @@
      type tokens above belong to the design system; nothing here redefines
      them — this block only adds structure. */
   .brand { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-  .logo-slot { width: 22px; height: 22px; flex: 0 0 auto; border: 1px dashed var(--border-strong); border-radius: 5px; }
   .brand-role { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--text-3); text-transform: uppercase; white-space: nowrap; }
   .hero { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px 24px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 16px 20px; min-width: 0; }
   .hero.exposed { border-left-color: var(--danger); }
@@ -377,13 +384,17 @@
   .stat { border-left: 1px solid var(--border-strong); padding-left: 12px; min-width: 0; }
   .stat-value { display: block; font-family: var(--mono); font-size: 20px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
   .stat-label { display: block; font-size: 10.5px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+  /* H18: engine-down flips the hero's estate readout to its stale (amber)
+     state via a .paused class toggle — the 4-stat grid layout survives the
+     outage intact and the next successful refresh clears the class. */
+  .hero-facts.paused .stat-value { color: var(--warn); }
   .hero-meta { grid-column: 1 / -1; display: flex; gap: 6px 18px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
   .hero .banner { grid-column: 1 / -1; margin-top: 2px; }
   .ribbon { grid-column: 1 / -1; display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px 20px; min-width: 0; }
   .ribbon-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .ribbon-title { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-2); }
   .ribbon-sub { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
-  .steps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .steps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 0; }
   .step { display: flex; gap: 10px; align-items: flex-start; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; min-width: 0; }
   .step-n { flex: 0 0 auto; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: 50%; font-family: var(--mono); font-size: 11px; color: var(--text-2); }
   .step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
