@@ -40,8 +40,10 @@ WAN hop + free-tier CPU; redundant queries are pure latency):
   reach 0 / paths [] with an owned principal while ryzen 6.0.0 was green —
   so every pre-6.0.0 engine now keeps the LEGACY PER-PAIR forms for
   reachability and paths (existence probe / canonical loop, both endpoints
-  $param-bound): the exact queries production ran for days pre-fleet-7.
-  Correctness beats round-trips.
+  $param-bound): the form the F900 reopen's raw wire test re-proved
+  against the live Cloud, and the only engine form both audits agree is
+  evaluated correctly on BOTH engine families. Correctness beats
+  round-trips.
 - Correctness of the per-request snapshot cache (the honest-cache contract):
   the estate only changes via (a) THIS port's own mutations — every one
   (load/mark_owned/add_edge/cut/drop/scratch_copy) explicitly invalidates;
@@ -122,14 +124,17 @@ REACHABILITY_METHOD = (
     "two-arm all-pairs shortestPath existence (REACHABILITY_ARM_TEMPLATES) "
     "with the traversal relationship filter and hop cap of paths_to_jewels "
     "— issued CONCURRENTLY on engines the constructor-time MODULE LIST "
-    "probe vouches for (falkordb >= 6.0.0, fail-safe: any probe failure "
-    "means the old dialect), and SEQUENTIALLY in the exact pre-fleet-7 "
-    "form on every other engine (F900, production: the deployed Cloud "
-    "answered the fleet-7 per-owned arm form with nothing at all — "
-    "reach 0 with an owned principal, twice — while the pre-fleet-7 "
-    "two-arm form ran green on that estate for days); an owned principal "
-    "that is itself a crown jewel counts as reached (0-hop breach) on "
-    "both paths"
+    "probe vouches for (falkordb >= 6.0.0, live-verified there; fail-safe: "
+    "any probe failure means the old dialect); every engine the probe does "
+    "NOT vouch for runs the PER-PAIR EXISTENCE LOOP instead "
+    "(REACHABILITY_QUERY_TEMPLATE, both endpoints $param-bound, a "
+    "principal counted at its first hit) — the two-arm form's green "
+    "history on the deployed Cloud 4.22.0 covers only the SINGLE-OWNED "
+    "demo shape (reach 0->1 for days pre-fleet-7), and the repo's own "
+    "receipt measured it returning ZERO rows for 2 owned principals (one "
+    "reaching) on that engine where the per-pair probe sees one, so it is "
+    "not trusted there; an owned principal that is itself a crown jewel "
+    "counts as reached (0-hop breach) on every path"
 )
 
 # The two reachability arms: shortestPath is evaluated per (owned, jewel) row
@@ -185,10 +190,11 @@ REACHABILITY_ARM_TEMPLATES: tuple[str, ...] = (
 # /api/state with reach 0 and /api/paths with [] while an owned principal
 # existed, and ryzen 6.0.0 stayed green — on that engine family this arm
 # form returns nothing for the estate shape. reachability() therefore no
-# longer selects these arms on old engines: every pre-6.0.0 engine takes
-# the legacy per-pair existence loop (REACHABILITY_QUERY_TEMPLATE — both
-# endpoints $param-bound, the one form production ran for days pre-
-# fleet-7 and both audits agree is evaluated correctly there). The
+# longer selects these arms on old engines: every engine the version probe
+# does not vouch for takes the legacy per-pair existence loop
+# (REACHABILITY_QUERY_TEMPLATE — both endpoints $param-bound, the form the
+# F900 reopen's raw wire test re-proved against the live Cloud and both
+# audits agree is evaluated correctly on both engine families). The
 # templates stay verbatim: tests pin their shape and their parity with
 # the per-pair reference ON MODERN ENGINES (where they evaluate correctly).
 # Correctness beats round-trips — the only engine form trusted below
@@ -937,40 +943,61 @@ class FalkorGraphPort(GraphPort):
             res = self.graph.query(query, params, timeout=60000)
         return [str(row[0]) for row in res.result_set]
 
-    def _reachability_legacy(self, hop_cap: int) -> int:
-        # two-arm all-pairs form: identical semantics to the per-pair
-        # canonical probe (pattern + hop cap), but shortestPath is evaluated
-        # per (owned, jewel) row inside WITH — O(2) queries instead of
-        # O(owned x jewels). Self-pairs (an owned crown jewel = the breach
-        # itself, 0 hops) are invisible to shortestPath, so owned jewels are
-        # counted directly.
-        reached: set[str] = set()
+    def _reachability_per_pair(self, hop_cap: int) -> int:
+        # C1 (audit engine-reach): the per-pair existence loop —
+        # REACHABILITY_QUERY_TEMPLATE with BOTH endpoints $param-bound, a
+        # principal counted at its FIRST hit. Identical semantics to the
+        # two-arm cross-product form (same traversal pattern, same hop
+        # cap), but shortestPath is evaluated per (owned, jewel) pair: the
+        # form the F900 reopen's raw wire test re-proved against the live
+        # Cloud and the only form both audits agree is evaluated correctly
+        # on BOTH engine families (the all-owned arm is receipted to return
+        # ZERO rows for 2 owned principals on Cloud 4.22.0 —
+        # docs/receipts/perf_audit7_client_roundtrips.json). Self-pairs (an
+        # owned crown jewel = the breach itself, 0 hops) are invisible to
+        # shortestPath, so owned jewels are counted directly.
+        jewels = self.crown_jewels()
+        owned = self.owned_ids()
+        jewel_set = set(jewels)
         pattern = cypher_traversal_pattern(hop_cap)
-        for arm in REACHABILITY_ARM_TEMPLATES:
-            res = self.graph.query(arm.format(pattern=pattern), timeout=60000)
-            reached.update(str(row[0]) for row in res.result_set)
-        jewel_set = set(self.crown_jewels())
-        reached.update(o for o in self.owned_ids() if o in jewel_set)
+        query = REACHABILITY_QUERY_TEMPLATE.format(pattern=pattern)
+        reached: set[str] = set()
+        for principal in owned:
+            if principal in jewel_set:
+                reached.add(principal)  # 0-hop breach: an owned crown jewel
+                continue
+            for jewel in jewels:
+                rows = self.graph.query(
+                    query, {"oid": principal, "target": jewel}, timeout=60000
+                ).result_set
+                if rows and rows[0][0]:
+                    reached.add(principal)  # counted at the FIRST hit
+                    break
         return len(reached)
 
     def reachability(self, hop_cap: int = DEFAULT_HOP_CAP) -> int:
-        # Old-engine dialect (F900, production reopen): restore the EXACT
-        # pre-fleet-7 form on engines the version probe does not vouch for.
-        # The two-arm all-pairs form (_reachability_legacy) is what production
-        # ran on the deployed Cloud estate for days pre-fleet-7 (reach 0->1
-        # verified repeatedly) — the fleet-7 $oid-bound per-owned arms that
-        # replaced it answered nothing on that engine family (prod deploys
-        # answered reach 0 with an owned principal, twice), and audit5
-        # measured the cross-form undercount with 2+ owned principals on the
-        # same engine. paths_to_jewels keeps the per-pair canonical loop there
-        # (pre-fleet-7 form, live-proven raw against the Cloud in the F900
-        # reopen). The version probe is consulted once per port
-        # (constructor-time MODULE LIST, fail-safe to the old dialect), so
-        # the branch is deterministic per engine. Folds off (stubs, TTL=0,
-        # a latched fold refusal) take the same two-arm legacy form every
-        # audit has pinned.
+        # Unvouched-engine dialect (C1, audit engine-reach): engines the
+        # version probe does not vouch for — every pre-6.0.0 engine, any
+        # failed probe, and every folds-off port (stubs, TTL=0, a latched
+        # fold refusal) — run the LEGACY PER-PAIR EXISTENCE LOOP
+        # (_reachability_per_pair: REACHABILITY_QUERY_TEMPLATE, both
+        # endpoints $param-bound, a principal counted at its first hit).
+        # The two-arm all-pairs form is NOT trusted there: it ran green on
+        # the deployed Cloud for days pre-fleet-7 in the SINGLE-OWNED demo
+        # shape (reach 0->1 verified repeatedly), but the repo's own
+        # receipt measured it returning ZERO rows for 2 owned principals
+        # (one reaching) on that same engine where the per-pair probe sees
+        # one (docs/receipts/perf_audit7_client_roundtrips.json,
+        # engine_finding_4_22_0_cross_shortestpath_bug) — so the moment a
+        # second finding lands, the undercounted form reads reach 0 while a
+        # breach exists. The per-pair loop is the exact form the module
+        # header promises and the F900 reopen's raw wire test re-proved
+        # against the live Cloud; paths_to_jewels keeps the per-pair
+        # canonical loop there. The version probe is consulted once per
+        # port (constructor-time MODULE LIST, fail-safe to the old
+        # dialect), so the branch is deterministic per engine.
         if not (self._fold_active and self._modern_engine):
-            return self._reachability_legacy(hop_cap)
+            return self._reachability_per_pair(hop_cap)
         # The arms are INDEPENDENT read queries — issue them concurrently over
         # the connection pool (one wall-clock instead of many) and overlap the
         # snapshot fetch with them. The arms are NEVER cached, so an
