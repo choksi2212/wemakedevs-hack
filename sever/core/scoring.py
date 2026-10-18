@@ -342,10 +342,19 @@ def interdict(
 ) -> dict[str, Any]:
     """Execute ONE human-approved cut and return a before/after receipt."""
     before = snapshot(port, hop_cap)
-    t0 = time.perf_counter()
     removed = port.cut(src, dst, rel)
-    elapsed_ms = (time.perf_counter() - t0) * 1000
+    # requery_ms times the RE-QUERY — the after-snapshot (reachability +
+    # owned + jewels + node/edge counts) — which is exactly what every
+    # receipt consumer, the README sequence diagram and the console UI
+    # ("re-query {requery_ms}ms") label it as. The timer deliberately does
+    # NOT wrap the DELETE round-trip: the cut's cost and the re-measurement's
+    # cost are different stories, and only the latter is what the field name
+    # promises (audit H19/X32: the timer used to wrap port.cut, so the
+    # shipped "cut re-query 2.28ms" beat was the single atomic DELETE
+    # latency — the actual re-query was never timed anywhere).
+    t0 = time.perf_counter()
     after = snapshot(port, hop_cap)
+    requery_ms = (time.perf_counter() - t0) * 1000
     # Verdict is a measured claim about the AFTER state of a real cut:
     #   removed == 0      -> "no_effect" (nothing was cut, nothing claimed)
     #   after == 0        -> "collapsed"  (re-measured zero breach paths)
@@ -366,6 +375,6 @@ def interdict(
         "cut": {"src": src, "dst": dst, "rel": rel, "relationships_removed": removed},
         "before": before,
         "after": after,
-        "requery_ms": round(elapsed_ms, 2),
+        "requery_ms": round(requery_ms, 2),
         "verdict": verdict,
     }
