@@ -30,8 +30,9 @@ python -m pytest tests/test_live.py   # with the engine up, for graph-port chang
 - **DB-free green is the gate**: 0 failures; engine suites skip without docker.
 - **No receipt edits**: `docs/receipts/` is append-only captured evidence. New
   claim? Capture a new receipt (the scripts write them) — never edit an old one.
-- **Mermaid diagrams**: any ```` ```mermaid ```` block you touch must pass a
-  `mermaid.parse()` harness pre-commit (see the docs/README receipts-first rule).
+- **Mermaid diagrams**: validate any ```` ```mermaid ```` block you touch
+  before pushing — render it in the GitHub preview (or run `mermaid.parse()`
+  locally, e.g. via mermaid.cli); a broken diagram must never land.
 - **Honesty rules**: verdicts are re-queried claims, proposals are always real
   edges, the human gate passes only on literal `True` — don't weaken these for
   convenience; tests pin them.

@@ -132,15 +132,17 @@ flowchart LR
 ## 4. DCSync — replication rights nobody watches (classic BloodHound chain)
 **(a) Incident (technique class).** Anyone holding `DS-Replication-Get-Changes` (GUID `1131f6aa-…`) and
 `DS-Replication-Get-Changes-All` (`1131f6ad-…`) on the domain object can call `IDL_DRSGetNCChanges` and
-pull every credential hash including krbtgt — by design, no exploit (MITRE ATT&CK T1003.002).
+pull every credential hash including krbtgt — by design, no exploit (MITRE ATT&CK T1003.006).
 BloodHound's "Find Principals with DCSync Rights" exists because these rights hide in DACLs for years;
 the notorious holder is the Entra Connect sync account, granted `GetChanges`/`GetChangesAll` for
 password-hash sync.
 **(b) Graph pattern.** In SEVER the right is an edge, not a text attribute: `principal -GET_CHANGES |
 GET_CHANGES_ALL | DCSYNC→ Domain` sits in the traversal set (`docs/GRAPH_MODEL.md`); the `dcsync_right`
-finding narrates T1003.002 (`sever/findings/attack_map.py`).
-**(c) Interdiction.** The ablation receipt answers "Who holds DCSync rights?" with exact (src, dst)
-enumeration — graph 5/5, keyword 0/5: *"ACE rights are relationship data, not node text"* (`ablation.json`).
+finding narrates T1003.006 (`sever/findings/attack_map.py`).
+**(c) Interdiction.** The ablation receipt answers "Who holds DCSync rights?" by enumerating
+the exact (src, dst) DCSYNC set — **zero rows on this estate** (no principal in the sample
+holds the right; the exact empty enumeration is the answer) — graph 5/5, keyword 0/5:
+*"ACE rights are relationship data, not node text"* (`ablation.json`).
 A replication edge on an owned → -512 path is a ranked cut candidate.
 **(d) Why detection missed it.** Event 4662 fires only when DCSync is *executed*; the right sits silently
 in the DACL until game over. The graph sees the right before anyone uses it.
@@ -150,9 +152,9 @@ in the DACL until game over. The graph sees the right before anyone uses it.
 ```mermaid
 flowchart LR
     A["DS-Replication-Get-Changes rights sit in a DACL for years"] --> B["IDL_DRSGetNCChanges - every credential hash incl. krbtgt"]
-    B --> C["T1003.002 - by design, no exploit"]
+    B --> C["T1003.006 - by design, no exploit"]
     A -.->|"rights are relationship data, not node text"| S1["SEVER graph pattern - GET_CHANGES / GET_CHANGES_ALL / DCSYNC edges in the traversal set"]
-    S1 --> S2["Eval question live: who holds DCSync rights - exact src, dst rows"]
+    S1 --> S2["Eval question live: who holds DCSync rights - exact src dst rows, zero on this sample estate"]
     S2 --> S3["ablation.json - graph traversal 5/5 vs keyword-only 0/5"]
     S3 --> S4["A replication edge on an owned to RID -512 path is a ranked cut candidate"]
 ```
@@ -221,7 +223,8 @@ Console: build host `:8000`; raw graph: FalkorDB browser `:3000`. Open the recei
 3. **Snowflake.** Tenant-switch to `sever_tenant002` (disjoint SIDs, instant swap); show
    `scale_wall.json`: 300 tenants, 444k nodes, 3.74M edges, 1.594 GiB, median 4.67ms. Say: "165
    victims, one failure mode — one engine scores all of them."
-4. **DCSync.** Ask the eval question live ("Who holds DCSync rights?") → exact (src, dst) rows; show
+4. **DCSync.** Ask the eval question live ("Who holds DCSync rights?") → exact (src, dst)
+   rows (zero on this sample estate — the exact empty set is the answer); show
    `ablation.json` (graph 5/5, keyword 0/5).
 5. **Kerberoasting.** Land F-002 → the T1558.003 banner narrates the surface. Say: "The roast cracks a
    credential — the cut removes its reach."
@@ -247,5 +250,5 @@ and it was cut before it did.
 3. BleepingComputer, "MGM casino's ESXi servers allegedly encrypted in ransomware attack" (Sept 14, 2023) — https://www.bleepingcomputer.com/news/security/mgm-casinos-esxi-servers-allegedly-encrypted-in-ransomware-attack/
 4. MGM Resorts International Form 8-K (SEC, Oct 2023) — https://www.sec.gov/Archives/edgar/data/789570/000119312523251667/d461062d8k.htm
 5. Mandiant / Google Cloud, "UNC5537 Targets Snowflake Customer Instances for Data Theft and Extortion" (Jun 10, 2024) — https://cloud.google.com/blog/topics/threat-intelligence/unc5537-snowflake-data-theft-extortion
-6. MITRE ATT&CK — T1003.002, T1078.002, T1098, T1482, T1558.003 — https://attack.mitre.org/
+6. MITRE ATT&CK — T1003.006, T1078.002, T1098, T1482, T1558.003 — https://attack.mitre.org/
 7. CyberArk ACLight, shadow-admin discovery via ACL analysis — https://github.com/cyberark/ACLight

@@ -2,9 +2,9 @@
 
 **TL;DR** — Twelve hardest questions: a ≤40-word answer each, the receipts that make it defensible, and — where genuinely weak — an honest admission that doesn't sink the pitch. Policy: never claim a number without a receipt; concede fast, then redirect to what IS measured. All numbers regenerable from `docs/receipts/` or the live scripts.
 
-Provenance: written against origin/main `7a30ede` on branch `audit4/judge-sim`; every cited receipt was opened and every Q9 number recomputed from `scale_wall.json` (5.44MB/tenant, 53.1GB @10K, 6,023-tenant 32GB ceiling, 9.4h single-stream load). The test suite was executed live on that branch: 377 collected, 0 failures, 164 engine-skips (no docker on the audit host); two receipts contained audit-caught warts (README "~460 green" badge vs 377 collected; `GRAPH.MEMORY` per-graph zeros).
+Provenance: written against origin/main `7a30ede` on branch `audit4/judge-sim`; every cited receipt was opened and every Q9 number recomputed from `scale_wall.json` (5.44MB/tenant, 53.1GiB @10K, 6,023-tenant 32GB ceiling, 9.4h single-stream load). The test suite was executed live on that branch: 377 collected, 0 failures, 164 engine-skips (no docker on the audit host); two receipts contained audit-caught warts (README "~460 green" badge vs 377 collected; `GRAPH.MEMORY` per-graph zeros).
 
-**Refreshed 2026-10-16 on `audit6/docs-core` (develop tip `12d1392`):** the suite was re-executed live — **454 collected, 278 passed + 176 engine-skips, 0 failures in 61.21s** (receipt: [`docs/receipts/test_suite_2026-10-16.json`](receipts/test_suite_2026-10-16.json)); the README badge now states the measured count instead of "~400 green". The `GRAPH.MEMORY` per-graph zeros wart remains live in `scale_wall.json` (`per_graph_mb_mean: 0.0` — falkordb 6.0.0 MB-precision parse) — quote `docker_rss: 1.594GiB`, not the per-graph zeros.
+**Refreshed 2026-10-16 on `audit6/docs-core` (develop tip `12d1392`):** the suite was re-executed live — **454 collected, 278 passed + 176 engine-skips, 0 failures in 61.21s** (receipt: [`docs/receipts/test_suite_2026-10-16.json`](receipts/test_suite_2026-10-16.json)); the README badge now states the measured count instead of the "~460 green" estimate it replaced. The `GRAPH.MEMORY` per-graph zeros wart remains live in `scale_wall.json` (`per_graph_mb_mean: 0.0` — falkordb 6.0.0 MB-precision parse) — quote `docker_rss: 1.594GiB`, not the per-graph zeros.
 
 **Refreshed 2026-10-17 on `audit9/fix-code` (branch-off develop tip `ccfea06`):** the suite was re-executed live — **580 collected, 392 passed + 188 skips, 0 failures in 149.18s** (receipt: [`docs/receipts/test_suite_2026-10-17.json`](receipts/test_suite_2026-10-17.json)). The count is host-composition-dependent: this run had the full optional-dep set importable (playwright/openai/langgraph/langchain-falkordb), so skips = live-engine suites + Playwright-gated console modules + entra sample-fidelity tests; a Playwright-less host collects 569. The receipt is the record — quote it with its date, never a bare number.
 
@@ -40,7 +40,7 @@ flowchart TD
 
 ## 1. "Isn't this BloodHound rehosted?"
 **A:** No. We never run BloodHound — we re-implement its edge semantics in FalkorDB Cypher and add what it lacks: findings-reactive loop, human-gated cuts, re-measured before/after receipts, cross-process case memory. Collectors and sample data are credited.
-**Receipts:** `receipts_live_sever_demo.json` (executed cuts, 2.28ms re-query); `ablation.json` (graph 5/5 vs keyword 0/5); ETL fidelity 1,480 nodes / 12,450 edges / zero dangling vs the real sample (`tests/test_etl.py`, 62 tests).
+**Receipts:** `receipts_live_sever_demo.json` (executed cuts, 2.28ms re-query); `ablation.json` (graph 5/5 vs keyword 0/5); ETL fidelity 1,480 nodes / 12,450 edges / zero dangling vs the real sample (`tests/test_etl.py`, 62 tests — zero-dangling and the bounds live there; the exact 1,480/12,450 pins are in engine-gated `tests/test_ports.py`).
 **If pressed:** the semantics are deliberately BloodHound-faithful — that's the sensor layer, Apache-2.0 credited. The product is the interdiction loop built on it, which BloodHound does not have.
 
 ## 2. "BloodHound Enterprise already ranks attack paths — what's new?"
@@ -79,9 +79,9 @@ flowchart TD
 **If pressed:** no real-estate validation exists; we make no such claim. Two real-data hazards already handled: unresolved-principal materialization and tie-set blowup (15–25s/pair, offline mode only).
 
 ## 9. "What breaks first at 10K tenants / 1M identities?"
-**A:** In order: RAM (~5.4MB/tenant ⇒ ~54GB, past our 32GB host at ~6K tenants — shard per-tenant graphs, trivially); then load stream (3.39s/tenant single-connection ⇒ parallelize); then proposal scoring — edge_frequency is O(owned×jewels) per-pair queries. Reachability is already all-pairs, two queries.
+**A:** In order: RAM (~5.44MB/tenant ⇒ ~53.1GiB @10K, past our 32GB host at ~6K tenants — shard per-tenant graphs, trivially); then load stream (3.39s/tenant single-connection ⇒ parallelize); then proposal scoring — edge_frequency is O(owned×jewels) per-pair queries. Reachability is already all-pairs, two queries.
 **Receipts:** `scale_wall.json` (1.594GiB/300 = 5.44MB per tenant; mean load 3.391s); `sever/core/falkor_port.py` (two-arm all-pairs reachability, O(2) queries @60s timeout vs per-pair `paths_to_jewels` @30s each).
-**If pressed:** 10K tenants ≈ 53.1GB RSS → shard or bigger host; per-tenant graphs make sharding trivial. A 1M-identity single estate is only ~3.6GB — its breaker is scoring fan-out, not storage.
+**If pressed:** 10K tenants ≈ 53.1GiB RSS → shard or bigger host; per-tenant graphs make sharding trivial. A 1M-identity single estate is only ~3.6GB — its breaker is scoring fan-out, not storage.
 
 ## 10. "Is case memory in FalkorDBSaver actually novel or just langchain plumbing?"
 **A:** The saver is off-the-shelf plumbing. The value is what it checkpoints: the human-gate decision survives process death, resume cannot bypass the gate (fails closed), and case memory lives in the same engine as the estate — kill-9, isolation, and lock receipts.
@@ -117,7 +117,7 @@ flowchart TD
 
 ## PREP before judging
 
-1. **10K-tenant extrapolation note** (one page, cite in Q9): RAM 5.44MB/tenant ⇒ 53.1GB @10K (32GB host ceiling ≈ 6,023 tenants); load 3.391s/tenant single-stream ⇒ 9.4h ⇒ parallel-connection plan; edge_frequency fan-out O(owned×jewels).
+1. **10K-tenant extrapolation note** (one page, cite in Q9): RAM 5.44MB/tenant ⇒ 53.1GiB @10K (32GB host ceiling ≈ 6,023 tenants); load 3.391s/tenant single-stream ⇒ 9.4h ⇒ parallel-connection plan; edge_frequency fan-out O(owned×jewels).
 2. **Heterogeneous-estate load receipt**: vary tenant shapes/densities (or a larger public AD dataset), ≥100K nodes, re-run the latency sample — defuses Q6 and Q8 in one artifact.
 3. **Test-count receipt** — refreshed 2026-10-17: live DB-free run at the fleet-9 tip is 580 collected / 392 passed / 188 skips / 0 failures (149.18s; [`docs/receipts/test_suite_2026-10-17.json`](receipts/test_suite_2026-10-17.json)); skips = live-engine suites + Playwright-gated console modules + entra fidelity tests (a Playwright-less host collects 569 — host-composition-dependent, the dated receipt is the record); the README badge/§12 must carry this run's number (parent-owned repoint). If an engine-up host is free before judging, print the full green run to turn the skips into passes on camera.
 4. **GRAPH.MEMORY zeros footnote**: `scale_wall.json` per-graph MB reads 0.0 on falkordb 6.0.0 (MB-precision parse) — keep the one-line quirk note; lead with `docker_rss: 1.594GiB`.
@@ -138,4 +138,4 @@ flowchart TD
 | Ablation: graph 5/5 vs keyword 0/5 | `ablation.json` |
 | Cloud load 16.8s, hero arc COLLAPSED | `receipts_cloud_live.json` |
 | 580 tests collected, 0 failures (392 pass + 188 skips local, DB-free) | live `pytest` run, `docs/receipts/test_suite_2026-10-17.json` |
-| 43 traversal rels, hop cap 12; 28 labels / 42 edge families | `docs/CYPHER.md`, `docs/GRAPH_MODEL.md` |
+| 45 traversal rels, hop cap 12; 28 labels / 42 edge families on the loaded hybrid sample | `docs/CYPHER.md`, `docs/GRAPH_MODEL.md` |

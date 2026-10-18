@@ -5,24 +5,24 @@
 
   <!-- ===== node label groups ===== -->
   <!-- identity core -->
-  <rect x="40" y="100" width="380" height="250" rx="10" fill="rgba(59,130,246,0.05)" stroke="#93C5FD" stroke-width="1.25" stroke-dasharray="8,4"/>
+  <rect x="40" y="100" width="380" height="250" rx="10" fill="rgba(100,116,139,0.05)" stroke="#CBD5E1" stroke-width="1.25" stroke-dasharray="8,4"/>
   <text x="230" y="126" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">on-prem identity (BloodHound CE)</text>
-  <rect x="64" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <rect x="64" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
   <text x="144" y="162" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">User</text>
   <text x="144" y="176" font-size="8" fill="#6B7280" text-anchor="middle">owned flag · name · sid</text>
-  <rect x="236" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <rect x="236" y="142" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
   <text x="316" y="162" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">Group</text>
   <text x="316" y="176" font-size="8" fill="#6B7280" text-anchor="middle">-512 Domain Admins = jewel</text>
-  <rect x="64" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <rect x="64" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
   <text x="144" y="216" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">Computer</text>
   <text x="144" y="230" font-size="8" fill="#6B7280" text-anchor="middle">34 in sample · sessions inert</text>
-  <rect x="236" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <rect x="236" y="196" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
   <text x="316" y="216" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">Domain · OU · Container</text>
   <text x="316" y="230" font-size="8" fill="#6B7280" text-anchor="middle">structure · trust targets</text>
-  <rect x="64" y="250" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#93C5FD" stroke-width="1"/>
+  <rect x="64" y="250" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
   <text x="144" y="270" font-size="10" font-weight="600" fill="#3B82F6" text-anchor="middle">GPO · PKI</text>
   <text x="144" y="284" font-size="8" fill="#6B7280" text-anchor="middle">CertTemplate · EnterpriseCA…</text>
-  <rect x="236" y="250" width="160" height="44" rx="6" fill="rgba(59,130,246,0.07)" stroke="#60A5FA" stroke-width="1" stroke-dasharray="3,3"/>
+  <rect x="236" y="250" width="160" height="44" rx="6" fill="rgba(100,116,139,0.07)" stroke="#60A5FA" stroke-width="1" stroke-dasharray="3,3"/>
   <text x="316" y="270" font-size="10" font-weight="600" fill="#2563EB" text-anchor="middle">unresolved principal</text>
   <text x="316" y="284" font-size="8" fill="#6B7280" text-anchor="middle">referenced, never invented</text>
   <text x="230" y="336" font-size="8" fill="#94A3B8" text-anchor="middle">crown jewels: Group SID ending -512/-519 — SID-based, rename-proof</text>
@@ -103,7 +103,7 @@
   <!-- entra right bottom: indexes note -->
   <rect x="860" y="380" width="380" height="280" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.25"/>
   <text x="1050" y="408" font-size="12" font-weight="700" fill="#1F2937" text-anchor="middle">engine + backend implementation</text>
-  <text x="884" y="436" font-size="9.5" font-weight="600" fill="#7C3AED"> FalkorDB 6.0.0 — one engine everywhere</text>
+  <text x="884" y="436" font-size="9.5" font-weight="600" fill="#475569"> FalkorDB 6.0.0 — one engine everywhere</text>
   <text x="896" y="454" font-size="9" fill="#475569">▪ self-hosted Docker · compose · FalkorDB Cloud — same client</text>
   <text x="896" y="468" font-size="9" fill="#475569">▪ every load-bearing Cypher is a module constant (docs/CYPHER.md)</text>
   <text x="896" y="482" font-size="9" fill="#475569">▪ no offline double: remove FalkorDB and SEVER does not run</text>

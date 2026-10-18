@@ -1,6 +1,6 @@
 # SEVER — The Cypher Queries the Product Depends On
 
-**TL;DR** — Rule 10 requires publishing the exact queries. These are the **live-verified**
+**TL;DR** — The rules require publishing the exact queries. These are the **live-verified**
 forms, maintained as module constants in `sever/core/falkor_port.py` and
 `sever/core/jewels.py`, executed against falkordb 6.0.0 (self-hosted Docker) and
 re-verified form-by-form on the managed FalkorDB Cloud engine (module `graph` 4.22.0).
@@ -16,7 +16,7 @@ flowchart TD
   R --> R2["arm 2 - AZUser jewels: same pattern, unioned in Python"]
   R1 --> CNT["reached set plus owned jewels counted directly"]
   R2 --> CNT
-  CNT --> P["canonical shortest path per owned-jewel pair - 43 rel types, 12-hop cap"]
+  CNT --> P["canonical shortest path per owned-jewel pair - 45 rel types, 12-hop cap"]
   P --> F["edge frequency - the enumerated paths each edge lies on"]
   F --> BEN["collateral - benign paths of 25 sampled of 98 non-owned users, same canonical query"]
   BEN --> TIE{"coverage tie?"}
@@ -53,7 +53,7 @@ round-trip; their equivalence against the per-query forms is pinned on the
 real engine by tests.
 
 `[:REL|…]` is the abusable traversal pattern emitted by
-`cypher_traversal_pattern(12)`: the **43 relationship types** of
+`cypher_traversal_pattern(12)`: the **45 relationship types** of
 `TRAVERSAL_RELS` (the attacker-chainable subset of the data model —
 structural-only edges like `CONTAINED_BY`/`PUBLISHED_ON` are deliberately
 excluded; hybrid Entra edges appear only in hybrid estates), upper-bounded
@@ -88,19 +88,24 @@ the same relationship filter and hop cap as the canonical enumeration.
 port runs the two `REACHABILITY_ARM_TEMPLATES` queries and unions the
 reached-principal sets in Python — crown jewels span two labels (Group +
 AZUser), so one arm per label. shortestPath is evaluated per (owned, jewel)
-row inside the WITH clause (FalkorDB's only valid shortestPath form),
+row inside the WITH clause (the WITH-clause form is what the shipped queries
+use; the RETURN form also parses and runs on BOTH engines — only
+`MATCH p = shortestPath(…)` is rejected; receipt:
+`docs/receipts/audit5_cloud_instance.json`),
 `WHERE p IS NOT NULL` keeps reached pairs and `DISTINCT` collapses to the
 reached-principal set: O(2) queries instead of O(owned × jewels), and
 immune to SPpaths' combinatorial tie-enumeration hang. On engines the
 constructor-time `MODULE LIST` probe vouches for (falkordb >= 6.0.0) the
 two arms are issued **concurrently** over the connection pool, one wall
 clock instead of two (receipt: `docs/receipts/perf_audit7_client_roundtrips.json`);
-every other engine runs the identical two arm templates **sequentially**
-(60 s per-query timeout, fail-safe: any probe failure selects sequential).
-The fleet-7 per-owned arm variant this replaced answered reach 0 with an
-owned principal on the deployed Cloud twice (F900), while this two-arm
-form ran green on that estate for days. A principal that is itself a crown
-jewel counts as reached without a query — owning Domain Admins IS the breach:
+every engine the probe does not vouch for runs the **per-pair existence
+loop** below instead — the two-arm all-pairs form is receipted to answer
+**0 rows with 2 owned principals** on the deployed Cloud 4.22.0 (F900,
+`perf_audit7_client_roundtrips.json`) even though the same form ran green
+on the single-owned demo shape on that estate for days, so the old-engine
+path is the probe the arms' parity is pinned against. A principal that is
+itself a crown jewel counts as reached without a query — owning Domain
+Admins IS the breach:
 
 ```cypher
 // arm 1 — Group jewels (RID -512 Domain Admins / -519 Enterprise Admins):
@@ -119,17 +124,20 @@ WHERE p IS NOT NULL
 RETURN DISTINCT o.objectid AS oid
 ```
 
-`{pattern}` is the 43-type relationship filter with the `*..12` hop cap,
+`{pattern}` is the 45-type relationship filter with the `*..12` hop cap,
 inlined from `cypher_traversal_pattern()` — byte-identical to the
 enumeration pattern inlined in the next section.
 
 **Legacy/fallback per-pair form** (`REACHABILITY_QUERY_TEMPLATE`, the
-pre-fleet-7 existence probe, both endpoints `$param`-bound): kept as the
-parity reference the tests pin the arm templates against and as the
-live-probe form — shortestPath yields NULL (a row with `hit` = false) when
-no bounded traversal path exists. On engines below 6.0.0 the product stays
-on per-pair forms (`paths_to_jewels` keeps the per-pair canonical loop
-there — the one form production proved on that engine family for days):
+pre-fleet-7 existence probe, both endpoints `$param`-bound): the form every
+engine the version probe does not vouch for runs for reachability (the F900
+receipt measured the two-arm all-pairs form answering 0 rows for 2 owned
+principals on the deployed Cloud 4.22.0; this per-pair probe is also the
+parity reference the tests pin the arm templates against) — shortestPath
+yields NULL (a row with `hit` = false) when
+no bounded traversal path exists. `paths_to_jewels` keeps its per-pair
+canonical loop on the same engines (the one form production proved on that
+engine family for days):
 
 ```cypher
 MATCH (o {objectid: $oid}), (t {objectid: $target})
@@ -146,16 +154,16 @@ paths the agent can enumerate and cut.
 ## Attack path enumeration
 
 Canonical demo path — `CANONICAL_PATH_QUERY_TEMPLATE` with the full
-43-type pattern inlined so it runs verbatim (milliseconds, live-measured):
+45-type pattern inlined so it runs verbatim (milliseconds, live-measured):
 
 ```cypher
-MATCH (o {objectid: $oid}), (t {objectid: $target}) WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|GENERIC_WRITE|WRITE_DACL|WRITE_OWNER|OWNS|FORCE_CHANGE_PASSWORD|ALL_EXTENDED_RIGHTS|WRITE_PROPERTY|RESET_PASSWORD|GET_CHANGES|GET_CHANGES_IN_FILTERED_SET|GET_CHANGES_ALL|DCSYNC|HAS_SID_HISTORY|TRUSTED_BY|ALLOWED_TO_DELEGATE|ALLOWED_TO_ACT|ADMIN_TO|ADD_MEMBER|ADD_SELF|ADD_KEY_CREDENTIAL_LINK|ADD_ALLOWED_TO_ACT|WRITE_ACCOUNT_RESTRICTIONS|READ_GMSAPASSWORD|READ_LAPSPASSWORD|MANAGE_CA|MANAGE_CERTIFICATES|GENERIC_RIGHT|EXTENDED_RIGHT|SYNCED_TO|AZOwns|AZMemberOf|AZAppRole|AZVMAdminLogin|AZVMContributor|AZVMUserAccessAdmin|AZVMAvereContributor|AZRGUserAccessAdmin|AZSubUserAccessAdmin|AZMGUserAccessAdmin|AZKVUserAccessAdmin|AZKVContributor*..12]->(t)) AS p RETURN p
+MATCH (o {objectid: $oid}), (t {objectid: $target}) WITH shortestPath((o)-[:MEMBER_OF|GENERIC_ALL|GENERIC_WRITE|WRITE_DACL|WRITE_OWNER|OWNS|FORCE_CHANGE_PASSWORD|ALL_EXTENDED_RIGHTS|WRITE_PROPERTY|RESET_PASSWORD|GET_CHANGES|GET_CHANGES_IN_FILTERED_SET|GET_CHANGES_ALL|DCSYNC|HAS_SID_HISTORY|TRUSTED_BY|ALLOWED_TO_DELEGATE|ALLOWED_TO_ACT|ADMIN_TO|ADD_MEMBER|ADD_SELF|ADD_KEY_CREDENTIAL_LINK|ADD_ALLOWED_TO_ACT|WRITE_ACCOUNT_RESTRICTIONS|READ_GMSAPASSWORD|READ_LAPSPASSWORD|MANAGE_CA|MANAGE_CERTIFICATES|WRITE_PKIENROLLMENT_FLAG|WRITE_PKINAME_FLAG|GENERIC_RIGHT|EXTENDED_RIGHT|SYNCED_TO|AZOwns|AZMemberOf|AZAppRole|AZVMAdminLogin|AZVMContributor|AZVMUserAccessAdmin|AZVMAvereContributor|AZRGUserAccessAdmin|AZSubUserAccessAdmin|AZMGUserAccessAdmin|AZKVUserAccessAdmin|AZKVContributor*..12]->(t)) AS p RETURN p
 ```
 
 Offline analysis mode (`paths_to_jewels(ties=True)`) enumerates tied shortest
 paths via the built-in procedure (measured: cross-domain tie sets take
 15–25s+ per pair — the live agent loop uses the canonical form). The
-traversal set is passed server-side as `relTypes` (the full 43-type list,
+traversal set is passed server-side as `relTypes` (the full 45-type list,
 inlined from `TRAVERSAL_RELS` — no user input), and the hop cap is enforced
 app-side because SPpaths has no working hop-bound config. (audit5 note: until
 `audit5/cloud-instance` the raw `{{…}}`-escaped template reached the engine
@@ -174,7 +182,10 @@ RETURN path
 ## The interdiction (human-gated)
 
 `{rel}` is the only interpolated slot in these templates. It is validated
-against `^[A-Z][A-Z0-9_]{0,63}$` (`_valid_rel` in `falkor_port.py`) **before**
+against `^[A-Za-z][A-Za-z0-9_]{0,63}\Z` (`_valid_rel` in `falkor_port.py`;
+lowercase allowed — the Entra camelCase rels need it — and `\Z`, not `$`:
+Python's `$` also matches before a trailing newline, which would let a
+trailing-newline rel through) **before**
 it can reach the query string — the Cypher injection guard; relationship
 types are a closed vocabulary from the data model.
 
@@ -286,7 +297,7 @@ CREATE INDEX FOR (n:User) ON (n.objectid)
   as `*1..N` is rejected) — hence `cypher_traversal_pattern` emits `*..N`
 - `algo.SPpaths` is configured with node references, not patterns — the call
   in `PATH_QUERY_TEMPLATE` passes `sourceNode`/`targetNode`/`pathCount` plus
-  `relTypes` (the 43 traversal types; live-verified honored on BOTH engines —
+  `relTypes` (the 45 traversal types; live-verified honored on BOTH engines —
   a CONTAINED_BY-only pair returns 0 rows under `relTypes: ['MEMBER_OF']`).
   Unknown config keys are accepted and SILENTLY IGNORED (`maxHops: 2` still
   returns a 12-hop path), so the hop cap is enforced app-side on the parsed
@@ -305,5 +316,6 @@ CREATE INDEX FOR (n:User) ON (n.objectid)
 - falkordb 6.0.0 ships `TIMEOUT_DEFAULT = 0` (no server-side kill) and
   `docker-compose.yml` carries `FALKORDB_ARGS=TIMEOUT_DEFAULT 0` only as an
   optional, commented-out knob — the client never relies on a server default
-  anyway: every traversal read passes an explicit per-query timeout (60 s per
-  reachability pair and scalar reads, 30 s per path enumeration)
+  anyway: reachability arms and scalar reads pass an explicit 60 s per-query
+  timeout, path enumerations 30 s, and the small set-scan reads rely on the
+  30 s socket timeout (which bounds hangs, not query time).
