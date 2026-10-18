@@ -67,5 +67,6 @@
     "p95": 4.81,
     "max": 4.98,
     "flat": true
-  }
+  },
+  "_note": "2026-10-18 (audits L17 + L18): (1) mean_load_per_tenant_s (3.391) is the mean of the per-tenant port.load() timings only; total_load_seconds (1030.53) also includes per-tenant remap+connect work, so total/300 = 3.435 ≠ the mean — two different scopes reported side by side, both as measured. (2) instance_ram_mb, per_graph_mb_mean and every sample_graph_memories_mb entry read 0.0 because GRAPH.MEMORY reports integer-MB precision and falkordb 6.0.0 rounds these per-graph figures to 0 MB (audit5_cloud_instance.json's parity note: 'scale_wall per-graph reads 0.0 MB on 6.0.0 — lead with measured used_memory deltas'); docker_rss (1.594GiB / 15.19GiB) is the measured instance figure to lead with. The 4.52/4.67/4.81/4.98 latency block is measured on the 30 recorded samples and is unchanged."
 }
