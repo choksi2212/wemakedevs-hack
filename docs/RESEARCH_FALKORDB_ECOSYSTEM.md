@@ -10,18 +10,23 @@ External claims carry their URL; SEVER claims carry the repo receipt that proves
 > engine quirks mapped and published. No visible 2026 entrant is in identity
 > interdiction. §5 is the judge talking points, in their own voice.
 
-## 0. The event, live-verified today (real browser DOM, not SEO cache)
+## 0. The event (prize facts per the official rules text)
 
-> Snapshot dated 2026-10-16: the official rules, schedule and prize breakdown
-> may be updated before the hackathon — re-verify the live pages (and the
+> **Dated snapshot caveat (2026-10-18).** The wemakedevs.org overview and
+> rules pages, re-verified today, still serve the September-era copy — a
+> "$10,000" prize pool and the stale track blurbs ("Investigation and risk,
+> agentic AI, or the GraphRAG SDK"). The authoritative rules text distributed
+> by the organizers for this event (18 rules; prize pool **$20,000**; tracks
+> **Agents That Act on Connected Data** / **Agent Memory and Coordination** /
+> **Company Brain**) is what the prize facts below follow — the rules text
+> over the stale site copy. Re-verify the live pages (and the
 > WeMakeDevs/FalkorDB community channels) before submission.
 
 - **Graph Hacks: Context for AI Agents**, WeMakeDevs × FalkorDB, online **Oct 15–18, 2026**, **$20,000** total — https://www.wemakedevs.org/hackathons/falkordb/schedule, https://luma.com/graph-hacks
 - Tracks: **Agents That Act on Connected Data** (iPhone 18 Pro) · **Agent Memory and Coordination** (PS5 + GTA VI) · **Company Brain** (M6 Mac Mini); AirPods 5 for best blog post, tees for top-50 teams — https://luma.com/graph-hacks
-- Live rules: *"You may enter any or all of them, and you must name every track you are entering when you submit"* — multi-track entry is legal — https://www.wemakedevs.org/hackathons/falkordb/rules
+- Official rules text: *"You may enter any or all of them, and you must name every track you are entering when you submit"* — multi-track entry is legal — https://www.wemakedevs.org/hackathons/falkordb/rules
 - FalkorDB "needs to be the primary graph database in your project" and do real work — the graph is decoration if the product still works without it — https://luma.com/graph-hacks, https://www.wemakedevs.org/hackathons/falkordb/rules
 - Submission requires a public repo, README + graph data model, **the exact Cypher the product depends on**, demo video, live deployment — https://www.wemakedevs.org/hackathons/falkordb/rules. SEVER ships every item (`docs/CYPHER.md`, `docs/receipts/`, deployed stack + Cloud receipts).
-- Note: some search caches still serve the September-era copy ($10K, "Investigation and Risk"); the live DOM checked today is the $20K three-track version above.
 
 ## 1. Their security-graph positioning — SEVER is their story, shipped
 
