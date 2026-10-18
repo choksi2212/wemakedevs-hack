@@ -1,8 +1,8 @@
 """FalkorGraphPort — live FalkorDB backend. THE engine (rule 3: remove it, product breaks).
 
 The exact Cypher SEVER depends on lives here as module constants — these are the
-queries reproduced in the README's "Cypher queries" section and shown with
-GRAPH.PROFILE receipts in the demo.
+queries reproduced in docs/CYPHER.md and shown with GRAPH.PROFILE receipts in
+the demo.
 
 Live-verified on falkordb 6.0.0 (self-hosted Docker) and on the managed
 FalkorDB Cloud instance (module 'graph' 4.22.0 — see
@@ -16,7 +16,11 @@ WAN hop + free-tier CPU; redundant queries are pure latency):
   and the second owned re-read) into ONE statement; the two-arm reachability
   stays byte-identical (REACHABILITY_ARM_TEMPLATES) and runs the two arms
   CONCURRENTLY on the connection pool (they're independent read queries).
-  /api/state: 11 sequential round-trips -> 3. Every accessor still returns
+  /api/state: 11 sequential round-trips -> 3 engine queries (the ONE
+  snapshot statement + the two CONCURRENT arms) = 2 wall-clock round-trips
+  when the arms share one batch — receipted "11 -> 2 RTs" in
+  docs/receipts/perf_audit7_client_roundtrips.json, the query count pinned
+  <= 3 by tests/test_perf_client_folds.py. Every accessor still returns
   exactly what its documented single-purpose query returned — pinned by
   tests/test_perf_client_folds.py against independent legacy re-queries on
   the real engine.
@@ -561,12 +565,13 @@ class FalkorGraphPort(GraphPort):
             # FalkorDB Cloud connection survives >=620s idle untouched
             # (server tcp-keepalive 300 helps), and redis-py applies
             # SO_KEEPALIVE + these options at connect time (verified against
-            # falkordb-py 6.x: FalkorDB.__init__ passes both straight into
-            # redis.Redis -> Connection). Options tuned so a dead peer is
-            # detected in ~60s (< the 30s socket timeout's worst case is
-            # unchanged; the OS probes instead of the request hanging on a
-            # socket nobody is answering). Linux (Render) accepts all three;
-            # Windows has no TCP_KEEPIDLE -> plain SO_KEEPALIVE there.
+            # falkordb-py 1.8.0, >= the pinned floor: FalkorDB.__init__
+            # passes both straight into redis.Redis -> Connection). Options
+            # tuned so a dead peer is detected in ~60s; the 30s socket
+            # timeout still bounds a hung request, and the OS probes
+            # instead of the request waiting on a socket nobody answers.
+            # Linux (Render) accepts all three; Windows has no TCP_KEEPIDLE
+            # -> plain SO_KEEPALIVE there.
             keepalive_options = {}
             if hasattr(socket, "TCP_KEEPIDLE"):
                 keepalive_options = {
