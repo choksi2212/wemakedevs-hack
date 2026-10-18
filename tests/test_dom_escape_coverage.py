@@ -129,9 +129,10 @@ def test_every_innerhtml_sink_escapes_or_trusts_html_adjacent_operands():
     # card + plan gate; audit5/live-e2e added the receipts-card degraded
     # line when the pure-file /api/receipts route fails independently of the
     # engine; the armed-gate invariant sweep added the cta APPROVE-restore
-    # sink — the disarmGate and renderGate sweeps are textually identical, so
-    # they dedupe to one statement, built only from esc()-wrapped operands);
-    # a new sink must extend this test consciously, not slip through
+    # sink — the disarmGate and renderGate sweeps are textually identical
+    # but are BOTH collected (the extractor does no dedupe), so the count
+    # stays 10); a new sink must extend this test consciously, not slip
+    # through
     assert len(sinks) == 10, [s[:60] for s in sinks]
 
     violations = []
