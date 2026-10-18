@@ -135,9 +135,11 @@ try:
         "CSP": bool(_hdr("Content-Security-Policy")),
         "HSTS": bool(_hdr("Strict-Transport-Security")),
     }
+    headers_pass = all(hdr_ok.values())
 except Exception as e:
     hdr_ok = {"transport_error": str(e)[:200]}
-results.append({"id": "security_headers", "desc": "hardening headers on /api/state", "expected": "all", "actual": hdr_ok, "pass": all(hdr_ok.values())})
+    headers_pass = False
+results.append({"id": "security_headers", "desc": "hardening headers on /api/state", "expected": "all", "actual": hdr_ok, "pass": headers_pass})
 print("security_headers", hdr_ok, flush=True)
 
 # docs opt-in OFF on the public deploy
