@@ -232,10 +232,10 @@
    "per_tenant_bytes": 5064197,
    "extrapolation_3000_tenants_bytes": 15192591000,
    "extrapolation_3000_tenants_vs_maxmemory": "144.9x the 100MB ceiling",
-   "tenants_that_fit_in_100mb_approx": 19,
+   "tenants_that_fit_in_100mb_approx": 17,
    "ryzen_receipt_per_tenant_mb": 5.44,
    "extrapolation_3000_from_ryzen_receipt_bytes": 17112759000,
-   "extrapolation_3000_from_ryzen_receipt_vs_maxmemory": "163.2x the 100MB ceiling (16.32GiB)"
+   "extrapolation_3000_from_ryzen_receipt_vs_maxmemory": "163.2x the 100MB ceiling (15.9GiB)"
   },
   "version_gap": {
    "engine_note": "FalkorDB Cloud module 'graph' ver 42200 (=4.22.0) vs self-hosted 6.0.0",
@@ -364,5 +364,6 @@
   }
  },
  "failures": [],
- "all_pass": true
+ "all_pass": true,
+ "_correction": "2026-10-18 (audits H11/M38 + M23/X1): two arithmetic fixes, applied 2026-10-18. (1) sizing.tenants_that_fit_in_100mb_approx: 19 → 17, recomputed as (maxmemory_bytes - used_memory_bytes) / per_tenant_bytes = (104857600 - 14219592) / 5064197 ≈ 17.9 → 17 tenants — the original 19 divided the FULL 100MiB ceiling by the per-tenant delta and ignored the ~14.2MB the live estate already used at audit time (honest headroom ≈ 90.6MB); the generator formula is fixed in scripts/audit5_cloud_instance.py. (2) sizing.extrapolation_3000_from_ryzen_receipt_vs_maxmemory: '(16.32GiB)' → '(15.9GiB)' — extrapolation_3000_from_ryzen_receipt_bytes = 17112759000 bytes = 15.94 GiB; 16.32 was 5.44MiB × 3000 = 16,320MiB computed in decimal MB and mislabeled GiB. The 163.2x multiple is correct. (README §6 repeats both numbers; its update is owned by the docs-numbers shard.)"
 }

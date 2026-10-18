@@ -49,5 +49,6 @@
     "verdict": "collapsed",
     "approved_by": "console-operator",
     "approved_at": "2026-10-15T16:12:06"
-  }
+  },
+  "_correction": "2026-10-18 (audit L16): bridge_cut_receipt.approved_at (\"2026-10-15T16:12:06\") lacks the +00:00 UTC offset that the shipped approve_and_cut stamping always emits — a pre-stamping-code capture; regenerate on the release tree (scripts/hybrid_live.py) to restamp."
 }

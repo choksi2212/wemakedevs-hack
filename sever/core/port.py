@@ -46,9 +46,18 @@ class GraphPort(ABC):
         """HEADLINE METRIC: count of owned principals with a path to any crown jewel."""
 
     @abstractmethod
-    def paths_to_jewels(self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP) -> list[list[tuple[str, str, str]]]:
+    def paths_to_jewels(
+        self, objectid: str, hop_cap: int = DEFAULT_HOP_CAP, ties: bool = False
+    ) -> list[list[tuple[str, str, str]]]:
         """Enumerate attack paths for one owned principal as hop lists:
-        [(src, rel, dst), ...] — one list per path."""
+        [(src, rel, dst), ...] — one list per path.
+
+        ``ties=True`` requests SHORTEST-PATH TIE enumeration — the offline
+        analysis mode (the canonical form returns one path per pair):
+        slower, capped at 100 paths per pair, and every returned path is
+        re-enforced app-side against the traversal set and the hop cap
+        (both concrete ports implement this; see FalkorGraphPort).
+        """
 
     @abstractmethod
     def edge_frequency(self, hop_cap: int = DEFAULT_HOP_CAP) -> dict[tuple[str, str, str], int]:

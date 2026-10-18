@@ -45,8 +45,9 @@ private network.
 - `.gitignore` covers `.env`, `.secrets/`, `*.key`. Filename audit of every
   path ever committed: only `.env.example` ever existed, and its values are
   empty placeholders. **No `.env` was ever committed.**
-- `docs/receipts/*.json` / `profile.txt`: only identifiers from the public
-  Apache-2.0 SpecterOps sample estate (GUIDs/SIDs) — no credentials.
+- `docs/receipts/*.json` / `profile.txt`: sample-estate identifiers (GUIDs/SIDs)
+  plus engine/deploy telemetry (versions, memory figures, latencies) — **no
+  credentials or secrets**.
 
 ## 2. Cypher injection — every seam verified, three gaps closed
 
@@ -72,8 +73,10 @@ Fixed on this branch:
    enum — and were interpolated into `MERGE (s)-[r:{rel} …]` with no guard. A
    hostile/malformed BloodHound JSON could inject Cypher in the load path.
    `edge_batches` now fail-loud rejects any rel outside
-   `^[A-Za-z][A-Za-z0-9_]{0,63}\Z`. Verified against the real sample estate:
-   28 AD + 3 Entra rel types, zero violations, all batches still emit.
+   `^[A-Za-z][A-Za-z0-9_]{0,63}\Z`. Verified against the real sample estate (ETL census, refreshed 2026-10-18):
+   **29 AD rel types** on the AD-only sever_demo load and **42 rel types total on
+   the loaded hybrid sample** (29 AD + 12 Entra + SYNCED_TO) — zero violations,
+   all batches still emit.
 2. **`_valid_rel` anchor.** Python `$` also matches before a trailing newline,
    so `"MEMBER_OF\n"` passed the guard. Now `\Z` (caught by this audit's own
    regression test).
@@ -97,11 +100,12 @@ so the models were previously untestable without an engine) and hardened:
 
 - size caps: `src/dst/subject/target` ≤ 256, `rel` ≤ 64, `kind` ≤ 64,
   `approved_by` ≤ 128 — absurd payloads die as HTTP 422;
-- `rel` carries the same `^[A-Za-z][A-Za-z0-9_]{0,63}$` syntax pattern as the
-  port guard, so injection payloads are rejected at the HTTP layer before
+- `rel` carries the same `[A-Za-z][A-Za-z0-9_]{0,63}` charset as the port
+  guard (the port anchors it with `\Z` to also refuse a trailing newline), so
+  injection payloads are rejected at the HTTP layer before
   any query template exists.
 
-Verified by `tests/test_console_schemas.py` (10 engine-free model tests:
+Verified by `tests/test_console_schemas.py` (18 engine-free model tests:
 oversized fields, injection rels, trailing-newline rel, camelCase rels
 accepted, valid requests accepted) plus an end-to-end 422 test in
 `tests/test_console.py` (engine-gated).

@@ -33,7 +33,7 @@ import pytest
 from tests.conftest import requires_engine, requires_sample, drop_graph, prefixed
 from sever.core.falkor_port import FalkorGraphPort
 
-pw_any = pytest.importorskip("playwright")
+pytest.importorskip("playwright")  # skip the module unless Playwright is installed
 
 pytestmark = [requires_engine, requires_sample]
 
@@ -322,8 +322,14 @@ def test_xss_payloads_never_execute_on_any_render_surface(page, console_url):
     carrying = [t for t in titles if "__severXSS" in t]
     assert carrying, "the approved_by payload should be visible in the ledger"
     # every attribute carries its payload WITHOUT an early quote breakout:
-    # the full marker is still inside the quoted value
-    assert all(t.count("__severXSS") >= 1 for t in carrying)
+    # the DECODED title value still contains the FULL payload string — an
+    # unescaped quote inside the payload would have truncated the attribute
+    # before its tail, so the whole payload could no longer appear intact
+    # (audit M73: the old marker-count check re-tested the filter above it
+    # and could never fail)
+    assert all(any(p in t for p in PAYLOADS) for t in carrying), (
+        f"payload truncated inside a title attribute — quote breakout: {carrying[:3]}"
+    )
     assert page.evaluate(
         "document.getElementById('receipts').textContent"
         ".includes('<script>window.__severXSS')"), \

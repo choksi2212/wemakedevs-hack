@@ -22,8 +22,12 @@ from sever.core.falkor_port import _valid_rel
 from sever.core.jewels import TRAVERSAL_RELS
 from sever.etl.cypher_batches import _is_safe_rel
 
-OTHER = "S-1-5-21-2697957641-2271029196-387917394-2110"  # distinct target (self-grants are 422)
-HERO = "S-1-5-21-2697957641-2271029196-387917394-2102"
+# Neutral principal ids (audit N48: these are NOT the repo-wide HERO —
+# -2102 is the sample GMSA and -2110 the demo hero; neither ROLE matters
+# here, the pair only needs two DISTINCT SIDs so the self-grant rule can
+# never mask what these tests actually pin: the rel gates).
+SID_A = "S-1-5-21-2697957641-2271029196-387917394-2102"
+SID_B = "S-1-5-21-2697957641-2271029196-387917394-2110"  # distinct target (self-grants are 422)
 
 # payloads that violate the [A-Za-z][A-Za-z0-9_]{0,63} charset at every layer
 CHARSET_VIOLATIONS = [
@@ -83,9 +87,13 @@ def test_charset_violations_die_at_all_three_layers():
         assert not _valid_rel(payload), repr(payload)
         assert not _is_safe_rel(payload), repr(payload)
         with pytest.raises(ValidationError):
-            CutRequest(src=HERO, dst=HERO, rel=payload, approved=True)
+            CutRequest(src=SID_A, dst=SID_A, rel=payload, approved=True)
         with pytest.raises(ValidationError):
-            FindingRequest(kind="ace_granted", subject=HERO, target=HERO, rel=payload)
+            # target MUST differ from subject (audit M84): with a self-
+            # grant the model-validator raises for ANY rel and masks the
+            # REL_PATTERN leg entirely — with a distinct target the 422
+            # can only come from the rel pattern itself
+            FindingRequest(kind="ace_granted", subject=SID_A, target=SID_B, rel=payload)
 
 
 def test_nfkc_normalization_is_never_applied_before_matching():
@@ -110,8 +118,8 @@ def test_vocab_only_variants_reject_at_the_port_not_the_schema():
         # non-traversable rels like CONTAINED_BY/PUBLISHED_ON/ENROLL are legal data)
         assert _is_safe_rel(payload), repr(payload)
         # and the request schema is a syntax gate, not a vocabulary gate
-        assert CutRequest(src=HERO, dst=HERO, rel=payload, approved=True).rel == payload
-        assert FindingRequest(kind="ace_granted", subject=HERO, target=OTHER, rel=payload).rel == payload
+        assert CutRequest(src=SID_A, dst=SID_A, rel=payload, approved=True).rel == payload
+        assert FindingRequest(kind="ace_granted", subject=SID_A, target=SID_B, rel=payload).rel == payload
 
 
 def test_no_vocabulary_word_can_be_built_from_a_variant_string():

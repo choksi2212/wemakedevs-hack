@@ -23,6 +23,12 @@ BASE = os.environ.get("SEVER_AUDIT_BASE", "https://sever-console.onrender.com")
 OUT = sys.argv[1] if len(sys.argv) > 1 else "audit5_live_results.jsonl"
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"  # live owned hero (/api/state)
 GHOST = "S-1-5-21-2697957641-2271029196-387917394-9999"
+RECEIPTS_WINDOW = 5000  # /api/receipts documented max (the handler clamps 1..5000)
+
+# fresh run, fresh jsonl (audit9/L25): a re-run must not silently double the
+# results file while the summary reflects only the last run
+with open(OUT, "w", encoding="utf-8"):
+    pass
 
 results: list[dict] = []
 transport_flaps = {"conn": 0, "proxy_502": 0}
@@ -61,7 +67,6 @@ def check(cid, method, path, expected, desc, **kw):
             rec["body"] = r.text[:300]
         if r.status_code == 503:
             rec["body"] = r.text[:300]  # 503 must be engine-stall only
-        ct = kw.get("headers", {}).get("Content-Type") or kw.get("headers", {}).get("content-type")
         print(f"{cid:34} {r.status_code:>4} exp {exp} {'ok ' if rec['pass'] else 'FAIL'} {desc}", flush=True)
         return r
     except Exception as e:
@@ -91,7 +96,11 @@ def raw(body: bytes, ct=J):
 print("=== BASELINE ===", flush=True)
 r = check("get_state_baseline", "GET", "/api/state", 200, "state 200 + capture estate baseline")
 base_state = r.json() if r is not None else {}
-r = check("get_receipts_baseline", "GET", "/api/receipts", 200, "receipts 200 + baseline prefix capture")
+# limit-aware read (audit9/M34): the default window is only the newest 200
+# events — read the documented max so the append-only continuity check below
+# compares full ledgers for any realistic run
+r = check("get_receipts_baseline", "GET", f"/api/receipts?limit={RECEIPTS_WINDOW}", 200,
+          "receipts 200 + baseline capture (full window)")
 baseline_receipts = r.json() if r is not None else []
 with open(OUT + ".baseline_receipts.json", "w", encoding="utf-8") as f:
     json.dump(baseline_receipts, f)
@@ -109,17 +118,28 @@ print("REAL_TARGET:", REAL_TARGET, flush=True)
 check("get_root_html", "GET", "/", 200, "GET / serves the console HTML")
 r = check("get_proposal", "GET", "/api/proposal", 200, "GET /api/proposal ranked list")
 
-# security headers on every response (audit3/pentest-external contract)
-r = requests.get(BASE + "/api/state", timeout=120)
-hdr = lambda k: r.headers.get(k)
-hdr_ok = {
-    "X-Content-Type-Options": hdr("X-Content-Type-Options") == "nosniff",
-    "X-Frame-Options": hdr("X-Frame-Options") == "DENY",
-    "Referrer-Policy": hdr("Referrer-Policy") == "no-referrer",
-    "CSP": bool(hdr("Content-Security-Policy")),
-    "HSTS": bool(hdr("Strict-Transport-Security")),
-}
-results.append({"id": "security_headers", "desc": "hardening headers on /api/state", "expected": "all", "actual": hdr_ok, "pass": all(hdr_ok.values())})
+# security headers on every response (audit3/pentest-external contract) —
+# through call() like every other probe, so one Render free-tier flap cannot
+# crash the whole sweep before the result is recorded (audit9/M33); even a
+# total transport failure records an honest FAIL instead of raising
+try:
+    r = call("GET", "/api/state")
+
+    def _hdr(k):
+        return r.headers.get(k)
+
+    hdr_ok = {
+        "X-Content-Type-Options": _hdr("X-Content-Type-Options") == "nosniff",
+        "X-Frame-Options": _hdr("X-Frame-Options") == "DENY",
+        "Referrer-Policy": _hdr("Referrer-Policy") == "no-referrer",
+        "CSP": bool(_hdr("Content-Security-Policy")),
+        "HSTS": bool(_hdr("Strict-Transport-Security")),
+    }
+    headers_pass = all(hdr_ok.values())
+except Exception as e:
+    hdr_ok = {"transport_error": str(e)[:200]}
+    headers_pass = False
+results.append({"id": "security_headers", "desc": "hardening headers on /api/state", "expected": "all", "actual": hdr_ok, "pass": headers_pass})
 print("security_headers", hdr_ok, flush=True)
 
 # docs opt-in OFF on the public deploy
@@ -166,8 +186,12 @@ check("f_ghost_subject", "POST", F, 400, "ghost principal subject", **j(kind="cr
 check("f_ghost_target", "POST", F, 400, "ghost principal target", **j(kind="ace_granted", subject=HERO, target=GHOST, rel="GENERIC_ALL"))
 check("f_ssrf_subject", "POST", F, 400, "SSRF-shaped subject (metadata URL)", **j(kind="credential_breach", subject="http://169.254.169.254/latest/meta-data/"))
 check("f_ssrf_file_subject", "POST", F, 400, "SSRF-shaped subject (file://)", **j(kind="credential_breach", subject="file:///etc/passwd"))
-r = check("f_unknown_rel_generic", "POST", F, 400, "schema-valid unknown rel generic_all (vocabulary)", **j(kind="ace_granted", subject=HERO, target=REAL_TARGET, rel="generic_all"))
+# schema-valid unknown rel needs a REAL target — /api/paths may legitimately
+# answer no paths (audit9/L26): guard both target-dependent cases instead of
+# posting target=None, which dies at the schema (422) instead of the intended
+# vocabulary lane (400)
 if REAL_TARGET:
+    check("f_unknown_rel_generic", "POST", F, 400, "schema-valid unknown rel generic_all (vocabulary)", **j(kind="ace_granted", subject=HERO, target=REAL_TARGET, rel="generic_all"))
     check("f_ssrf_cased_rel", "POST", F, 400, "SSRF-looking charset-valid rel HTTPSHOP", **j(kind="ace_granted", subject=HERO, target=REAL_TARGET, rel="HTTPSHOP"))
 check("f_astral_subject", "POST", F, 400, "valid astral unicode subject -> ghost 400", **j(kind="credential_breach", subject="\U0001F5A5"))
 check("f_surrogate_pair_target", "POST", F, 400, "valid surrogate pair reassembles -> ghost 400", **raw(b'{"kind":"credential_breach","subject":"' + HERO.encode() + b'","target":"\\ud83d\\udcbb","rel":"GENERIC_ALL"}'))
@@ -217,17 +241,36 @@ def chunks(n=24, size=70_000):
     for _ in range(n):
         yield b"x" * size
 check("c_body_chunked_413", "POST", C, 413, "1.6MB chunked body -> 413 (streaming path)", data=chunks(), headers={"Content-Type": J})
-# just under cap passes to the schema (unknown extra field ignored, gate still applies)
-just_under = json.dumps({"src": HERO, "dst": GHOST, "rel": "GENERIC_ALL", "approved": False, "pad": "y" * (1_000_000 - 160)}).encode()
-check("c_body_just_under_1mb", "POST", C, 403, "~1MB body under cap reaches schema/gate (extras ignored)", **raw(just_under))
+# just under cap passes to the schema (unknown extra field ignored, gate still applies).
+# Exact sizes via the REAL capped key set (audit9/H15): pad is computed so
+# json.dumps lands on exactly n bytes — the old hand-guessed pads put BOTH
+# cases on the wrong side of the cap (1,000,004B > cap and 999,999B < cap)
+# and both assertions failed as shipped.
+
+
+def sized(n):
+    obj = {"src": HERO, "dst": GHOST, "rel": "GENERIC_ALL", "approved": False, "pad": ""}
+    obj["pad"] = "y" * (n - len(json.dumps(obj).encode()))
+    body = json.dumps(obj).encode()
+    assert len(body) == n, (len(body), n)
+    return body
+
+
+check("c_body_just_under_1mb", "POST", C, 403, "1000000B body at the cap reaches schema/gate (extras ignored)", **raw(sized(1_000_000)))
 # exactly 1MB+1
-over_1 = json.dumps({"pad": "z" * (1_000_000 - 12)}).encode()
-check("c_body_1mb_plus_1_413", "POST", C, 413, "1MB+ body over cap -> 413", **raw(over_1))
+check("c_body_1mb_plus_1_413", "POST", C, 413, "1000001B body over cap -> 413", **raw(sized(1_000_001)))
 
 # ------------------------------------------------- POST /api/plan/execute
 print("=== POST /api/plan/execute ===", flush=True)
 P = "/api/plan/execute"
-ghost_steps = [{"src": GHOST, "dst": GHOST, "rel": "GENERIC_ALL", "projected_reachability": 1} for _ in range(3)]
+# projections derived from the LIVE estate (audit9/L27): the hardcoded 1/0
+# only held while the live reachability happened to be exactly 1. Ghost
+# no-op steps cannot move reachability, so the honest projection is the
+# measured value; the drift case tampers it by +5.
+r0 = call("GET", "/api/state")
+live_reach = r0.json().get("reachability", 0) if r0 is not None else 0
+print("live reachability for ghost projections:", live_reach, flush=True)
+ghost_steps = [{"src": GHOST, "dst": GHOST, "rel": "GENERIC_ALL", "projected_reachability": live_reach} for _ in range(3)]
 check("p_missing_approved", "POST", P, 422, "missing approved", **j(steps=ghost_steps))
 check("p_approved_null", "POST", P, 422, "approved null", **j(steps=ghost_steps, approved=None))
 check("p_approved_1", "POST", P, 422, "approved 1", **j(steps=ghost_steps, approved=1))
@@ -251,8 +294,8 @@ if r is not None and r.status_code == 200:
     results[-1]["executed_steps"] = body.get("executed_steps")
     results[-1]["drifts"] = [s.get("plan_drift") for s in body.get("steps", [])]
 r = check("p_drift_stop_ghost", "POST", P, 200, "approved + wrong projection -> drift_stopped_at_step, later steps never run", **j(steps=[
-    {"src": GHOST, "dst": GHOST, "rel": "GENERIC_ALL", "projected_reachability": 0},
-    {"src": GHOST, "dst": GHOST, "rel": "GENERIC_ALL", "projected_reachability": 0},
+    {"src": GHOST, "dst": GHOST, "rel": "GENERIC_ALL", "projected_reachability": live_reach + 5},
+    {"src": GHOST, "dst": GHOST, "rel": "GENERIC_ALL", "projected_reachability": live_reach + 5},
 ], approved=True))
 if r is not None and r.status_code == 200:
     body = r.json()
@@ -294,22 +337,54 @@ check("get_state_junk_body", "GET", "/api/state", 200, "GET with garbage body un
 
 # ------------------------------------------------------------ ledger integrity
 print("=== LEDGER INTEGRITY ===", flush=True)
-r = check("receipts_after_storm", "GET", "/api/receipts", 200, "receipts parseable after storm")
+
+
+def _ledger_continuity(baseline, after):
+    """Append-only continuity between two /api/receipts reads (audit9/M34).
+
+    /api/receipts returns only the newest ``limit`` events, so the old
+    prefix-of-a-tail comparison broke for ANY newly appended event once the
+    ledger passed the default 200. Both reads here use the documented max
+    window: while the ledger fits, the reads are the FULL ledger and an
+    exact prefix match proves append-only; past the window the reads are
+    newest-tail windows, so continuity degrades to what is still provable —
+    never fewer events + the longest shared overlap between the windows."""
+    growth = len(after) - len(baseline)
+    growth_ok = growth >= 0
+    if len(baseline) < RECEIPTS_WINDOW and len(after) < RECEIPTS_WINDOW:
+        prefix_ok = after[:len(baseline)] == baseline
+        return (growth_ok and prefix_ok,
+                "full-ledger prefix preserved" if prefix_ok else "prefix rewritten",
+                growth)
+    shared = 0
+    for k in range(min(len(baseline), len(after)), 0, -1):
+        if after[:k] == baseline[-k:]:
+            shared = k
+            break
+    return (growth_ok and shared > 0,
+            f"window-limited: {shared} shared tail events preserved",
+            growth)
+
+
+r = check("receipts_after_storm", "GET", f"/api/receipts?limit={RECEIPTS_WINDOW}", 200,
+          "receipts parseable after storm (full window)")
 if r is not None and r.status_code == 200:
     after = r.json()
     parseable = isinstance(after, list) and all(isinstance(e, dict) for e in after)
-    prefix_ok = len(after) >= len(baseline_receipts) and after[: len(baseline_receipts)] == baseline_receipts
+    cont_ok, cont_note, growth = _ledger_continuity(baseline_receipts, after)
     ts_list = [e.get("ts") for e in after if e.get("ts")]
     ordered = all(ts_list[i] <= ts_list[i + 1] for i in range(len(ts_list) - 1))
     results[-1].update({
         "parseable": parseable,
-        "append_only_prefix_preserved": prefix_ok,
+        "append_only": cont_ok,
+        "append_only_note": cont_note,
+        "ledger_growth": growth,
         "ts_ordering_sane": ordered,
         "baseline_count": len(baseline_receipts),
         "after_count": len(after),
     })
-    results[-1]["pass"] = parseable and prefix_ok and ordered
-    print(f"ledger: parseable={parseable} prefix_ok={prefix_ok} ordered={ordered} {len(baseline_receipts)}->{len(after)}", flush=True)
+    results[-1]["pass"] = parseable and cont_ok and ordered
+    print(f"ledger: parseable={parseable} append_only={cont_ok} ({cont_note}) ordered={ordered} {len(baseline_receipts)}->{len(after)}", flush=True)
 
 r = check("final_state_integrity", "GET", "/api/state", 200, "estate integrity after authorized storm")
 if r is not None:

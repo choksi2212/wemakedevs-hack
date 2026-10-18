@@ -20,8 +20,9 @@ self-loop edges, disconnected jewels, case-varied GA holders.
 Randomized micro-graph fuzz: 50 deterministic graphs (2-8 nodes, random
 abusable rels, random owned) — all three opinions must agree on every one.
 
-Greedy ranking: the top proposal is never worse than 20 sampled candidates
-(path-coverage argmax), and edge_frequency equals an independent enumeration.
+Greedy ranking: the top proposal is the measured path-coverage argmax
+(edge_frequency re-checked against an independent enumeration, the argmax
+pinned directly), and no proposal is phantom.
 """
 from __future__ import annotations
 
@@ -155,11 +156,14 @@ def _coverage(port: FalkorGraphPort) -> tuple[dict[tuple[str, str, str], int], s
     return cov, hops
 
 
-def assert_greedy_and_proposals(port: FalkorGraphPort, rng: random.Random,
-                               spec_edges: list[tuple[str, str, str]], ctx: str) -> None:
-    """I3 + greedy ranking: top proposal is the argmax and never worse than
-    20 sampled candidates; no proposal is phantom; then ONE gated cut whose
-    receipt must satisfy I1/I2/I4."""
+def assert_greedy_and_proposals(port: FalkorGraphPort, ctx: str) -> None:
+    """I3 + greedy ranking: the top proposal is the measured coverage argmax
+    (edge_frequency re-checked against an independent enumeration) and no
+    proposal is phantom; then ONE gated cut whose receipt must satisfy
+    I1/I2/I4. The old '20 sampled candidates never beat the top' loop was
+    removed (audit N41): it re-compared cov.get(cand, 0) against
+    max(cov.values()), which the argmax pin two lines up already asserts —
+    the loop could never fail for any candidate."""
     freq = port.edge_frequency(DEFAULT_HOP_CAP)
     if not freq:
         assert rank_cut_candidates(freq) == []
@@ -173,12 +177,6 @@ def assert_greedy_and_proposals(port: FalkorGraphPort, rng: random.Random,
     proposals = Investigator(port).propose(limit=5)
     for p in proposals:
         assert (p["src"], p["rel"], p["dst"]) in path_hops, f"[{ctx}] phantom proposal {p}"
-    # greedy: 20 sampled candidates (any graph edge) must not beat the top
-    pool = [e for e in spec_edges] or sorted(path_hops)
-    for cand in rng.sample(pool, min(20, len(pool))):
-        assert cov.get(cand, 0) <= top["paths_on"], (
-            f"[{ctx}] candidate {cand} coverage {cov.get(cand, 0)} beats top {top}"
-        )
     receipt = Investigator(port).approve_and_cut(
         top["src"], top["dst"], top["rel"], approved_by=f"audit3-{ctx}"
     )
@@ -324,7 +322,7 @@ def test_two_arm_edge_case_matrix(matrix_port):
         arm12 = assert_forms_agree(port2, spec.nodes, spec.edges, 12, "matrix/final")
         assert not (arm12 & {"audit3-o3"}), "decoy target must never be a breach"
         # greedy + proposal + receipt invariants on the crafted estate
-        assert_greedy_and_proposals(port2, random.Random(77), spec.edges, "matrix/greedy")
+        assert_greedy_and_proposals(port2, "matrix/greedy")
     finally:
         drop_graph(port2, f"{P}_matrix")
 
@@ -504,7 +502,7 @@ def test_micrograph_fuzz_invariants(seed):
             assert port.reachability() == r, f"[fuzz{seed}] self-loop cut changed the metric"
 
         # I3 + greedy + receipt invariants (when paths exist post-cuts)
-        assert_greedy_and_proposals(port, rng, spec.edges, f"fuzz{seed}")
+        assert_greedy_and_proposals(port, f"fuzz{seed}")
     finally:
         drop_graph(port, gname)
 
@@ -568,6 +566,6 @@ def test_sample_estate_two_arm_vs_per_pair_vs_oracle():
         assert port.owned_ids(), "expected marked sample principals"
         assert_forms_agree(port, nodes, edges, DEFAULT_HOP_CAP, "sample")
         assert_forms_agree(port, nodes, edges, 4, "sample")
-        assert_greedy_and_proposals(port, random.Random(42), edges, "sample")
+        assert_greedy_and_proposals(port, "sample")
     finally:
         drop_graph(port, gname)

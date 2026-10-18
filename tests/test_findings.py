@@ -70,8 +70,16 @@ def test_every_timeline_kind_has_attack_map_entry():
 
 
 def test_narrate_falls_back_on_unknown_kind():
+    """Owner resolution #4 (audit M69): an unknown kind gets a kind-NEUTRAL
+    fallback — never a fabricated ATT&CK label. The pre-fix fallback narrated
+    any unmapped kind as 'T1595.002 Active Scanning: Vulnerability Scanning',
+    exactly the fabrication schemas.py documents (and the HTTP layer 422s)."""
     f = Finding("F-9", "mystery_kind", "A", detail="odd")
-    assert narrate(f).technique_id == "T1595.002"
+    story = narrate(f)
+    assert story.technique_id == "UNMAPPED"
+    assert story.technique == "Unmapped finding kind"
+    assert "mystery_kind" in story.narration  # the narration names the kind
+    assert "T1595" not in story.technique_id  # no fabricated technique id
 
 
 def test_attack_map_ids_and_names_match_mitre_enterprise():
@@ -100,11 +108,20 @@ def test_attack_map_narrations_and_ids_are_wellformed():
         assert re.fullmatch(r"T\d{4}(?:\.\d{3})?", narrative.technique_id), kind
 
 
-def test_timeline_f003_targets_real_id_not_placeholder():
+def test_timeline_f003_carries_the_ace_target_argument():
+    """Renamed from ..._targets_real_id_not_placeholder (audit M77): that
+    name claimed a resolution check against the estate this DB-free test
+    never performed. What is actually pinned here: the deterministic
+    timeline's F-003 (ace_granted) carries the ``ace_target`` argument
+    through as its target. Real-id resolution is enforced elsewhere — the
+    console 400s unknown subjects/targets, and the engine suite pins the
+    grant on a live estate."""
     timeline = default_timeline(HERO, "B", "C")
     f003 = timeline[2]
-    assert f003.target == "B"
-    assert "placeholder" not in (f003.target or "")
+    assert f003.id == "F-003"
+    assert f003.kind == "ace_granted"
+    assert f003.target == "B"  # the ace_target argument, verbatim
+    assert f003.grants_edge is True
 
 
 # ---- DB-free: stream exhaustion + apply_finding rejection semantics ----

@@ -57,9 +57,13 @@ def _right_to_rel(right: str) -> str:
 # relationship types whose semantics we surface explicitly in queries.
 # Verified against the BloodHound CE sample: every ACE RightName in the data
 # (22 distinct rights) maps mechanically through _right_to_rel onto a
-# relationship type; the abusable ones are all attacker-chainable in
-# sever.core.jewels.TRAVERSAL_RELS. ENROLL is emitted but deliberately
+# relationship type. Two-way aligned with sever.core.jewels.TRAVERSAL_RELS
+# (owner resolution #3, audit M64/X14): every AD-side rel the engine can
+# chain is listed here, and every rel listed here is attacker-chainable in
+# TRAVERSAL_RELS EXCEPT ENROLL — emitted for completeness but deliberately
 # non-traversable (BloodHound CE marks the Enroll edge non-traversable too).
+# The alignment is pinned both directions by
+# tests/test_etl.py::test_traversal_and_abusable_enums_are_two_way_aligned.
 # ESC1/ESC2/AUTO_ENROLL were removed: nothing derives or queries them — BH CE
 # synthesizes ADCSESC1/2 edges from template properties, which this ETL does
 # not implement.
@@ -67,12 +71,14 @@ ABUSABLE_RELS: frozenset[str] = frozenset(
     {
         "MEMBER_OF",
         "GENERIC_ALL",
+        "GENERIC_RIGHT",           # container-inherited generic control (audit X14)
         "GENERIC_WRITE",
         "WRITE_DACL",
         "WRITE_OWNER",
         "OWNS",
         "FORCE_CHANGE_PASSWORD",
         "ALL_EXTENDED_RIGHTS",
+        "EXTENDED_RIGHT",          # single-extended-right ACEs (audit X14)
         "WRITE_PROPERTY",
         "RESET_PASSWORD",
         "GET_CHANGES",
@@ -85,6 +91,10 @@ ABUSABLE_RELS: frozenset[str] = frozenset(
         "ALLOWED_TO_ACT",
         "ADMIN_TO",
         "ENROLL",
+        # cert-template ACL flag writes (owner resolution #3): abusable per
+        # BloodHound CE semantics, chainable via TRAVERSAL_RELS
+        "WRITE_PKIENROLLMENT_FLAG",
+        "WRITE_PKINAME_FLAG",
         "ADD_MEMBER",
         "ADD_SELF",
         "ADD_KEY_CREDENTIAL_LINK",
@@ -273,6 +283,18 @@ def parse_ad_dir(path: str | Path) -> NormalizedGraph:
             raise ValueError(
                 f"collector file {f.name}: 'data' must be a list, got {type(data).__name__}"
             )
+        # cross-check the document's self-described meta.type against the
+        # filename-derived collector type (audit L66): the FILENAME stays
+        # authoritative — a divergence is counted so it is visible, never
+        # silently ignored, and never changes how the file is typed.
+        meta = doc.get("meta")
+        if isinstance(meta, dict):
+            mtype = meta.get("type")
+            if isinstance(mtype, str):
+                meta_label = TYPE_LABEL.get(mtype.strip().lower())
+                if meta_label is not None and meta_label != label:
+                    key = f"type_mismatch:{f.name}"
+                    skipped[key] = skipped.get(key, 0) + 1
         docs.append((label, data))
         for rec in data:
             _parse_record(g, rec, label, skipped, edges=False)

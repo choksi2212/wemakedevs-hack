@@ -61,5 +61,6 @@
     "graph_answers_correct": "5/5",
     "keyword_only_correct": "0/5",
     "verdict": "connectivity questions are only answerable via graph traversal \u2014 the graph is load-bearing, not decoration (rule 3)"
-  }
+  },
+  "_note": "2026-10-18 (audit L13): the 5/5-vs-0/5 score is by construction — text search cannot express connectivity, and the generator (sever/eval/ablation.py) hardcodes every graph answer correct and every keyword answer incorrect, so the score cannot come out any other way; read it as a capability demonstration, not a graded measurement. Per OWNER RESOLUTIONS #5 in the mission file, a case-insensitive keyword baseline (toLower(n.name) CONTAINS toLower($term)) and the product's rank_cut_candidates tie-break are landing in sever/eval/ablation.py — the shipped keyword answers here predate that fix (the Q1 zero-hits answer is partially a term-casing artifact: the estate's names are uppercase while the terms were lowercase)."
 }

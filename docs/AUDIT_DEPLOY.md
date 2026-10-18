@@ -12,7 +12,7 @@ and repo history. All timestamps UTC (IST = UTC+5:30).
 > ledger** (four wipes in ~47 minutes) and `/api/state` health checks blowing the 5s
 > window under load (measured 6.07s–24.1s), which caused an instance-restart loop —
 > fixed on this branch by `/api/health` (one cheap engine query). Operator musts
-> before the demo (§7): flip the dashboard health path, rotate the 7-char engine
+> before the demo (§7): flip the dashboard health path, rotate the engine
 > password, actually schedule the keepalive, sequence judge traffic. Topology below.
 
 ## 0. Deployment topology (browser → Render SG → FalkorDB Cloud Mumbai)
@@ -139,7 +139,7 @@ the demo.
 1. Merge → deploy, **then** flip the Render dashboard's Health Check Path to
    `/api/health` (the dashboard value governs the running service; the
    blueprint file only applies on a blueprint sync).
-2. Rotate the 7-char engine password; update `SEVER_FALKOR_PASSWORD`.
+2. Rotate the engine password; update `SEVER_FALKOR_PASSWORD`.
 3. Actually schedule the keepalive (Task Scheduler or Startup item).
 4. Keep concurrent load low during the demo: the free Cloud tier served
    `/api/state` at 6-24s under a handful of concurrent clients — sequence

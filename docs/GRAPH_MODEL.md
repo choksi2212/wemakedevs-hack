@@ -4,7 +4,7 @@
 breaks, per the hackathon's rule 3). BloodHound CE / AzureHound collector JSON is parsed by a
 deterministic two-pass ETL into **one graph per tenant** — `sever_demo`,
 `sever_tenant001` .. `sever_tenantNNN` — native FalkorDB multi-tenancy. The model is 28 node
-labels / 42 edge families on the loaded sample, and its core judgment is the **traversal set**:
+labels / 42 edge families on the loaded hybrid sample (ETL census below), and its core judgment is the **traversal set**:
 only abusable relationship families chain into attack paths, structural edges never do.
 
 ## The model at a glance
@@ -59,9 +59,9 @@ erDiagram
   GROUP |o--o{ GROUP : "MEMBER_OF - nested groups"
   USER |o--o{ USER : "GENERIC_ALL and 24 more ACE-derived rights"
   USER |o--o{ COMPUTER : "ADMIN_TO - local admin"
-  USER |o--o{ DOMAIN : "TRUSTED_BY - domain trusts, traversable"
-  COMPUTER |o--o{ OU : "CONTAINED_BY - structural, never traversed"
-  OU |o--o{ DOMAIN : "CONTAINED_BY - structural, never traversed"
+  DOMAIN |o--o{ DOMAIN : "TRUSTED_BY - domain trusts, traversable"
+  COMPUTER |o--|| OU : "CONTAINED_BY - structural, never traversed"
+  OU |o--|| DOMAIN : "CONTAINED_BY - structural, never traversed"
   CERTTEMPLATE }o--|| ENTERPRISECA : "PUBLISHED_ON - structural, never traversed"
   USER |o--o| AZUSER : "SYNCED_TO - the hybrid bridge, 9 on the merged sample"
   AZUSER |o--o{ AZSERVICEPRINCIPAL : "AZOwns"
@@ -101,7 +101,7 @@ unresolved-principal creation, deterministic). Measured on the official sample:
 | Label | Source collector type | Key properties |
 |---|---|---|
 | `User` | users | objectid (SID), name, owned (bool), SPN flags |
-| `Group` | groups | objectid (SID), name — **-512/-512 RIDs = crown jewels** |
+| `Group` | groups | objectid (SID), name — **-512/-519 RIDs = crown jewels (Domain Admins / Enterprise Admins)** |
 | `Computer` | computers | objectid, name, isdc |
 | `Domain` | domains (+ external trust targets) | objectid, name, external |
 | `OU` | ous | objectid, structural hierarchy |
@@ -134,7 +134,8 @@ unresolved-principal creation, deterministic). Measured on the official sample:
 | `AZAutomationAccount` | automation surface |
 | `AZTenant` | tenant root |
 
-All AZ labels are keyed by the Entra object `id` instead of a SID. The 16-label
+All AZ labels are keyed by the Entra object `id` instead of a SID — except
+`AZTenant`, keyed by `tenantId`. The 16-label
 `_KIND_LABELS` set is verified present in the loaded hybrid sample.
 
 **Every node** carries: `objectid` (natural key, MERGE target), `owned`
@@ -145,6 +146,18 @@ referenced-but-uncollected principal — surfaced honestly, BloodHound-faithful)
 
 ACE rights are derived from per-record `Aces[]` lists; memberships from `Members[]` /
 `PrimaryGroupSID`; each maps 1:1 to a relationship type.
+
+**ETL census on the official sample** (2026-10-18, `sever.etl.ad_collectors.parse_ad_dir`
++ `sever.etl.entra_collectors.merge_entra` — the same normalization the engine batch
+queries load from; per-family edge counts in the sections below):
+
+| Family group | Families | Edge count on the loaded sample |
+|---|---|---|
+| Membership & forest structure | 4 | 1,800 |
+| ACE-derived rights | 22 | 10,635 |
+| Delegation / local admin | 3 | 15 |
+| Hybrid Entra edges + the bridge | 13 | 16,741 |
+| **Total — loaded hybrid sample** | **42** | **29,191** (= 29 AD rel types + 12 Entra rel types + `SYNCED_TO`) |
 
 ### Membership & forest structure
 
@@ -162,55 +175,69 @@ ACE rights are derived from per-record `Aces[]` lists; memberships from `Members
 `GET_CHANGES`, `GET_CHANGES_IN_FILTERED_SET`, `GET_CHANGES_ALL`, `DCSYNC`,
 `ADD_MEMBER`, `ADD_SELF`, `ADD_KEY_CREDENTIAL_LINK`, `ADD_ALLOWED_TO_ACT`,
 `WRITE_ACCOUNT_RESTRICTIONS`, `READ_GMSAPASSWORD`, `READ_LAPSPASSWORD`, `MANAGE_CA`,
-`MANAGE_CERTIFICATES`, `ENROLL`, `WRITE_PKIENROLLMENT_FLAG`, `WRITE_PKINAME_FLAG` —
-(`ENROLL` and the two `WRITE_PKI*` flag writes are emitted by the sample's
-cert-template ACLs but deliberately non-traversable; audit2 live inventory on
-falkordb 6.0.0: 42 rel types in the loaded hybrid sample, the sample emits exactly
-22 ACE-derived types, these two included). Plus the derived container-inherited
-control rights `GENERIC_RIGHT` and `EXTENDED_RIGHT` (`sever/core/jewels.py`) —
-traversable.
+`MANAGE_CERTIFICATES`, `ENROLL`, `WRITE_PKIENROLLMENT_FLAG`, `WRITE_PKINAME_FLAG`.
+
+**The sample emits exactly 22 of the 25** (ETL census, per-type edge counts):
+`GENERIC_ALL` 3,314 · `GENERIC_WRITE` 580 · `WRITE_DACL` 2,228 · `WRITE_OWNER`
+2,194 · `OWNS` 1,439 · `ALL_EXTENDED_RIGHTS` 188 · `ADD_KEY_CREDENTIAL_LINK` 180 ·
+`ADD_MEMBER` 93 · `FORCE_CHANGE_PASSWORD` 52 · `ENROLL` 303 · `MANAGE_CA` 12 ·
+`GET_CHANGES` 11 · `MANAGE_CERTIFICATES` 8 · `GET_CHANGES_ALL` 8 ·
+`READ_GMSAPASSWORD` 7 · `GET_CHANGES_IN_FILTERED_SET` 6 ·
+`WRITE_ACCOUNT_RESTRICTIONS` 5 · `WRITE_PKIENROLLMENT_FLAG` 2 ·
+`WRITE_PKINAME_FLAG` 2 · `ADD_SELF` 1 · `ADD_ALLOWED_TO_ACT` 1 ·
+`READ_LAPSPASSWORD` 1 — **`ENROLL` and the two `WRITE_PKI*` flag writes
+included** (the sample's cert-template ACLs carry all three). The three absent
+names — `WRITE_PROPERTY`, `RESET_PASSWORD`, `DCSYNC` — are handled by the model
+but carry **zero edges on this sample**. The two `WRITE_PKI*` flag writes are
+traversable (the owner-authorized PKI expansion added them to `TRAVERSAL_RELS`,
+43 → 45); `ENROLL` stays deliberately non-traversable. Plus the derived
+container-inherited control rights `GENERIC_RIGHT` and `EXTENDED_RIGHT`
+(`sever/core/jewels.py`) — traversable, and likewise not emitted by this sample.
 
 ### Delegation / local admin
 
 | Relationship | Meaning | Traversable? |
 |---|---|---|
-| `ALLOWED_TO_DELEGATE` | Kerberos delegation | ✅ yes |
-| `ALLOWED_TO_ACT` | resource-based constrained delegation | ✅ yes |
-| `ADMIN_TO` | local admin on a computer | ✅ yes |
-| `HAS_SID_HISTORY` | SID-history pivot | ✅ yes |
-| `HAS_SPN_TARGET` | SPN target linkage | ❌ emitted, not attacker-chainable |
+| `ALLOWED_TO_DELEGATE` | Kerberos delegation (1 edge on this sample) | ✅ yes |
+| `ALLOWED_TO_ACT` | resource-based constrained delegation (1 edge) | ✅ yes |
+| `ADMIN_TO` | local admin on a computer (13 edges) | ✅ yes |
+| `HAS_SID_HISTORY` | SID-history pivot — ETL-derived from `HasSIDHistory`; zero edges on this sample | ✅ yes |
+| `HAS_SPN_TARGET` | SPN target linkage — ETL-derived from `SPNTargets`; zero edges on this sample | ❌ never attacker-chainable |
 
 ### Hybrid Entra edges + the bridge
 
-`AZOwns`, `AZMemberOf`, `AZAppRole`, `AZVMAdminLogin`, `AZVMContributor`,
-`AZVMUserAccessAdmin`, `AZVMAvereContributor`, `AZRGUserAccessAdmin`,
-`AZSubUserAccessAdmin`, `AZMGUserAccessAdmin`, `AZKVUserAccessAdmin`,
-`AZKVContributor`, … plus the **hybrid bridge**: `SYNCED_TO`, added bidirectionally
-for every `AZUser` whose `onPremisesSecurityIdentifier` matches an on-prem `User`
-(the pivot cloud → on-prem; measured: 9 bridges on the merged 14,422-node sample
-estate, `tests/test_entra.py`). Entra crown jewels are `AZUser` role holders
-(name ends `-GlobalAdministrator`, matched case-insensitively — a holder
-named `jdoe-GLOBALADMINISTRATOR` is still the jewel).
+`AZOwns` (5,755), `AZMemberOf` (4,438), `AZAppRole` (3,725),
+`AZRGUserAccessAdmin` (1,225), `AZVMAdminLogin` (332), `AZVMContributor` (528),
+`AZVMUserAccessAdmin` (528), `AZVMAvereContributor` (68), `AZMGUserAccessAdmin` (49),
+`AZKVUserAccessAdmin` (25), `AZKVContributor` (28), `AZSubUserAccessAdmin` (22) —
+the exact 12-type Entra vocabulary (edge counts from the ETL census) — plus the
+**hybrid bridge**: `SYNCED_TO` (18 directed edges = 9 bidirectional bridges), added
+bidirectionally for every `AZUser` whose `onPremisesSecurityIdentifier` matches an
+on-prem `User` (the pivot cloud → on-prem; measured: 9 bridges on the merged
+14,422-node sample estate, `tests/test_entra.py`). Entra crown jewels are `AZUser`
+role holders (name ends `-GlobalAdministrator`, matched case-insensitively — a
+holder named `jdoe-GLOBALADMINISTRATOR` is still the jewel).
 
 ## The traversal set (the product's core judgment)
 
 An attacker can chain only relationships in `sever/core/jewels.py::TRAVERSAL_RELS` —
-the **43-type abusable subset** (memberships, ACL rights, delegation, GMSA/LAPS
-password reads, trusts, the derived container-inherited control rights, and the
+the **45-type abusable subset** (memberships, ACL rights, delegation, GMSA/LAPS
+password reads, trusts, the two PKI flag-write rights, the derived
+container-inherited control rights, and the
 hybrid Entra edges), upper-bounded at 12 hops. Structural edges
 (`CONTAINED_BY`, `PUBLISHED_ON`) never count toward attack paths, and the emitted
-`ENROLL` / `WRITE_PKI*` / `HAS_SPN_TARGET` edges never chain either. This mirrors
+`ENROLL` edges never chain either. This mirrors
 BloodHound's abuse semantics for every right present in the sample.
 
 | Family | Traversable | Never traversed |
 |---|---|---|
 | Memberships & trusts | `MEMBER_OF`, `TRUSTED_BY` | — |
-| ACE-derived | the abusable rights above + `GENERIC_RIGHT`, `EXTENDED_RIGHT` | `ENROLL`, `WRITE_PKIENROLLMENT_FLAG`, `WRITE_PKINAME_FLAG` |
+| ACE-derived | the abusable rights above (incl. the two `WRITE_PKI*` flag writes) + `GENERIC_RIGHT`, `EXTENDED_RIGHT` | `ENROLL` |
 | Delegation / local admin | `ALLOWED_TO_DELEGATE`, `ALLOWED_TO_ACT`, `ADMIN_TO`, `HAS_SID_HISTORY` | `HAS_SPN_TARGET` |
 | Structural | — | `CONTAINED_BY`, `PUBLISHED_ON` |
 | Hybrid | `SYNCED_TO` + the AZ edges | — |
 
-The exact 43-type list, inlined as it runs, is in [`docs/CYPHER.md`](CYPHER.md).
+The exact 45-type list, inlined as it runs, is in [`docs/CYPHER.md`](CYPHER.md).
 
 ## Metrics
 

@@ -261,7 +261,7 @@ def test_double_resume_is_fail_closed_and_reexecutes_nothing_dbfree():
     with pytest.raises(ValueError, match="not paused at the gate"):
         resume_investigation(flow, "case-once", approve=True, approved_by="evil-twin")
 
-    assert port.cut_calls and len(port.cut_calls) == 1  # exactly one cut, ever
+    assert len(port.cut_calls) == 1  # exactly one cut, ever
     state = flow.get_state({"configurable": {"thread_id": "case-once"}}).values
     assert state["receipt"]["approved_by"] == "day-shift"  # not overwritten
 
@@ -370,6 +370,33 @@ def test_caselog_namespaces_per_tenant(tmp_path):
     assert b.read() == []  # separate ledgers, no cross-tenant bleed
 
 
+def test_caselog_drops_a_caller_supplied_ts(tmp_path):
+    """Audit L72: append() stamps ``ts`` INSIDE the lock and explicitly drops
+    a caller-supplied one — the dict spread would otherwise let the caller
+    override the inside-lock stamp and break the ledger's monotonic
+    file-order time guarantee."""
+    log = CaseLog("sever_ts", root=tmp_path)
+    log.append({"step": "a", "ts": "1970-01-01T00:00:00+00:00"})
+    events = log.read()
+    assert events[0]["step"] == "a"
+    assert events[0]["ts"] != "1970-01-01T00:00:00+00:00", "caller ts must never win"
+    assert events[0]["ts"].startswith("2"), "a real UTC stamp took the slot"
+
+
+def test_caselog_repair_records_are_ts_stamped(tmp_path):
+    """Audit L73: the ledger_repair record is a read()-visible ledger event,
+    so it carries the same inside-lock ts every other line carries — it used
+    to be the one event on the ledger with no timestamp at all."""
+    log = CaseLog("sever_repair", root=tmp_path)
+    log.append({"step": "a"})
+    with log.path.open("a", encoding="utf-8") as f:
+        f.write('{"step": "torn", "fi')  # a writer died mid-line, no newline
+    log.append({"step": "c"})
+    events = log.read()
+    assert [e["step"] for e in events] == ["a", "ledger_repair", "c"]
+    assert all(e["ts"] for e in events), "the repair record is stamped too"
+
+
 # ---- CaseLog under concurrent PROCESSES (not threads) ----
 
 _CASELOG_WORKER = """
@@ -392,7 +419,8 @@ def test_caselog_two_processes_concurrent_append_no_interleaved_partials(tmp_pat
     deployment shape): every line must be complete valid JSON, every event
     must survive, and no two events may share a line. Regression pin for the
     locked append — the unlocked append lost ~5-13% of events and minted
-    partial lines on Windows (measured 2x300x8KB and 2x400x0KB)."""
+    partial lines on Windows (historical motivating runs: 2x300x8KB and
+    2x400x0KB; this pin runs 2x150x2KB — audit N37)."""
     worker_script = tmp_path / "caselog_worker.py"
     worker_script.write_text(_CASELOG_WORKER, encoding="ascii")
 

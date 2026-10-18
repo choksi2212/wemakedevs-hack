@@ -4,7 +4,8 @@
 
 Direct dependencies declared in `pyproject.toml` (the console extra is mirrored
 in `requirements-console.txt`). Licenses verified against live PyPI/GitHub
-metadata on 2026-10-17; all are permissive and compatible with this repo's
+metadata on 2026-10-17 (the requests, pytest-timeout and playwright rows on
+2026-10-18); all are permissive and compatible with this repo's
 MIT license (see [LICENSE](LICENSE)).
 
 | Package | Declared in | License | Upstream |
@@ -16,8 +17,11 @@ MIT license (see [LICENSE](LICENSE)).
 | fastapi | `console` extra | MIT | https://github.com/fastapi/fastapi |
 | uvicorn | `console` extra | BSD-3-Clause | https://github.com/encode/uvicorn |
 | openai | `agent` extra | Apache-2.0 | https://github.com/openai/openai-python |
+| playwright | `video` extra | Apache-2.0 | https://github.com/microsoft/playwright-python |
 | pytest | `dev` extra | MIT | https://github.com/pytest-dev/pytest |
+| pytest-timeout | `dev` extra | MIT | https://github.com/pytest-dev/pytest-timeout |
 | httpx | `dev` extra | BSD-3-Clause | https://github.com/encode/httpx |
+| requests | `dev` extra | Apache-2.0 | https://github.com/psf/requests |
 | setuptools | build-system | MIT | https://github.com/pypa/setuptools |
 
 The graph engine container `falkordb/falkordb:6.0.0` (`docker-compose.yml`)

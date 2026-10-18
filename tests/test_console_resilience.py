@@ -139,6 +139,25 @@ class _FakePort(GraphPort):
         return {"backend": "fake"}
 
 
+class _MidPlanDeathPort(_FakePort):
+    """_FakePort whose engine dies exactly BETWEEN interdict steps (audit
+    L46): edge_count() is the LAST engine call of each scoring.snapshot(),
+    so the 2nd edge_count call (step 1's after-snapshot) is the instant
+    step 1 is fully complete — death arms right after it, and step 2's
+    first engine touch (its before-snapshot) raises the outage."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._snapshots = 0
+
+    def edge_count(self) -> int:
+        n = super().edge_count()
+        self._snapshots += 1
+        if self._snapshots == 2:  # one-shot: arming once, never re-arming later
+            self.ops_dead = True
+        return n
+
+
 @pytest.fixture()
 def console(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # CaseLog root lands in the tmp dir
@@ -152,6 +171,30 @@ def console(tmp_path, monkeypatch):
     tc = TestClient(appmod.build_app(port=fake))
     yield tc, fake
     # the ledger file (when anything was written) must still be pristine JSONL
+    ledger = tmp_path / "out" / "cases" / "sever_audit3_cl_resil.jsonl"
+    if ledger.exists():
+        import json
+
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                json.loads(line)
+
+
+@pytest.fixture()
+def console_die_mid_plan(tmp_path, monkeypatch):
+    """The resilience console fixture, but the engine dies between interdict
+    steps 1 and 2 of the first plan executed against it (audit L46)."""
+    monkeypatch.chdir(tmp_path)  # CaseLog root lands in the tmp dir
+    monkeypatch.setenv("SEVER_CONSOLE_NO_BOOTSTRAP", "1")
+    monkeypatch.setenv("SEVER_FALKOR_GRAPH", "sever_audit3_cl_resil")
+    from fastapi.testclient import TestClient
+
+    import sever.console.app as appmod
+
+    fake = _MidPlanDeathPort()
+    tc = TestClient(appmod.build_app(port=fake))
+    yield tc, fake
+    # same pristine-JSONL teardown as the base fixture
     ledger = tmp_path / "out" / "cases" / "sever_audit3_cl_resil.jsonl"
     if ledger.exists():
         import json
@@ -244,12 +287,14 @@ def test_engine_dead_before_the_probe_is_still_a_clean_503(console):
 
 def test_api_health_is_a_cheap_engine_probe_and_writes_no_receipt(console):
     """audit5/deploy-audit: Render's HTTP health check has a 5-second window.
-    /api/state runs five engine queries and measured 6-24s against the live
+    Pre-fold /api/state ran 11 sequential engine queries per poll (post-fold
+    3-4 cold / 1 warm, receipts-pinned) and measured 6-24s against the live
     FalkorDB Cloud under concurrent load — as the health path it caused an
-    instance-restart loop that wiped the ephemeral ledger roughly every 10
-    minutes. /api/health must touch the engine (one query — a dead engine
-    still fails the check) yet never append a receipt, so health-check
-    traffic cannot drown the demo ledger in `state` noise."""
+    instance-restart loop that wiped the ephemeral ledger (three boots in
+    ~11 minutes, live-verified 2026-10-16). /api/health must touch the
+    engine (one query — a dead engine still fails the check) yet never
+    append a receipt, so health-check traffic cannot drown the demo ledger
+    in `state` noise."""
     tc, fake = console
     r = tc.get("/api/health")
     assert r.status_code == 200
@@ -274,6 +319,113 @@ def test_engine_dead_health_503_discloses_no_infra_details(console):
     assert "127.0.0.1" not in detail and "6379" not in detail
     fake.ops_dead = False
     assert tc.get("/api/health").status_code == 200
+
+
+def test_engine_dies_between_plan_steps_is_ledgered_plan_execute_failed(console_die_mid_plan):
+    """audit L46: the plan_execute_failed outage lane had NO test while its
+    three sibling lanes (finding_failed, cut_failed, plan_failed) were all
+    pinned. The engine dies BETWEEN step 1 and step 2 of an approved
+    2-step plan: the console must answer the clean 503, ledger the attempt
+    as plan_execute_failed with outcome unknown, never record a success —
+    and the step-1 cut (which fully landed before the outage) must stay
+    visible on the estate."""
+    tc, fake = console_die_mid_plan
+    # the breach landed out-of-band: mark it directly on the port so NO
+    # engine chatter precedes the plan (triage's own snapshots would consume
+    # the death arming above).
+    fake.mark_owned(ALICE)
+    r = tc.post("/api/plan/execute", json={
+        "approved": True, "approved_by": "resilience",
+        "steps": [
+            # step 1 collapses the surface (projection 0 == measured 0 —
+            # no drift-stop) so execution reaches step 2 and dies there
+            {"src": ALICE, "dst": TIER1, "rel": "MEMBER_OF",
+             "projected_reachability": 0},
+            {"src": TIER1, "dst": DA, "rel": "MEMBER_OF",
+             "projected_reachability": 0},
+        ],
+    })
+    assert r.status_code == 503
+    assert r.json()["detail"].startswith("engine unreachable")
+
+    recs = tc.get("/api/receipts").json()
+    failed = [e for e in recs if e.get("step") == "plan_execute_failed"]
+    assert failed, "the interrupted plan attempt must be on the receipts trail"
+    assert failed[-1]["outcome"] == "unknown"
+    assert failed[-1]["approved_by"] == "resilience"
+    assert failed[-1]["error"] == "engine unreachable mid-plan"
+    assert not any(e.get("step") == "plan_execute" for e in recs), (
+        "a plan that never completed must never be recorded as a success"
+    )
+    # steps before the failure still landed: engine back, step 1's cut shows
+    fake.ops_dead = False
+    state = tc.get("/api/state").json()
+    assert state["edges"] == 1, "step 1's executed cut must survive the outage"
+    assert state["reachability"] == 0, "the surviving edge reaches no jewel"
+
+
+# ---- audit M51 (X54): the operator's approval is forwarded into the agent gate ----
+
+
+def test_console_forwards_approval_into_the_agent_gate(console, monkeypatch):
+    """/api/cut must FORWARD the operator's decision into the agent-layer
+    gate (approve_and_cut's ``require_explicit_approval``). Pre-fix the
+    console never passed it, so the investigator's ``True`` default
+    auto-satisfied the gate and the handler's identity check was the ONLY
+    live layer on the production path — the README's "all fail closed at
+    every layer" was wiring-false for the agent gate. The recorder's default
+    is a marker value: dropping the kwarg again fails this test."""
+    from sever.agent.investigator import Investigator
+
+    tc, fake = console
+    seen = {}
+
+    def recorder(self, src, dst, rel, approved_by="on-call-analyst",
+                 require_explicit_approval="MUTANT-DROPPED", **kw):
+        seen["gate_value"] = require_explicit_approval
+        return {"cut": {"src": src, "dst": dst, "rel": rel,
+                        "relationships_removed": 0},
+                "before": {"reachability": 0}, "after": {"reachability": 0},
+                "requery_ms": 0.0, "verdict": "no_effect",
+                "approved_by": approved_by}
+
+    monkeypatch.setattr(Investigator, "approve_and_cut", recorder)
+    r = tc.post("/api/cut", json={"src": ALICE, "dst": TIER1,
+                                  "rel": "MEMBER_OF", "approved": True,
+                                  "approved_by": "wiring-pin"})
+    assert r.status_code == 200
+    assert seen["gate_value"] is True, (
+        "the console must forward req.approved into the agent gate — "
+        "never rely on the investigator's True default"
+    )
+    assert r.json()["approved_by"] == "wiring-pin"
+
+
+def test_console_forwards_approval_into_the_plan_execute_gate(console, monkeypatch):
+    """Same wiring pin for /api/plan/execute (inv.execute_plan's
+    ``require_explicit_approval``) — the second production path the audit
+    found auto-satisfied by the default."""
+    from sever.agent.investigator import Investigator
+
+    tc, fake = console
+    seen = {}
+
+    def recorder(self, plan, approved_by="on-call-analyst",
+                 require_explicit_approval="MUTANT-DROPPED", gate=None, **kw):
+        seen["gate_value"] = require_explicit_approval
+        return {"status": "completed",
+                "executed_steps": len(plan.get("steps", [])), "steps": []}
+
+    monkeypatch.setattr(Investigator, "execute_plan", recorder)
+    r = tc.post("/api/plan/execute", json={
+        "approved": True, "approved_by": "wiring-pin",
+        "steps": [{"src": ALICE, "dst": TIER1, "rel": "MEMBER_OF",
+                   "projected_reachability": 0}],
+    })
+    assert r.status_code == 200
+    assert seen["gate_value"] is True, (
+        "plan execution must forward req.approved into the agent gate"
+    )
 
 
 # ---- audit5/live-e2e: bounded receipts tail (the unbounded-ledger 502s) ----

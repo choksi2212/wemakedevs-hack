@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 import pytest
+from redis.exceptions import ResponseError
 
 from sever.core.falkor_port import FalkorGraphPort
 from sever.etl.ad_collectors import parse_ad_dir
@@ -18,10 +19,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_DIR = os.environ.get(
     "SEVER_SAMPLE_DIR", str(_REPO_ROOT / "data" / "ad_sample")
 )
-# Shared-engine hygiene: every engine key tests create (and every case-ledger
-# file those tests write) can be namespaced with one env var, so parallel
-# suites against ONE FalkorDB instance can never collide on a graph key or
-# poison each other's receipts. Default: no prefix, unchanged behavior.
+# Shared-engine hygiene: every engine key tests create can be namespaced
+# with one env var, so parallel suites against ONE FalkorDB instance can
+# never collide on a graph key or poison each other's receipts. Default:
+# no prefix, unchanged behavior. Known un-prefixed exceptions (audit L77),
+# both single-suite keys that drop themselves: the console-resilience
+# suite's sever_audit3_cl_resil and the boot-outage suite's
+# sever_audit8_fixcode_boot; the case-ledger FILES suites write live under
+# tmp dirs (root=tmp_path / chdir(tmp_path)), so those are per-test
+# isolated and never share the engine either.
 _GRAPH_PREFIX = os.environ.get("SEVER_TEST_GRAPH_PREFIX", "")
 
 
@@ -36,10 +42,25 @@ def prefixed(name: str) -> str:
     return _GRAPH_PREFIX + name
 
 
+def drop_graph(port, graph_name: str) -> None:
+    """Delete a graph idempotently — GRAPH.DELETE on a missing key raises.
+
+    Only the engine's missing-key error is swallowed (live-verified on
+    falkordb 6.0.0: ResponseError "Invalid graph operation on empty key";
+    the "not exist" clause covers the older-engine wording of the same
+    case). Every OTHER failure — connection loss, auth, timeout, engine
+    fault — re-raises, so a genuine GRAPH.DELETE problem surfaces instead
+    of silently poisoning the hermetic starts (audit L78)."""
+    try:
+        port.graph.client.execute_command("GRAPH.DELETE", prefixed(graph_name))
+    except ResponseError as exc:
+        if "empty key" not in str(exc) and "not exist" not in str(exc):
+            raise
+
+
 ENGINE_REACHABLE = False
 try:
-    if os.environ.get("SEVER_FALKOR_HOST") is None:
-        os.environ.setdefault("SEVER_FALKOR_HOST", "127.0.0.1")
+    os.environ.setdefault("SEVER_FALKOR_HOST", "127.0.0.1")
     probe = FalkorGraphPort(
         host=os.environ["SEVER_FALKOR_HOST"],
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
@@ -47,6 +68,14 @@ try:
     )
     probe.node_count()
     ENGINE_REACHABLE = True
+    # node_count()'s GRAPH.QUERY materializes the key when missing
+    # (live-verified: FalkorDB creates graph keys on query), so the probe
+    # above just re-created sever_conftest_probe — delete it again, or
+    # every live-engine pytest session leaks the key on the shared engine
+    # (audit M71). GRAPH.RO_QUERY cannot replace the probe itself: it also
+    # RAISES on a missing key (live-verified), which would mark a live
+    # engine unreachable and silently skip every engine-gated test.
+    drop_graph(probe, "sever_conftest_probe")
 except Exception:
     ENGINE_REACHABLE = False
 
@@ -74,10 +103,3 @@ def make_live_port(graph_name: str, load_sample: bool = True) -> FalkorGraphPort
         port.load(parse_ad_dir(SAMPLE_DIR))
     return port
 
-
-def drop_graph(port, graph_name: str) -> None:
-    """Delete a graph idempotently — GRAPH.DELETE on a missing key raises."""
-    try:
-        port.graph.client.execute_command("GRAPH.DELETE", prefixed(graph_name))
-    except Exception:
-        pass

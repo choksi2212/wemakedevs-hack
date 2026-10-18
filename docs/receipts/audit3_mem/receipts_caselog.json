@@ -51,5 +51,6 @@
     }
   },
   "failures": [],
-  "all_pass": true
+  "all_pass": true,
+  "_correction": "2026-10-18 (audit H9): captured pre-audit5 change-only state logging — sever/console/app.py now appends a state ledger line only when the (reachability, nodes, edges) key CHANGES, so the 80==80 zero-lost claim rests on the pre-fix per-poll console and this beat cannot be regenerated as-is on the release tree (80 identical /api/state polls would append ~2 boot lines, not 80). Regenerate via a /api/finding burst per the shipped change-only logging."
 }

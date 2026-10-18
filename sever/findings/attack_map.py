@@ -43,7 +43,10 @@ ATTACK_MAP: dict[str, AttackNarrative] = {
     "cross_domain_trust": AttackNarrative(
         "T1482",
         "Domain Trust Discovery",
-        "A path crosses a domain trust. Compromise in one domain now cascades into the trusted domain's crown jewels.",
+        "Trust-discovery surface flagged: a traversable domain-trust path "
+        "exists. Principals in one domain can enumerate this trust "
+        "relationship and follow it into the trusted domain's crown jewels — "
+        "the exposure is the trust itself, not an exploit.",
     ),
     "cert_esc1": AttackNarrative(
         "T1649",
@@ -54,7 +57,18 @@ ATTACK_MAP: dict[str, AttackNarrative] = {
 
 
 def narrate(finding: Finding) -> AttackNarrative:
+    """Narrate a finding. Unknown kinds get a kind-NEUTRAL fallback — never
+    a fabricated ATT&CK label (owner resolution #4, audit M69): the HTTP
+    schema layer already 422s unknown kinds (schemas.py documents the
+    pre-fix 'T1595.002' fallback as the fabrication bug), and this path is
+    the backstop for any non-HTTP caller (scripts, library use, a
+    hand-built Finding) — it names the kind and admits the mapping gap."""
     return ATTACK_MAP.get(
         finding.kind,
-        AttackNarrative("T1595.002", "Active Scanning: Vulnerability Scanning", finding.detail or "Finding flagged."),
+        AttackNarrative(
+            "UNMAPPED",
+            "Unmapped finding kind",
+            f"Finding of kind {finding.kind!r} flagged — no ATT&CK technique "
+            "is mapped for this kind, and SEVER never fabricates one.",
+        ),
     )
