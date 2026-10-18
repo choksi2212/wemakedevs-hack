@@ -25,7 +25,11 @@ def test_query_constants_shape():
     assert "WITH shortestPath((o)-" in reach_q and "->(t)) AS p" in reach_q
     assert "RETURN p IS NOT NULL AS hit" in reach_q
     assert "$oid" in reach_q and "$target" in reach_q
-    path_q = PATH_QUERY_TEMPLATE.format(pattern=pattern)
+    path_q = PATH_QUERY_TEMPLATE.format()
+    # the ties-mode template has NO pattern slot: it carries the traversal
+    # vocabulary inline via relTypes (audit N38: the old .format(pattern=)
+    # passed a kwarg no slot consumed — silently misleading)
+    assert "{pattern}" not in PATH_QUERY_TEMPLATE
     assert path_q.startswith("MATCH (o {objectid: $oid})")
     assert "algo.SPpaths" in path_q and "pathCount: 100" in path_q
     assert "relTypes" in path_q  # ties mode: traversal set enforced server-side

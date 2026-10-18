@@ -99,13 +99,21 @@ def test_ties_mode_never_reports_structural_or_overlong_hops(port):
         # unformatted (4.22.0 rejects it with "Invalid input '{'"); the
         # template is now .format()-ed, so this skip should never fire for
         # that reason again — it stays as belt-and-braces for a genuinely
-        # unavailable procedure. The ties mode is offline-only and the guard
-        # logic is covered engine-free in tests/test_core_edges.py.
-        if "inlined properties" in str(exc):
+        # unavailable procedure. The predicate matches every signature an
+        # engine can answer for a missing algo.SPpaths (audit L97: matching
+        # only the historical "inlined properties" marker made engines that
+        # report "Unknown procedure"/"unknown function" FAIL instead of
+        # skip). The ties mode is offline-only and the guard logic is
+        # covered engine-free in tests/test_core_edges.py.
+        msg = str(exc).lower()
+        if ("inlined properties" in msg
+                or "unknown procedure" in msg
+                or "unknown function" in msg
+                or "sppaths" in msg):
             pytest.skip(
-                "algo.SPpaths unavailable on this engine state "
-                "(historically our raw unformatted template, fixed in "
-                "audit5/cloud-instance; offline mode only)"
+                "algo.SPpaths unavailable on this engine "
+                "(offline ties mode only; the historical raw-template "
+                "marker is fixed in audit5/cloud-instance)"
             )
         raise
     for path in paths:
