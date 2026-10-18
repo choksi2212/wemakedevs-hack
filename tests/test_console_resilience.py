@@ -278,6 +278,70 @@ def test_engine_dead_health_503_discloses_no_infra_details(console):
     assert tc.get("/api/health").status_code == 200
 
 
+# ---- audit M51 (X54): the operator's approval is forwarded into the agent gate ----
+
+
+def test_console_forwards_approval_into_the_agent_gate(console, monkeypatch):
+    """/api/cut must FORWARD the operator's decision into the agent-layer
+    gate (approve_and_cut's ``require_explicit_approval``). Pre-fix the
+    console never passed it, so the investigator's ``True`` default
+    auto-satisfied the gate and the handler's identity check was the ONLY
+    live layer on the production path — the README's "all fail closed at
+    every layer" was wiring-false for the agent gate. The recorder's default
+    is a marker value: dropping the kwarg again fails this test."""
+    from sever.agent.investigator import Investigator
+
+    tc, fake = console
+    seen = {}
+
+    def recorder(self, src, dst, rel, approved_by="on-call-analyst",
+                 require_explicit_approval="MUTANT-DROPPED", **kw):
+        seen["gate_value"] = require_explicit_approval
+        return {"cut": {"src": src, "dst": dst, "rel": rel,
+                        "relationships_removed": 0},
+                "before": {"reachability": 0}, "after": {"reachability": 0},
+                "requery_ms": 0.0, "verdict": "no_effect",
+                "approved_by": approved_by}
+
+    monkeypatch.setattr(Investigator, "approve_and_cut", recorder)
+    r = tc.post("/api/cut", json={"src": ALICE, "dst": TIER1,
+                                  "rel": "MEMBER_OF", "approved": True,
+                                  "approved_by": "wiring-pin"})
+    assert r.status_code == 200
+    assert seen["gate_value"] is True, (
+        "the console must forward req.approved into the agent gate — "
+        "never rely on the investigator's True default"
+    )
+    assert r.json()["approved_by"] == "wiring-pin"
+
+
+def test_console_forwards_approval_into_the_plan_execute_gate(console, monkeypatch):
+    """Same wiring pin for /api/plan/execute (inv.execute_plan's
+    ``require_explicit_approval``) — the second production path the audit
+    found auto-satisfied by the default."""
+    from sever.agent.investigator import Investigator
+
+    tc, fake = console
+    seen = {}
+
+    def recorder(self, plan, approved_by="on-call-analyst",
+                 require_explicit_approval="MUTANT-DROPPED", gate=None, **kw):
+        seen["gate_value"] = require_explicit_approval
+        return {"status": "completed",
+                "executed_steps": len(plan.get("steps", [])), "steps": []}
+
+    monkeypatch.setattr(Investigator, "execute_plan", recorder)
+    r = tc.post("/api/plan/execute", json={
+        "approved": True, "approved_by": "wiring-pin",
+        "steps": [{"src": ALICE, "dst": TIER1, "rel": "MEMBER_OF",
+                   "projected_reachability": 0}],
+    })
+    assert r.status_code == 200
+    assert seen["gate_value"] is True, (
+        "plan execution must forward req.approved into the agent gate"
+    )
+
+
 # ---- audit5/live-e2e: bounded receipts tail (the unbounded-ledger 502s) ----
 
 

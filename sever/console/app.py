@@ -1063,7 +1063,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             ]
         }
         try:
-            result = inv.execute_plan(plan, approved_by=req.approved_by)
+            # audit M51 (X54): forward the operator's decision into the
+            # agent-layer gate (same wiring as /api/cut above and the flow
+            # path flow.py::resume_investigation — every gate sees the value).
+            result = inv.execute_plan(plan, approved_by=req.approved_by,
+                                      require_explicit_approval=req.approved)
         except ValueError as e:
             # Only reachable with a schema-valid but unknown rel: the gate
             # above already handled the not-approved case, and the engine's
@@ -1154,7 +1158,19 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         if req.approved is not True:
             raise HTTPException(status_code=403, detail="interdiction requires explicit human approval")
         try:
-            receipt = inv.approve_and_cut(req.src, req.dst, req.rel, approved_by=req.approved_by)
+            # audit M51 (X54): the operator's decision is forwarded INTO the
+            # agent-layer gate — ``require_explicit_approval`` — so the gate
+            # below the handler is actually in the loop on the HTTP path.
+            # Pre-fix the parameter was never passed, so the investigator's
+            # ``True`` default auto-satisfied it and the handler's own
+            # identity check was the ONLY layer standing (the README claims
+            # "all fail closed at every layer" — the agent gate was
+            # structurally inert here). Defense-in-depth restored:
+            # req.approved is True here by construction, but a weakened or
+            # removed handler gate now still meets a live agent gate below it.
+            receipt = inv.approve_and_cut(req.src, req.dst, req.rel,
+                                           approved_by=req.approved_by,
+                                           require_explicit_approval=req.approved)
         except ValueError as e:
             # Only reachable with an invalid rel: the gate above already
             # handled the not-approved case, and FalkorGraphPort.cut rejects
