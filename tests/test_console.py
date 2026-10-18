@@ -121,9 +121,12 @@ def test_plan_endpoint_proposes_measured_sequence(client):
     assert plan["steps"][0]["benign_usage"] == 0
     # projections never touch the live estate:
     assert client.get("/api/state").json()["reachability"] == 1
-    # the plan is on the receipts ledger like every agent step
+    # the plan is on the receipts ledger like every agent step.
+    # Ledger event-key contract (audit M46/X31): the plan mirror carries
+    # BOTH the cross-ledger "event" kind key and the console ledger's own
+    # "step" kind (which the receipts UI reads).
     recs = client.get("/api/receipts").json()
-    assert any(e.get("step") == "plan" for e in recs)
+    assert any(e.get("event") == "plan" and e.get("step") == "plan" for e in recs)
 
 
 def test_plan_execute_gate_403_and_strict_bool(client):
@@ -249,7 +252,7 @@ def test_injection_rels_die_at_schema_layer_422(client):
 
 def test_oversized_and_empty_fields_are_422(client):
     r = client.post("/api/finding", json={"subject": "S-1-" + "9" * 10_000})
-    assert r.status_code == 422  # 100KB subject dies at the schema, not 200
+    assert r.status_code == 422  # ~10KB subject dies at the 256-char schema cap, not 200
     r = client.post("/api/finding", json={"subject": ""})
     assert r.status_code == 422  # empty subject is not a principal
     r = client.post("/api/cut", json={

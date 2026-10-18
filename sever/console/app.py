@@ -12,7 +12,8 @@ Env: SEVER_FALKOR_HOST/PORT/USER/PASSWORD, SEVER_FALKOR_GRAPH,
 API contract (audit2/api-contract), enforced by sever.console.schemas BEFORE
 any handler runs:
 - 422 schema: malformed JSON, wrong types, missing fields, empty required
-  strings, oversized fields (100KB subject dies here), rel syntax violations
+  strings, oversized fields (a 10KB subject dies here — the schema caps
+  ``subject`` at 256 chars), rel syntax violations
   (injection payloads, trailing newlines, >64 chars), truthy non-bool
   ``approved`` (1, 1.0, "true", "yes", "on", "1"), lone surrogates,
   unknown finding ``kind`` (closed ATT&CK vocabulary) and ``ace_granted``
@@ -98,6 +99,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import Response
 from dotenv import load_dotenv
 
+from sever import __version__
 from sever.agent.investigator import Investigator
 from sever.console.schemas import CutRequest, FindingRequest, PlanExecuteRequest
 from sever.console.security import SECURITY_HEADERS, BodySizeLimitMiddleware
@@ -492,7 +494,11 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # product value for a demo UI that already renders the same information.
     docs_enabled = os.environ.get("SEVER_DOCS", "").lower() in ("1", "true", "yes")
     app = FastAPI(
-        title="SEVER console", version="0.2.0",
+        # audit L42/X51: the app self-describes with the PACKAGE version
+        # (sever/__init__.py) — pre-fix this hardcoded "0.2.0" while the
+        # package said 0.1.0 and the release was tagged v1.0, three
+        # disagreeing constants for one product.
+        title="SEVER console", version=__version__,
         docs_url="/docs" if docs_enabled else None,
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
@@ -584,7 +590,14 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # ledger recorded 10 "removed 1" cuts whose edges exist again today — the
     # estate had been reset out-of-band overnight, and nothing in the trail
     # marked the discontinuity).
-    log = CaseLog(os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
+    # audit N17: the ledger is keyed by the PORT's graph name — the graph
+    # this console actually serves (an injected test port, a renamed
+    # production graph) — NOT by the SEVER_FALKOR_GRAPH env var, which
+    # describes how the default port was built and can legitimately diverge
+    # from an injected port. Falls back to the env var only for a port
+    # object that carries no graph_name at all.
+    log = CaseLog(getattr(port, "graph_name", None)
+                  or os.environ.get("SEVER_FALKOR_GRAPH", "sever_demo"))
     # Boot-time outage containment (audit8/fix-code, F303): the auto-load probe
     # is the second engine touch on the import path, and when the engine is
     # down — or the configured endpoint is a reachable-but-not-FalkorDB RESP
@@ -1036,6 +1049,16 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             log.append({"step": "plan_failed",
                         "error": "engine unreachable mid-plan", "outcome": "unknown"})
             raise
+        except TypeError:
+            # audit N18: a DETERMINISTIC configuration bug — a port without
+            # the scratch_copy / user_objectids seam the plan path requires —
+            # is not an engine race. Folding it into the retry lane below
+            # mislabeled a config error as transient; let it propagate to
+            # FastAPI's default 500 and fail loud, the attempt still ledgered.
+            log.append({"step": "plan_failed",
+                        "error": "plan projection failed: port seam missing (TypeError)",
+                        "outcome": "unknown"})
+            raise
         except Exception as e:
             # Any other projection failure (an engine-side graph-lifecycle
             # race, a scratch collision, an internal bug) must still leave the
@@ -1043,15 +1066,29 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # vanished without a ledger entry — an invisible hole for a judge
             # reconstructing the story (audit5/multi-client: concurrent
             # planners 500'd with no trace).
+            # audit L45: the public ledger and the 503 detail carry the
+            # exception CLASS only — the same scrub the 503 outage lane
+            # applies. The raw {e} text embeds engine internals and is served
+            # verbatim on the public URL via GET /api/receipts; the full
+            # message stays in the server-side traceback uvicorn logs.
             log.append({"step": "plan_failed",
-                        "error": f"plan projection failed: {e}", "outcome": "unknown"})
+                        "error": f"plan projection failed: {type(e).__name__}",
+                        "outcome": "unknown"})
             raise HTTPException(
                 status_code=503,
-                detail=f"plan projection failed — engine graph lifecycle race, retry: {e}",
+                detail=f"plan projection failed — engine graph lifecycle race, "
+                       f"retry: {type(e).__name__}",
             )
         # mirror onto the console receipts ledger like every other agent
-        # step — the trail must show what was proposed, not only what ran
-        log.append({"step": "plan", "plan": out})
+        # step — the trail must show what was proposed, not only what ran.
+        # Ledger event-key contract (audit M46/X31): plan-kind entries are
+        # keyed "event" across both ledgers. The console CaseLog (unlike
+        # the investigator's case_log, whose "step" is a sequential int id)
+        # keys every entry's kind by "step" and the receipts UI reads
+        # e.step — so the console mirror carries BOTH: "event" converges
+        # the kind key with the agent lane, "step" keeps the console
+        # ledger/UI contract intact.
+        log.append({"event": "plan", "step": "plan", "plan": out})
         return out
 
     @app.post("/api/plan/execute")
@@ -1127,8 +1164,9 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # An invalid rel (e.g. lowercase, spaces, injection attempt) is a
             # CLIENT error — the injection guard in FalkorGraphPort.add_edge
             # rejects it before any Cypher runs. It must surface as a 400,
-            # not an unhandled 500 with a stack trace. Nothing reached the
-            # engine, so no cache invalidation is needed.
+            # not an unhandled 500 with a stack trace. No MUTATION reached
+            # the engine (the rel guard fires after triage's before-snapshot
+            # reads), so no cache invalidation is needed.
             raise HTTPException(status_code=400, detail=str(e))
         except ENGINE_ERRORS:
             # The engine died mid-triage: the finding may have partially
@@ -1183,7 +1221,9 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # Only reachable with an invalid rel: the gate above already
             # handled the not-approved case, and FalkorGraphPort.cut rejects
             # bad rels before any Cypher runs. Client error -> 400, not 500.
-            # Nothing reached the engine — no cache invalidation needed.
+            # No MUTATION reached the engine — the rel guard fired after
+            # interdict's before-snapshot reads — so no cache invalidation
+            # is needed.
             raise HTTPException(status_code=400, detail=str(e))
         except ENGINE_ERRORS:
             # Engine died mid-cut (audit3/console-logic: live-verified by

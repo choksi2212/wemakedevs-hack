@@ -147,7 +147,9 @@ def test_failed_plan_is_ledgered_and_answers_503(console, monkeypatch):
     """An engine-side plan failure (scratch lifecycle race, internal bug)
     must never vanish: the attempt lands on the receipts trail as
     plan_failed/outcome unknown and the caller gets a clean JSON 503 —
-    never a bare 500 with no ledger entry."""
+    never a bare 500 with no ledger entry. audit L45: the ledger line and
+    the 503 detail carry the exception CLASS only — raw exception text
+    (engine internals) never reaches the public receipts ledger."""
     tc, fake, tmp_path = console
 
     # simplest deterministic failure: make the engine port raise mid-plan
@@ -159,12 +161,21 @@ def test_failed_plan_is_ledgered_and_answers_503(console, monkeypatch):
     assert r.status_code == 503
     assert "retry" in r.json()["detail"]
 
-    ledger = tmp_path / "out" / "cases" / "sever_audit5_cl_mcc.jsonl"
+    # audit N17: the ledger is keyed by the PORT's graph name
+    # (sever_audit5_fake), not the SEVER_FALKOR_GRAPH env var
+    # (sever_audit5_cl_mcc, set by the fixture) — this fixture deliberately
+    # diverges the two, so reading the env-keyed path here would find no
+    # ledger at all.
+    ledger = tmp_path / "out" / "cases" / "sever_audit5_fake.jsonl"
     events = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
     failed = [e for e in events if e.get("step") == "plan_failed"]
     assert failed, "the failed plan attempt must be on the receipts trail"
     assert failed[-1]["outcome"] == "unknown"
     assert "plan projection failed" in failed[-1]["error"]
+    assert "graph was deleted" not in failed[-1]["error"], (
+        "raw exception text must not reach the public ledger — class name only"
+    )
+    assert "RuntimeError" in failed[-1]["error"]
 
 
 # ------------------------------------------------------------------
@@ -199,7 +210,8 @@ def test_empty_estate_gets_an_estate_missing_receipt(console):
     fake._jewels = set()
     r = tc.get("/api/state")
     assert r.status_code == 200
-    ledger = tmp_path / "out" / "cases" / "sever_audit5_cl_mcc.jsonl"
+    # audit N17: keyed by the port's graph name, not the env var
+    ledger = tmp_path / "out" / "cases" / "sever_audit5_fake.jsonl"
     events = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
     steps = [e.get("step") for e in events]
     assert "estate_missing" in steps, (
