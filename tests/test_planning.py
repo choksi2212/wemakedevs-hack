@@ -14,7 +14,9 @@ GRAPH.COPY scratch isolation, benign receipts on the frozen sample estate
 two-cut plan on a tiny synthetic estate whose outcome is fully
 deterministic (both plan steps cut the ATTACKER-ONLY edges even though the
 engine's own canonical route may differ from the fake's — the collateral
-tie-break is what pins it).
+tie-break is what pins it, and the engine SIDs are numbered so the shared
+jewel-adjacent edges sort FIRST lexicographically: only the tie-break can
+produce the asserted order).
 """
 from __future__ import annotations
 
@@ -38,6 +40,7 @@ ZOE = "u-zoe"        # owned (hero) — attacker
 T1 = "u-tier1"
 A1 = "u-a1"
 B1 = "u-b1"
+C1 = "u-c1"
 MID = "u-mid"
 U1 = "u-one"
 U2 = "u-two"
@@ -64,6 +67,23 @@ def _two_route_port() -> FakeGraphPort:
         (B1, "MEMBER_OF", DA),
         (U1, "GENERIC_ALL", MID),
         (MID, "MEMBER_OF", DA),
+    ]
+    port.mark_owned(ZOE)
+    return port
+
+
+def _three_route_port() -> FakeGraphPort:
+    """Three parallel owned->jewel routes: the greedy plan needs all three
+    steps to collapse, so a drift can land on an EARLY step with later steps
+    left to skip — the shape the 2-route estate can never produce (M81)."""
+    port = FakeGraphPort(jewels=(DA,))
+    port._edges = [
+        (ZOE, "GENERIC_ALL", A1),
+        (A1, "MEMBER_OF", DA),
+        (ZOE, "WRITE_DACL", B1),
+        (B1, "MEMBER_OF", DA),
+        (ZOE, "OWNS", C1),
+        (C1, "MEMBER_OF", DA),
     ]
     port.mark_owned(ZOE)
     return port
@@ -218,7 +238,11 @@ def test_propose_plan_lands_on_the_ledger():
     assert plan["steps"] and plan["steps"][0]["step"] == 1
     assert len(inv.case_log) == 1
     entry = inv.case_log[0]
-    assert entry["step"] == "plan" and entry["plan"]["method"] == "graph_copy_remeasure"
+    # cross-agent ledger contract (audit M46): the event KIND lives under
+    # "event" and "step" keeps the unique sequential int id — a plan entry
+    # may no longer clobber the counter id with a string
+    assert entry["event"] == "plan" and entry["step"] == 1
+    assert entry["plan"]["method"] == "graph_copy_remeasure"
 
 
 # ------------------------------------------------------------------
@@ -263,6 +287,43 @@ def test_execute_plan_stops_at_first_drift_and_executes_no_stale_step():
     assert port.reachability() == receipts[1]["after"]["reachability"]
 
 
+def test_execute_plan_drift_on_an_earlier_step_skips_every_later_step():
+    """Audit M81: the 2-route drift cases always drift on the FINAL step, so
+    execute_plan's break-on-drift had nothing left to skip and a mutant that
+    removed the break entirely still passed both of them. A 3-route plan
+    drifts at step 1 (an outside interdiction severed the two routes the
+    plan reaches last): the two LATER steps must never execute, and their
+    target edges must still be present on the estate."""
+    port = _three_route_port()
+    inv = Investigator(port)
+    plan = inv.propose_plan(k=3)
+    assert len(plan["steps"]) == 3, "three routes need three cuts to collapse"
+    assert [s["projected_reachability"] for s in plan["steps"]] == [1, 1, 0]
+    # the estate mutates AFTER the plan: an outside operator severs the two
+    # routes the plan touches last — at their TAIL edges, which the pinned
+    # collateral tie-break never proposes (the zoe attacker edges carry
+    # benign 0, the shared tail edges carry the members' own benign 1)
+    assert port.cut(B1, DA, "MEMBER_OF") == 1
+    assert port.cut(C1, DA, "MEMBER_OF") == 1
+    result = inv.execute_plan(plan, approved_by="on-call-analyst")
+    assert result["status"] == "drift_stopped_at_step"
+    # step 1 measured 0 against a projection of 1 -> drift AT STEP 1; the
+    # plan stops there and steps 2 + 3 are never executed
+    assert result["executed_steps"] == 1 < len(plan["steps"])
+    assert result["steps"][0]["plan_drift"] is True
+    assert port.reachability() == 0
+    assert port.reachability() == result["steps"][0]["after"]["reachability"]
+    # the SKIPPED steps' target edges are still on the estate — the stale
+    # projections were never cut
+    later_cuts = [
+        (s["cut"]["src"], s["cut"]["rel"], s["cut"]["dst"])
+        for s in plan["steps"][1:]
+    ]
+    assert later_cuts and all(edge in port._edges for edge in later_cuts), (
+        f"a step after the drift executed anyway: {later_cuts}"
+    )
+
+
 def test_execute_plan_gate_refusal_mutates_nothing():
     port = _two_route_port()
     inv = Investigator(port)
@@ -271,7 +332,10 @@ def test_execute_plan_gate_refusal_mutates_nothing():
     assert result["status"] == "gate_refused_at_step"
     assert result["executed_steps"] == 0
     assert port.edge_count() == 6 and port.reachability() == 1
-    assert any(e.get("step") == "plan_gate_refused" for e in inv.case_log)
+    # cross-agent ledger contract (audit M46): the refusal is the "event"
+    # kind; "step" stays the sequential int id, never a clobbering string
+    refused = [e for e in inv.case_log if e.get("event") == "plan_gate_refused"]
+    assert len(refused) == 1 and isinstance(refused[0]["step"], int)
 
 
 def test_execute_plan_partial_gate_refusal_stops_before_the_next_step():
@@ -305,12 +369,18 @@ def test_execute_plan_requires_explicit_approval():
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
 
 # tiny synthetic estate on the engine: exactly the two-route shape above,
-# with the crown jewel detected by RID (Group ending -512) like real data
-S_ZOE = "S-1-5-21-t-777-1001"
-S_A1 = "S-1-5-21-t-777-1002"
-S_B1 = "S-1-5-21-t-777-1003"
-S_MID = "S-1-5-21-t-777-1004"
-S_U1 = "S-1-5-21-t-777-1005"
+# with the crown jewel detected by RID (Group ending -512) like real data.
+# SIDs are numbered so the shared jewel-adjacent MEMBER_OF edges
+# (S_A1/S_B1 -> S_DA, benign usage 1) sort FIRST lexicographically and the
+# attacker's own edges sort LAST (audit M83): with zoe at -1001 the old
+# numbering made the asserted cuts indistinguishable from the plain
+# lexicographic fallback — now ONLY the collateral tie-break can produce
+# them, which is the property the engine pin claims to test.
+S_A1 = "S-1-5-21-t-777-1001"
+S_B1 = "S-1-5-21-t-777-1002"
+S_MID = "S-1-5-21-t-777-1003"
+S_U1 = "S-1-5-21-t-777-1004"
+S_ZOE = "S-1-5-21-t-777-1005"
 S_DA = "S-1-5-21-t-777-512"
 
 
@@ -417,8 +487,17 @@ class TestLivePlanningEngine:
             # the live estate is untouched by the projection work:
             assert port.reachability() == live_reach
             assert port.edge_count() == live_edges
-            # and the scratch copy is really gone from the engine:
-            assert self._key_exists(port, f"{port.graph_name}_plan_scratch") == 0
+            # and no plan-scratch copy leaked on the engine: scoring names
+            # every scratch {graph}_plan_scratch_<8-hex> (random per plan),
+            # so probe the NAMESPACE, never a single key (audit M82: the old
+            # check asserted the absence of a key scoring.py cannot create
+            # and could not fail on a real leak)
+            leaked = port.graph.client.execute_command(
+                "KEYS", f"{port.graph_name}_plan_scratch_*")
+            assert not leaked, (
+                f"plan scratch keys leaked on the engine: {leaked} — "
+                "plan_cut_sequence's finally drop() must remove every copy"
+            )
         finally:
             drop_graph(port, "sever_test_planning_sample")
 
@@ -433,7 +512,10 @@ class TestLivePlanningEngine:
             # BOTH steps cut the attacker's own edges (benign 0): the
             # collateral tie-break on the engine prefers them over the
             # shared jewel-adjacent MEMBER_OF edges (benign 1) — whichever
-            # route the engine's shortestPath picked as canonical
+            # route the engine's shortestPath picked as canonical. The SIDs
+            # sort the SHARED edges first, so the lexicographic fallback
+            # alone would cut S_A1/S_B1's membership edges instead: only
+            # the benign tie-break can pass this pin (audit M83).
             for step in plan["steps"]:
                 assert step["cut"]["src"] == S_ZOE
                 assert step["benign_usage"] == 0
