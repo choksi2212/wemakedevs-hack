@@ -12,7 +12,8 @@ and an INTERRUPT before the verify step — the human gate is structural:
   up with zero re-explanation (the "night-shift handoff" beat),
 - on the live deployment the checkpointer is FalkorDBSaver — case memory
   lives IN the graph database, shared across processes and agents
-  (langchain-falkordb 0.2.0); offline/tests use LangGraph's MemorySaver.
+  (langchain-falkordb >=0.2; extras: langgraph); offline/tests use
+  LangGraph's MemorySaver.
 
 Resuming never bypasses the gate: the cut only executes when the operator
 explicitly records the exact value ``True`` into the thread state —
@@ -215,7 +216,12 @@ class CaseLog:
             # an earlier stamp past a later writer's already-flushed entry
             # (audit5/multi-client hardening — no regression was observed in
             # 1300+ interleaved entries, this makes the guarantee structural).
-            event = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **event}
+            # A caller-supplied "ts" is explicitly DROPPED (audit L72): the
+            # ``**event`` spread below would otherwise let it override the
+            # inside-lock stamp and break the monotonic-time guarantee —
+            # ledger time belongs to the writer, never the caller.
+            ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            event = {"ts": ts, **{k: v for k, v in event.items() if k != "ts"}}
             line = json.dumps(event, default=str) + "\n"
             # a previous writer may have died mid-line: terminate the torn
             # fragment and stamp a repair record so it can never merge with
@@ -224,10 +230,14 @@ class CaseLog:
                 with self.path.open("rb") as probe:
                     probe.seek(-1, os.SEEK_END)
                     if probe.read(1) != b"\n":
+                        # the repair record is a ledger event too — it carries
+                        # the same inside-lock ts (audit L73: it used to be
+                        # the one read()-visible event with no timestamp)
                         line = (
                             "\n"
                             + json.dumps({
                                 "step": "ledger_repair",
+                                "ts": ts,
                                 "note": "terminated a torn trailing fragment left by a crashed writer",
                             }, default=str)
                             + "\n"
