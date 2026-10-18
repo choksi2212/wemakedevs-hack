@@ -14,7 +14,7 @@
     225.5
    ],
    "median_ms": 220.8,
-   "p95_ms": 229.3,
+   "p95_ms": 225.5,
    "p99_ms": 225.5
   },
   "queries": {
@@ -60,7 +60,7 @@
     216.5
    ],
    "median_ms": 217.6,
-   "p95_ms": 224.2,
+   "p95_ms": 221.2,
    "p99_ms": 221.2
   },
   "queries": {
@@ -98,7 +98,7 @@
     108.0
    ],
    "median_ms": 108.4,
-   "p95_ms": 110.2,
+   "p95_ms": 109.4,
    "p99_ms": 109.4
   },
   "queries_3x": {
@@ -136,5 +136,6 @@
   "roundtrip_cut_vs_old_min_x": 3
  },
  "profile_arm_query": "['Distinct | Records produced: 1, Execution time: 0.002566 ms', '    Project | Records produced: 5, Execution time: 0.002614 ms', '        Filter | Records produced: 5, Execution time: 0.002416 ms', '            Project | Records produced: 5, Execution time: 0.306916 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.004269 ms', '                    Filter | Records produced: 1, Execution time: 0.089696 ms', '                        All Node Scan | (o) | Records produced: 1480, Execution time: 0.004328 ms', '                    Filter | Records produced: 5, Execution time: 0.090576 ms', '                        Node By Label Scan | (t:Group) | Records produced: 219, Execution time: 0.010239 ms']",
- "profile_batched_pairs_query": "['Project | Records produced: 5, Execution time: 0.001582 ms', '    Filter | Records produced: 5, Execution time: 0.002655 ms', '        Project | Records produced: 5, Execution time: 0.261909 ms', '            Apply | Records produced: 5, Execution time: 0.027684 ms', '                Unwind | Records produced: 5, Execution time: 0.003918 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.030812 ms', '                    Filter | Records produced: 5, Execution time: 0.593283 ms', '                        All Node Scan | (o) | Records produced: 7400, Execution time: 0.056037 ms', '                            Argument | Records produced: 0, Execution time: 0.000000 ms', '                    Filter | Records produced: 5, Execution time: 0.882678 ms', '                        All Node Scan | (t) | Records produced: 7400, Execution time: 0.056220 ms', '                            Argument | Records produced: 0, Execution time: 0.000000 ms']"
+ "profile_batched_pairs_query": "['Project | Records produced: 5, Execution time: 0.001582 ms', '    Filter | Records produced: 5, Execution time: 0.002655 ms', '        Project | Records produced: 5, Execution time: 0.261909 ms', '            Apply | Records produced: 5, Execution time: 0.027684 ms', '                Unwind | Records produced: 5, Execution time: 0.003918 ms', '                Cartesian Product | Records produced: 5, Execution time: 0.030812 ms', '                    Filter | Records produced: 5, Execution time: 0.593283 ms', '                        All Node Scan | (o) | Records produced: 7400, Execution time: 0.056037 ms', '                            Argument | Records produced: 0, Execution time: 0.000000 ms', '                    Filter | Records produced: 5, Execution time: 0.882678 ms', '                        All Node Scan | (t) | Records produced: 7400, Execution time: 0.056220 ms', '                            Argument | Records produced: 0, Execution time: 0.000000 ms']",
+ "_correction": "2026-10-18 (audit M25): all three p95_ms values (229.3 / 224.2 / 110.2) exceeded the recorded maxima — impossible for a percentile of the recorded runs. Recomputed from the three recorded runs per block using nearest-rank (ceil(0.95*n)): old_two_arm_plan 225.5, new_per_pair_plan 221.2, new_batched_seam_plan 109.4 (for 3 runs the nearest-rank p95 equals the maximum, matching the recorded p99). Origin of the stale values: the generator's statistics.quantiles(runs, n=20)[-1] exclusive method extrapolates beyond the sample for n=3 (giving 229.3/224.1/110.2 on these runs — 224.2 matches not even that, so the new_per_pair p95 came from an unrecorded run set). With only 3 runs per block the median and max are the load-bearing numbers; the medians (220.8 / 217.6 / 108.4) and all query counts are unchanged."
 }

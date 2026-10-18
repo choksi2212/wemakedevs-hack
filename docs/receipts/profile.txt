@@ -63,3 +63,14 @@ operators, so the wall-clock receipt above is the load-bearing number.
 For scale on the same estate: reachability() re-query runs in ~2.2 ms;
 paths_to_jewels (one canonical query per crown jewel) returns 5 paths in
 ~7.5 ms.
+
+## Correction note (2026-10-18, audit M27)
+
+The "~0.26 ms total" figure above predates the printed row set: the printed
+label-free point-lookup rows sum to ~0.53 ms
+(0.001444 + 0.159980 + 0.007554 + 0.043354 + 0.004830 + 0.308237 + 0.006693
+= 0.532 ms), and no subset of the printed rows yields ~0.26. The original
+capture the 0.26 came from is not in-tree; treat ~0.53 ms as the sum of the
+rows as printed. The wall-clock receipt (median 1.13 ms) remains the
+load-bearing number; docs/README.md's receipts index now cites ~0.53 ms.
+
