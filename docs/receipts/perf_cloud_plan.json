@@ -1,7 +1,7 @@
 {
  "beat": "audit7/perf-scoring — Plan k-cut sequence on the CLOUD engine (production console, develop code = BEFORE)",
  "url": "https://sever-console.onrender.com/api/plan",
- "cloud_engine": "FalkorDB Cloud free tier, ap-south-1 (r-6jissuruar...f2e0a955bb84.cloud:59719)",
+ "cloud_engine": "FalkorDB Cloud free tier, ap-south-1 (engine endpoint redacted 2026-10-18, audit X2)",
  "estate": {
   "reachability": 1,
   "nodes": 1480,
@@ -19,7 +19,7 @@
   "api_state": {
    "note": "port.reachability() = 2 arm queries + 8 cheap queries",
    "runs_ms": [997, 847],
-   "median_ms": 929
+   "median_ms": 922
   },
   "api_proposal": {
    "note": "benign sample + edge_frequency = ~185 cheap queries, ZERO arm queries",
@@ -28,10 +28,10 @@
   },
   "derived_per_query_costs": {
    "cheap_query_ms": 64.8,
-   "arm_query_ms": 205.2,
-   "closure_check": "old plan = 4 arms + 197 cheap = 4*205 + 197*64.8 = 13.59s vs measured 13.51s (within 1%)"
+   "arm_query_ms": 201.8,
+   "closure_check": "old plan = 4 arms + 197 cheap = 4*201.8 + 197*64.8 = 13.57s vs measured 13.51s (within 0.5%)"
   },
-  "finding": "the production plan is ROUND-TRIP-bound, not arm-bound: ~197 engine round-trips at ~65ms (Render singapore -> cloud ap-south-1) carry ~12.8s of the 13.5s; the two-arm reachability queries carry only ~0.8s total. The fix lever is the round-trip count."
+  "finding": "the production plan is ROUND-TRIP-bound, not arm-bound: ~197 engine round-trips at ~65ms (Render singapore -> cloud ap-south-1) carry ~12.8s of the 13.5s; the arm reachability queries (4 arms) carry only ~0.8s total. The fix lever is the round-trip count."
  },
  "after_predictions_derived": {
   "branch_standalone_sever/core/scoring.py": {
@@ -47,8 +47,10 @@
  "cloud_after_blocker": {
   "status": "not directly measurable in this session",
   "reason": "running the branch's code against the FalkorDB Cloud engine requires the cloud engine credentials (SEVER_FALKOR_PASSWORD); reading the credentials file was denied in this session, so no cloud-after run was performed. Every input to the predictions above is measured: production endpoint latencies (this file) and the branch's query-count/wall receipts on the local engine (perf_plan_equivalence.json).",
-  "repro_when_creds_available": "SEVER_FALKOR_HOST=<cloud host> SEVER_FALKOR_PORT=59719 SEVER_FALKOR_USER=falkordb SEVER_FALKOR_PASSWORD=... SEVER_FALKOR_GRAPH=sever_demo SEVER_SAMPLE_DIR=<data/ad_sample> python -m pytest tests/test_perf_equivalence.py -q  # then: py -3.11 measure_cloud_plan.py against a console booted from this branch"
+  "repro_when_creds_available": "SEVER_FALKOR_HOST=<cloud host> SEVER_FALKOR_PORT=<cloud port> SEVER_FALKOR_USER=falkordb SEVER_FALKOR_PASSWORD=... SEVER_FALKOR_GRAPH=sever_demo SEVER_SAMPLE_DIR=<data/ad_sample> python -m pytest tests/test_perf_equivalence.py -q  # then: py -3.11 measure_cloud_plan.py against a console booted from this branch"
  },
  "repro_before": "py -3.11 measure_cloud_plan.py  # times GET /api/plan on the production console, read-only (plans run on a dropped scratch copy)",
- "honesty": "before = MEASURED on production (5 runs); per-query costs = MEASURED via two read-only endpoints; after = PREDICTED from those measurements plus the branch's measured local query counts — never presented as a measured cloud run."
+ "honesty": "before = MEASURED on production (5 runs); per-query costs = MEASURED via two read-only endpoints; after = PREDICTED from those measurements plus the branch's measured local query counts — never presented as a measured cloud run.",
+ "_correction": "2026-10-18 (audits M24 + L14): cost_decomposition_measured_on_production.api_state.median_ms 929 → 922 (the median of the recorded runs [997, 847] is (997+847)/2 = 922, not 929); the derived arm_query_ms 205.2 → 201.8 (solved from 2a + 8*64.8 = 922); closure_check updated to 4*201.8 + 197*64.8 = 13.57s vs measured 13.51s (within 0.5%). Also: 'the two-arm reachability queries carry only ~0.8s total' → 'the arm reachability queries (4 arms) carry only ~0.8s total' — the same receipt's closure check prices the old plan at 4 arms, not two. The api_proposal median (11991 of [12021, 12006, 11976, 11799]) was computed correctly and is unchanged; the round-trip-bound finding is unchanged.",
+ "_note": "2026-10-18 (audit X2): redacted the live-engine endpoint fragment (partial hostname + RESP port) from cloud_engine and repro_when_creds_available — a public receipt must not carry the plaintext-leg instance's endpoint; the engine identity is fully stated as 'FalkorDB Cloud free tier, ap-south-1'."
 }

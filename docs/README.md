@@ -17,41 +17,26 @@ architecture; this page is the map of the supporting documents.
 ## The documentation map
 
 ```mermaid
-mindmap
-  root((SEVER docs))
-    Judge path
-      DEMO_SCRIPT
-        3-minute walkthrough
-        beat table with receipts
-      JUDGE_QA
-        hostile Q and A armor
-    The story
-      BLOG_POST
-        advice vs closed loop
-      INCIDENTS
-        six real kill chains mapped
-    The engine contract
-      GRAPH_MODEL
-        labels, rels, traversal set
-      CYPHER
-        every load-bearing query
-      T2_MEMORY
-        case memory state flow
-    The audits
-      AUDIT_DEPLOY
-        Render topology and health path
-      security_audit
-        secrets, injection seams, XSS
-    Research
-      DIFFERENTIATION
-        honest wins and losses matrix
-      RESEARCH_COMPETITORS
-      RESEARCH_FALKORDB_ECOSYSTEM
-      RESEARCH_PRIOR_ART
-    The receipts
-      receipts folder
-        fifteen receipt artifacts
-        audit3_mem adversarial set
+flowchart LR
+    R["SEVER docs"] --> J["Judge path"]
+    J --> DS["DEMO_SCRIPT<br/>3-minute walkthrough<br/>beat table with receipts"]
+    J --> JQ["JUDGE_QA<br/>hostile Q and A armor"]
+    R --> ST["The story"]
+    ST --> BP["BLOG_POST<br/>advice vs closed loop"]
+    ST --> IN["INCIDENTS<br/>six real kill chains mapped"]
+    R --> EC["The engine contract"]
+    EC --> GM["GRAPH_MODEL<br/>labels, rels, traversal set"]
+    EC --> CY["CYPHER<br/>every load-bearing query"]
+    EC --> T2["T2_MEMORY<br/>case memory state flow"]
+    R --> AU["The audits"]
+    AU --> AD["AUDIT_DEPLOY<br/>Render topology and health path"]
+    AU --> SA["security_audit<br/>secrets, injection seams, XSS"]
+    R --> RE["Research"]
+    RE --> DF["DIFFERENTIATION<br/>honest wins and losses matrix"]
+    RE --> RC["RESEARCH_COMPETITORS"]
+    RE --> RF["RESEARCH_FALKORDB_ECOSYSTEM"]
+    RE --> RP["RESEARCH_PRIOR_ART"]
+    R --> RR["The receipts<br/>fifteen receipt artifacts<br/>plus the audit3_mem adversarial set"]
 ```
 
 ## Doc-by-doc
@@ -89,7 +74,7 @@ free-tier receipts (ap-south-1, v4.22.0).
 | [`receipts/plan_receipt.json`](receipts/plan_receipt.json) | k-cut plan projected on an isolated `GRAPH.COPY`, then executed step-wise | plan ~0.96s; collateral-aware proposal ~0.90s; executed step `collapsed`, no drift |
 | [`receipts/scale_wall.json`](receipts/scale_wall.json) | the multi-tenant scale wall | 300 tenants / 444,000 nodes / 3,735,000 edges / 1.594 GiB / median 4.67ms (p95 4.81ms, flat) |
 | [`receipts/ablation.json`](receipts/ablation.json) | graph traversal vs keyword-only retrieval, live engine | graph 5/5 vs keyword 0/5 |
-| [`receipts/profile.txt`](receipts/profile.txt) | in-engine `GRAPH.PROFILE` receipt (falkordb 6.0.0) | canonical path query median 1.13ms; point lookups ~0.26ms |
+| [`receipts/profile.txt`](receipts/profile.txt) | in-engine `GRAPH.PROFILE` receipt (falkordb 6.0.0) | canonical path query median 1.13ms; point lookups ~0.53ms (sum of the printed rows; see the receipt's correction note) |
 | [`receipts/receipts_cloud_live.json`](receipts/receipts_cloud_live.json) | the hero arc on FalkorDB Cloud free tier (ap-south-1) | 16.75s over-the-wire auto-load; final reachability 0 |
 | [`receipts/audit5_cloud_instance.json`](receipts/audit5_cloud_instance.json) | live Cloud instance probe: modules, memory ceiling, ACL surface | engine v4.22.0; 100 MiB maxmemory; CONFIG/ACL/KEYS/DEBUG/SAVE denied |
 | [`receipts/audit3_mem/`](receipts/audit3_mem/) | memory-flow adversarial verification: interleaved-case isolation, kill-9 durability, `DEL` fail-closed, concurrent ledger | fresh-process resume verbatim: "triage was remembered from case memory" |
