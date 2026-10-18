@@ -4,7 +4,7 @@ for the cross-process beat (scripts/case_memory_live.py demonstrates the
 two-process version end to end)."""
 from __future__ import annotations
 
-from tests.conftest import drop_graph
+from tests.conftest import drop_graph, prefixed
 
 import os
 
@@ -19,6 +19,9 @@ from sever.memory.flow import (
 )
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"
+# the FalkorDBSaver beat's checkpoint graph — prefixed so parallel suites
+# namespace it like every other engine key (audit L98)
+CHECKPOINTS_GRAPH = "sever_test_memory_checkpoints"
 pytestmark = [requires_engine, requires_sample]
 
 
@@ -30,8 +33,10 @@ def live_port():
     # audit L98: the FalkorDBSaver cross-process beat (below) creates the
     # sever_test_memory_checkpoints graph on the engine and nothing ever
     # dropped it — it was live-observed persisted on the shared engine.
-    # drop_graph is idempotent, so this is a no-op for the other tests.
-    drop_graph(port, "sever_test_memory_checkpoints")
+    # The saver's database name is routed through prefixed() below so the
+    # fixture teardown drops the SAME key the beat created, prefixed runs
+    # included (prefixed() is idempotent).
+    drop_graph(port, prefixed(CHECKPOINTS_GRAPH))
 
 
 def test_flow_pauses_at_gate_and_resumes_with_approval(live_port):
@@ -111,7 +116,7 @@ def test_falkordb_saver_checkpointer_roundtrip(live_port):
     saver = checkpoint.FalkorDBSaver(
         host=os.environ.get("SEVER_FALKOR_HOST", "127.0.0.1"),
         port=int(os.environ.get("SEVER_FALKOR_PORT", "6379")),
-        database="sever_test_memory_checkpoints",
+        database=prefixed(CHECKPOINTS_GRAPH),
     )
     flow = build_flow(live_port, checkpointer=saver)
     pending = start_investigation(flow, Finding("F-9", "credential_breach", HERO), "case-DB")
