@@ -697,7 +697,7 @@
       const secs = Math.floor((performance.now() - t0) / 1000);
       if (el) el.textContent = secs + 's elapsed';
       if (note && secs >= 10 && !note.textContent)
-        note.textContent = '(this can take ~15s on the free-tier engine)';
+        note.textContent = '(if this exceeds 10s the engine may be cold or stalled)';
     }, 1000);
   }
   function banner(html, flag) {
@@ -842,7 +842,13 @@
       // is last-known and must never read as fresh.
       // (audit7/perf-ui: conditional write — same-value class writes still
       // invalidate style on every failing tick.)
-      if ($('estate-chip').className !== 'chip paused') $('estate-chip').className = 'chip paused';
+      // H18: toggle the stale state on the hero's estate readout WITHOUT
+      // destroying its layout class — the old 'chip paused' className write
+      // replaced 'hero-facts' with 'chip' and crammed the 4-stat grid into a
+      // tiny inline chip, forever. classList keeps the grid; the .paused rule
+      // tints the stat values amber and the next successful refresh clears it.
+      const ec = $('estate-chip');
+      if (ec && !ec.classList.contains('paused')) ec.classList.add('paused');
       // audit6 merge: the estate readout lives in the hero now (ui-ia) — the
       // last-known/unavailable line goes to the hero's estate detail, never
       // to the removed header-chip label.
@@ -870,6 +876,16 @@
     setText('stat-edges', s.edges.toLocaleString());
     setText('stat-jewels', s.jewels.length.toLocaleString());
     setText('stat-owned', s.owned.length.toLocaleString());
+    // H18: a successful refresh clears the stale (paused) state on the hero
+    // facts grid — the outage marker must never outlive the outage.
+    const ec = $('estate-chip');
+    if (ec && ec.classList.contains('paused')) ec.classList.remove('paused');
+    // M54: capture the last-known estate facts on every successful refresh so
+    // the engine-down lane can say WHAT the stale numbers below are (the
+    // estateFacts branch used to be dead — never assigned anywhere).
+    state.estateFacts = s.nodes.toLocaleString() + ' nodes · ' + s.edges.toLocaleString() + ' edges · ' +
+                        s.jewels.length + ' crown jewel' + (s.jewels.length === 1 ? '' : 's') + ' · ' +
+                        s.owned.length + ' owned';
     const at = new Date().toLocaleTimeString();
     state.lastAt = at;
     // audit7/perf-ui: one conditional write — the old setText+tickText pair
@@ -1032,37 +1048,59 @@
       const badgeFor = (s) => s === 'cut' || s === 'cut_failed' ? 'cut'
         : (s === 'finding' || s === 'finding_failed' ? 'finding'
         : (s === 'plan' || s.indexOf('plan') === 0 ? 'plan'
-        : (s === 'state' || s === 'estate_loaded' || s === 'estate_missing' || s === 'ledger_repair' ? 'sys' : '')));
+        : (s === 'state' || s === 'estate_loaded' || s === 'estate_missing' || s === 'ledger_repair' || s === 'console_boot_failed' ? 'sys' : '')));
       // system events (poll noise, estate lifecycle, ledger self-repair) sit
       // in a quieter lane; failed attempts carry a danger accent — an honest
-      // failure must never read the same as a success.
+      // failure must never read the same as a success (M56: that includes
+      // plan_failed / console_boot_failed, and the agent lane's
+      // plan_gate_refused — a refusal is not a success either).
       const sysEv = step === 'state' || step === 'estate_loaded' || step === 'estate_missing' || step === 'ledger_repair';
-      const failedEv = /_failed$/.test(step);
+      const failedEv = /_failed$/.test(step) || step === 'plan_gate_refused';
       let line = '', delta = null, op = null;
       if (step === 'cut' && e.receipt) {
-        const rc = e.receipt;
+        // M55: a torn/partial ledger entry must render as '?', never
+        // TypeError inside refresh()'s receipts map — guard every nested
+        // deref the need() shape-check does not cover.
+        const rc = e.receipt || {};
+        const cut = rc.cut || {};
         delta = { before: (rc.before ? rc.before.reachability : null), after: (rc.after ? rc.after.reachability : null) };
         op = rc.approved_by || null;
-        line = 'cut ' + short(rc.cut.src) + ' -[' + rc.cut.rel + ']-> ' + short(rc.cut.dst) +
-               ' · removed ' + rc.cut.relationships_removed +
-               ' · re-query ' + rc.requery_ms + 'ms · verdict ' + rc.verdict + ' · by ' + rc.approved_by;
+        line = 'cut ' + short(cut.src || '?') + ' -[' + (cut.rel || '?') + ']-> ' + short(cut.dst || '?') +
+               ' · removed ' + (cut.relationships_removed ?? '?') +
+               ' · re-query ' + (rc.requery_ms ?? '?') + 'ms · verdict ' + (rc.verdict ?? '?') + ' · by ' + (rc.approved_by ?? '?');
       } else if (step === 'plan' && e.plan) {
         const pl = e.plan;
         line = 'plan · k=' + (pl.k ?? '?') + ' · ' + (pl.steps ? pl.steps.length : 0) + ' step(s)' +
-               ' · base reachability ' + (pl.base ? pl.base.reachability : '?') +
+               ' · base reachability ' + (pl.base ? (pl.base.reachability ?? '?') : '?') +
                ' · projections measured on an isolated copy';
       } else if (step === 'plan_execute' && e.result) {
         const rr = e.result;
         const steps = rr.steps || [];
         const lastStep = steps.length ? steps[steps.length - 1] : null;
-        delta = { before: steps.length ? steps[0].before.reachability : null, after: lastStep ? lastStep.after.reachability : null };
-        op = steps.length ? (steps[0].approved_by || null) : null;
+        // M55: torn step receipts render '?' instead of crashing the render
+        delta = { before: steps.length ? (steps[0]?.before?.reachability ?? null) : null, after: lastStep ? (lastStep?.after?.reachability ?? null) : null };
+        op = steps.length ? (steps[0]?.approved_by || null) : null;
         line = 'plan execute · ' + String(rr.status).replace(/_/g, ' ') + ' · ' + rr.executed_steps + ' step(s)' +
                (String(rr.status).indexOf('drift') >= 0 ? ' · projection drift — re-plan needed' : '') +
                (lastStep && lastStep.plan_drift ? ' · step ' + lastStep.plan_step + ' diverged from its projection' : '');
       } else if (step === 'plan_execute_failed') {
         line = 'plan execute failed · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
         op = e.approved_by || null;
+      } else if (step === 'plan_failed' || step === 'console_boot_failed') {
+        // M56: outage/lifecycle failures the server ledgers deliberately
+        // (plan_failed, console_boot_failed) used to fall to the generic
+        // 'state · reachability ? · ? nodes' line — the failure the ledger
+        // recorded for exactly this purpose was invisible. Render the
+        // recorded error + outcome with the failed accent instead.
+        line = (step === 'plan_failed' ? 'plan failed' : 'console boot failed') +
+               ' · ' + (e.error || 'engine unreachable') + ' · outcome ' + (e.outcome || '?');
+      } else if (step === 'plan_gate_refused') {
+        // M56, agent lane: the per-step human gate was not satisfied — the
+        // refusal shows the attempted step/cut, never a phantom success and
+        // never as poll noise.
+        line = 'plan gate refused · step ' + (e.plan_step ?? '?') +
+               ' · the human gate was not satisfied, nothing was executed' +
+               (e.cut ? ' · attempted ' + short(e.cut.src || '?') + ' -[' + (e.cut.rel || '?') + ']-> ' + short(e.cut.dst || '?') : '');
       } else if (step === 'finding' && e.triage) {
         delta = { before: (e.triage.before ? e.triage.before.reachability : null), after: (e.triage.after ? e.triage.after.reachability : null) };
         line = 'finding ' + e.finding + ' · ' + e.kind;
@@ -1147,10 +1185,12 @@
     state.pending = null;
     removeEscape();
     if (!p) return;
-    // INVARIANT: at most ONE armed gate may exist in the DOM. Under load the
-    // refresh swap + re-arm can overlap (ryzen full-suite caught two armed
-    // generations resolving at once) — sweep EVERY armed CTA, not just the
-    // querySelector-first match, so a stray second confirm can never linger.
+    // INVARIANT: at most ONE armed gate may exist in the DOM. Per card this
+    // sweep retires every armed single-cut CTA (under load the refresh swap +
+    // re-arm can overlap — ryzen full-suite caught two armed generations
+    // resolving at once — so sweep EVERY armed CTA, not just the
+    // querySelector-first match); across cards armGate/armPlanGate disarm
+    // each other (L56), so two CONFIRM buttons can never be armed at once.
     document.querySelectorAll('#proposal .prop-cta .confirm').forEach((cf) => {
       const cta = cf.closest('.prop-cta');
       const hadFocus = cf === document.activeElement || cta.contains(document.activeElement);
@@ -1238,6 +1278,10 @@
   }
   function armGate(src, dst, rel) {
     disarmGate();
+    // L56: cross-card disarm — arming a single-cut gate retires an armed
+    // plan gate (renderPlan restores the APPROVE PLAN button), keeping the
+    // one-armed-gate invariant page-wide.
+    if (document.querySelector('#plan-body .confirm')) renderPlan();
     state.pending = { src, dst, rel };
     if (!renderGate(state.pending, true)) { state.pending = null; return; }
     removeEscape();
@@ -1279,17 +1323,28 @@
     // audit6/ui-flow: a fresh plan invalidates any prior execution's
     // per-step verdicts — the card starts from a clean projection state.
     state.planResult = null;
-    // audit7/perf-ui: the live-elapsed honest wait — on the free-tier cloud
-    // engine this GET sat with a visually static banner for 13-14s and read
-    // as a frozen console (owner-reported); now every second ticks the
-    // elapsed counter and 10s+ sets the ~15s expectation.
+    // audit7/perf-ui: the live-elapsed honest wait — pre-fold this GET sat
+    // with a visually static banner for 13-14s on the free-tier cloud engine
+    // and read as a frozen console (owner-reported); the audit7 fold cut the
+    // plan's round-trips, so a plan now takes seconds — every second still
+    // ticks the elapsed counter and 10s+ sets the honest 'engine may be cold
+    // or stalled' expectation (L55).
     beginWait('planning a k=3 cut sequence — measuring projections on an isolated copy');
     try {
       state.plan = need(await api('/api/plan'), (b) => b && typeof b === 'object'
         && (typeof b.note === 'string'
             || (Array.isArray(b.steps) && b.steps.every((x) => x && x.cut
                 && typeof x.cut.src === 'string' && typeof x.cut.rel === 'string'
-                && typeof x.cut.dst === 'string'))), '/api/plan response');
+                && typeof x.cut.dst === 'string')))
+        // M55: renderPlan dereferences these too — validate them BEFORE the
+        // render so a wrong-shape plan surfaces as an honest malformed line
+        // (both plan_cut_sequence shapes always carry k/method/base and the
+        // per-step projection fields).
+        && typeof b.k === 'number' && typeof b.method === 'string'
+        && b.base && typeof b.base.reachability === 'number'
+        && (b.steps ? b.steps.every((x) => x && typeof x.paths_on === 'number'
+                && typeof x.projected_reachability === 'number') : true),
+        '/api/plan response');
       // audit7/perf-ui: the wait ends in a receipt, not silence — pre-fix
       // the 'planning…' line outlived the plan (the card appeared below
       // while the banner still said 'planning', the exact stale read the
@@ -1298,7 +1353,7 @@
       const steps = (state.plan.steps) || [];
       banner('<span class="technique">PLAN READY</span>' +
              '<span class="res">' + (steps.length
-               ? 'k=' + esc(state.plan.k) + ' · ' + steps.length + ' step sequence ranked · projections measured on an isolated copy — review and approve it in the remediation plan card'
+               ? 'k=' + esc(state.plan.k ?? '?') + ' · ' + steps.length + ' step sequence ranked · projections measured on an isolated copy — review and approve it in the remediation plan card'
                : esc(state.plan.note || 'nothing to plan — the estate surface is already collapsed')) + '</span>');
       renderPlan();
     } catch (e) {
@@ -1333,13 +1388,13 @@
         '<span class="rel">-[' + esc(s.cut.rel) + ']-></span>' +
         '<span class="ep" title="' + esc(rawTitle(s.cut.dst)) + '">' + esc(disp(s.cut.dst)) + '</span>' +
         '</div>' +
-        '<span class="quiet">kills ' + esc(s.paths_on) + ' path-edge occurrences' +
+        '<span class="quiet">kills ' + esc(s.paths_on ?? '?') + ' path-edge occurrences' +
         // benign_usage null = NOT measured (the fast-path proposal shape) — the
         // plan card must never print the literal 'null' (audit5/live-e2e); 0
         // is a real measurement (attacker-only edge) and renders as such.
         (s.benign_usage != null ? ' · benign ' + esc(s.benign_usage) + ' of ' + esc(plan.benign_sample_size != null ? plan.benign_sample_size : '?') + ' sampled' : ' · benign not measured') +
-        ' · projected reachability ' + esc(s.projected_reachability) +
-        (done && done.after ? ' → measured ' + esc(done.after.reachability) : '') +
+        ' · projected reachability ' + esc(s.projected_reachability ?? '?') +
+        (done && done.after ? ' → measured ' + esc(done.after.reachability ?? '?') : '') +
         '</span>' +
       '</div>' +
       (notRun
@@ -1351,7 +1406,7 @@
       '</div>';
     }).join('');
     const drift = result ? String(result.status).indexOf('drift') >= 0 : false;
-    const finalReach = result && result.steps && result.steps.length ? result.steps[result.steps.length - 1].after.reachability : '?';
+    const finalReach = result && result.steps && result.steps.length ? (result.steps[result.steps.length - 1]?.after?.reachability ?? '?') : '?';
     const summary = !result ? '' :
       (drift
         ? '<div class="plan-result drift-note"><b>drift-stop at step ' + esc(result.executed_steps) + '</b> — the live re-measure diverged from the projection, so the remaining step(s) were not executed: they were computed on a surface that no longer exists. Re-plan from the current estate.</div>'
@@ -1363,16 +1418,20 @@
       ? rows + summary + (result ? '' : '<div class="actions"><button class="btn approve" id="btn-plan-approve" type="button" aria-label="Approve the whole cut sequence">APPROVE PLAN</button></div>')
       : '<div class="empty" style="padding:12px 16px">' + esc(plan.note || 'nothing to plan — surface collapsed') + '</div>';
     $('plan-body').innerHTML =
-      '<div class="plan-meta">k=' + esc(plan.k) +
-      ' · base reachability ' + esc(plan.base ? plan.base.reachability : '?') +
-      ' · ' + esc(plan.method) + ' · projections measured on an isolated copy, re-measured live at execution</div>' +
+      '<div class="plan-meta">k=' + esc(plan.k ?? '?') +
+      ' · base reachability ' + esc(plan.base ? (plan.base.reachability ?? '?') : '?') +
+      ' · ' + esc(plan.method ?? '?') + ' · projections measured on an isolated copy, re-measured live at execution</div>' +
       body +
       '<div class="sys-note">' + esc(plan.honesty || '') + '</div>';
     const b = $('btn-plan-approve');
     if (b) b.addEventListener('click', armPlanGate);
   }
   function armPlanGate() {
-    // two-step gate, same contract as a single cut's APPROVE → CONFIRM
+    // two-step gate, same contract as a single cut's APPROVE → CONFIRM.
+    // L56: page-wide armed-gate invariant — arming the plan gate disarms any
+    // armed single-cut gate (and armGate disarms this one), so at most ONE
+    // CONFIRM button is ever armed in the DOM, across both cards.
+    cancelGate();
     const cta = document.querySelector('#plan-body .actions');
     // audit6/ui-flow: same staged language as the single-cut gate — amber
     // armed flag, solid-danger CONFIRM, quiet cancel. (No Escape hint here:
@@ -1382,7 +1441,14 @@
       '<button class="btn confirm" id="btn-plan-confirm" type="button" aria-label="Confirm the plan">CONFIRM PLAN</button>' +
       '<button class="btn cancel" id="btn-plan-cancel" type="button" aria-label="Cancel the plan">cancel</button>';
     $('btn-plan-confirm').addEventListener('click', executePlan);
-    $('btn-plan-cancel').addEventListener('click', renderPlan);
+    $('btn-plan-cancel').addEventListener('click', () => {
+      // L57: the rebuild destroys the focused cancel button — restore focus
+      // to the re-rendered APPROVE PLAN button, mirroring the single-cut
+      // gate's pinned focus restoration (never drop focus to <body>).
+      renderPlan();
+      const b = $('btn-plan-approve');
+      if (b) b.focus();
+    });
     $('btn-plan-confirm').focus();
   }
   async function executePlan() {
@@ -1406,23 +1472,27 @@
           })),
         }),
       }), (b) => b && typeof b === 'object' && typeof b.status === 'string'
-        && typeof b.executed_steps === 'number' && Array.isArray(b.steps),
+        && typeof b.executed_steps === 'number' && Array.isArray(b.steps)
+        // M55: the renderers dereference steps[0].before / lastStep.after —
+        // validate the nested step shape (or its absence) up front so a torn
+        // result renders as a malformed line, never a JS stack fragment.
+        && b.steps.every((x) => x == null || (typeof x === 'object'
+            && (x.before == null || (x.before && typeof x.before.reachability === 'number'))
+            && (x.after == null || (x.after && typeof x.after.reachability === 'number')))),
         'plan result');
-      const last = r.steps && r.steps.length ? r.steps[r.steps.length - 1].after.reachability : '?';
+      const last = r.steps && r.steps.length ? (r.steps[r.steps.length - 1]?.after?.reachability ?? '?') : '?';
       // audit6/ui-flow: keep the measured per-step receipts — renderPlan
       // flips the verdict chips to live re-measures, dims the steps the
       // drift-stop skipped, and retires the APPROVE button (the sequence
       // is history once executed; a stale sequence is what drift exists
       // to prevent).
       state.planResult = r;
-      banner('<span class="technique">PLAN RECEIPT · ' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
-             'executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
-             (String(r.status).indexOf('drift') >= 0
-               ? ' · projection drift — later steps NOT executed, re-plan needed'
-               : ' · every step matched its live re-measure'));
       renderPlan();
-      // same receipt hierarchy as the single cut: the status is the hero
-      // line; the executed count and end reachability sit beneath it.
+      // same receipt hierarchy as the single cut (M58: ONE banner — the dead
+      // first banner call this render used to precede was merge debris the
+      // same-task overwrite made unseeable, and its byte string only ever
+      // existed in that dead call): the status is the hero line; the executed
+      // count and end reachability sit beneath it.
       banner('<span class="technique">PLAN RECEIPT</span>' +
              '<span class="verdict ' + (String(r.status) === 'completed' ? 'v-ok' : 'v-warn') + '">' + esc(String(r.status).replace(/_/g, ' ')) + '</span>' +
              '<span class="res">executed ' + esc(r.executed_steps) + ' step(s) · reachability → <b>' + esc(last) + '</b>' +
