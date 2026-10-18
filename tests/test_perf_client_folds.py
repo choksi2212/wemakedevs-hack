@@ -5,7 +5,9 @@ engine round-trips to <= 3 by folding the accessor fan-out into ONE combined
 snapshot statement (ESTATE_SNAPSHOT_QUERY), keeping the two reachability arms
 byte-identical but concurrent, folding the per-jewel canonical path queries
 into one statement, and folding edge_frequency's owned x jewels fan-out into
-one UNWIND statement.
+one owned-set batched statement (the UNWIND form is unusable on falkordb
+6.0.0 — a live-verified parser quirk loses the UNWIND binding before MATCH;
+the shipped batch uses the reachability arms' owned-set predicate instead).
 
 Every fold is pinned here as EQUIVALENT to the legacy per-query forms:
 
@@ -21,8 +23,8 @@ DB-free section (always runs):
 
 Engine section (requires_engine + requires_sample, falkordb 6.0.0):
 - every folded accessor == an independent re-query of the documented
-  single-purpose queries (the values /api/state used to pay 6 round-trips
-  for, computed again the old way);
+  single-purpose queries (the values the SIX accessor queries /api/state
+  used to issue, computed again the old way);
 - paths_to_jewels == the per-jewel canonical loop (oracle), same order;
 - edge_frequency == the legacy owned x jewels double loop (oracle),
   insertion-order-identical dict;
@@ -30,9 +32,11 @@ Engine section (requires_engine + requires_sample, falkordb 6.0.0):
   invariant, same shape as test_live_interdiction_invariants);
 - invalidation: mark_owned / add_edge / cut / raw CREATE / drop_graph are all
   visible to the very next read — zero stale answers;
-- THE TARGET PIN: the exact /api/state accessor sequence costs <= 3 engine
-  round-trips on the sample estate (was 11 — a regression to the fan-out
-  fails the suite);
+- THE TARGET PIN: the port-level accessor sequence behind /api/state
+  (node count, edge count, jewels, owned, owned re-read, reachability)
+  costs <= 3 engine round-trips on the sample estate (was 11 — a
+  regression to the fan-out fails the suite; the /api/state HANDLER has
+  its own fold, pinned in tests/test_console_perf_folds.py);
 - the API response itself: /api/state through the real handler == the dict
   the legacy queries produce (identical API response contract).
 """
@@ -183,7 +187,8 @@ def test_write_clause_query_invalidates_snapshot():
     g._estate["edges"] = 11
     port.graph.query("CREATE (x:User {objectid: 'x'})")
     assert port.edge_count() == 11, "write-clause query must invalidate the snapshot"
-    assert len(g.calls) == 3  # snapshot, write, legacy re-read
+    assert len(g.calls) == 3  # snapshot, write, snapshot re-fetch
+    assert g.calls[2][0] == ESTATE_SNAPSHOT_QUERY
 
 
 def test_readonly_query_does_not_invalidate():
@@ -379,19 +384,22 @@ def test_reachability_equals_two_arm_replica(port):
 @requires_engine
 @requires_sample
 def test_per_owned_arms_match_per_pair_reference(port):
-    """The per-owned arm form (used on engines < falkordb 6.0.0, where the
-    all-owned cross form undercounts with 2+ owned principals — live-measured
-    on the managed Cloud 4.22.0: 2 owned -> 0 reachable vs the per-pair
-    probe's 1) must classify EVERY principal exactly as the product's own
-    per-pair existence probe does. Pinned here on the local engine with a
-    mixed estate: one reaching principal and one that does not reach."""
+    """The per-owned arm form is retained VERBATIM as a pinning artifact
+    (fleet-7 lineage): NO production path selects it — reachability() runs
+    the all-owned arms on engines the version probe vouches for (>= 6.0.0)
+    and the per-pair existence loop everywhere else (audit C1). Its parity
+    with the product's own per-pair existence probe is pinned here on the
+    local (modern) engine with a mixed estate — one reaching principal and
+    one that does not reach — because on engines where the form evaluates
+    correctly it must classify EVERY principal exactly as the per-pair
+    probe does."""
     some_user = sorted(set(port.user_objectids()) - set(port.owned_ids()))[0]
     port.mark_owned(some_user)  # a second owned principal (does not reach)
     try:
         owned = port.owned_ids()
         jewels = _legacy_jewels(port)
         pattern = cypher_traversal_pattern(DEFAULT_HOP_CAP)
-        # per-owned arms (the old-engine reachability path)
+        # per-owned arms (pinning artifact — no production path selects them)
         per_owned: set[str] = set()
         for principal in owned:
             for arm in PER_OWNED_REACHABILITY_ARM_TEMPLATES:
@@ -454,21 +462,32 @@ def test_interdict_receipt_equals_independent_requery(port):
 
     top = max(port.edge_frequency(DEFAULT_HOP_CAP).items(), key=lambda kv: kv[1])[0]
     src, rel, dst = top
+    edges_before = port.edge_count()
     receipt = interdict(port, src, dst, rel)
     after = snapshot(port, DEFAULT_HOP_CAP)
     assert receipt["after"] == after, "cut receipt must equal a fresh independent re-query"
-    # restore the estate so the module's other equivalence reads stay stable
-    port.add_edge(src, dst, rel)
+    # restore the estate so the module's other equivalence reads stay
+    # stable — and CHECK the restore (audit L101): the cut removed the
+    # edge, so re-adding it must succeed and land the edge count exactly
+    # back where it started
+    assert port.add_edge(src, dst, rel) is True, (
+        "the restore must actually re-create the cut edge"
+    )
+    assert port.edge_count() == edges_before, (
+        "the restore must return the estate to its pre-cut edge count"
+    )
 
 
 @requires_engine
 @requires_sample
 def test_state_sequence_roundtrips(port):
-    # THE TARGET PIN: the exact accessor sequence /api/state issues
+    # THE TARGET PIN: the port-level accessor sequence behind /api/state
     # (node count, edge count, jewels, owned, owned re-read, reachability)
-    # costs <= 3 engine round-trips on the sample estate. Before audit7
-    # this sequence was 11 sequential queries (measured: ryzen + Cloud).
-    # The warmup pass below absorbs the one-time engine-version probe.
+    # costs <= 3 engine round-trips on the sample estate — this pins the
+    # PORT layer's fold; the /api/state HANDLER has its own fold, pinned in
+    # tests/test_console_perf_folds.py. Before audit7 this sequence was 11
+    # sequential queries (measured: ryzen + Cloud). The warmup pass below
+    # absorbs the one-time engine-version probe.
     port.reachability()
     port.rt_reset()
     port.node_count()
@@ -555,6 +574,8 @@ def test_mutations_visible_immediately():
 def test_raw_create_through_port_graph_invalidates():
     name = prefixed(f"{P}_rawcreate")
     port = make_live_port(name, load_sample=False)
+    drop_graph(port, name)  # hermetic start (audit L103): a leftover key from
+    # a crashed previous run must never break the node_count() == 1 pin
     try:
         port.graph.query("CREATE (:User {objectid: 'u-a7', name: 'a7'})")
         assert port.node_count() == 1
@@ -575,11 +596,25 @@ def test_scratch_copy_seeds_snapshot_and_is_isolated(port):
         assert scratch._snapshot is not None, "copy+first-measure overlap must warm the copy"
         assert scratch.node_count() == port.node_count()
         assert scratch.owned_ids() == port.owned_ids()
-        # isolation: mutating the scratch must not leak into the live estate
+        # isolation with a REAL edge (audit L104): a ghost cut (0 removed on
+        # both sides) is exactly what scratch/live aliasing would also
+        # produce, so it proves nothing. Cut an edge that exists on the
+        # copy — the sample estate's top-frequency canonical-path edge —
+        # and require BOTH signs: the copy's own edge count drops, and the
+        # live estate's raw count is untouched.
         live_edges_before = int(
             port.graph.query("MATCH ()-[r]->() RETURN count(r)").result_set[0][0]
         )
-        scratch.cut("ghost-a7", "ghost-b7", "GENERIC_ALL")  # matches nothing: 0 removed
+        src, rel, dst = max(
+            port.edge_frequency(DEFAULT_HOP_CAP).items(), key=lambda kv: kv[1]
+        )[0]
+        scratch_edges_before = scratch.edge_count()
+        removed = scratch.cut(src, dst, rel)
+        assert removed >= 1, "the sampled edge must exist on the copy"
+        assert scratch.edge_count() == scratch_edges_before - removed, (
+            "the cut must land on the COPY's own estate — a scratch/live "
+            "aliasing would move the live count instead"
+        )
         assert int(
             port.graph.query("MATCH ()-[r]->() RETURN count(r)").result_set[0][0]
         ) == live_edges_before, "the live estate must be untouched by scratch mutations"
