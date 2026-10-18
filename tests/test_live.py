@@ -46,6 +46,8 @@ def test_estate_facts_and_cascade():
             assert receipt["cut"]["relationships_removed"] >= 1
             assert receipt["requery_ms"] is not None
             rounds += 1
-        assert port.reachability() == 0, f"cascade must collapse within {rounds} gated cuts"
+        assert port.reachability() == 0, (
+            f"cascade must collapse within 4 gated cuts (executed {rounds})"
+        )
     finally:
         drop_graph(port, "sever_test_live_cascade")
