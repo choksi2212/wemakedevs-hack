@@ -35,6 +35,44 @@ def test_concurrent_appends_interleave_only_whole_lines(tmp_path):
     assert len(seen) == 500, "no receipt may be lost or duplicated by interleaving"
 
 
+def test_two_process_concurrent_appends_lose_no_receipts(tmp_path):
+    """audit L82: the CaseLog's 'cross-PROCESS locked' claim was never
+    pinned — every concurrency test here spawned threads, and a lock that is
+    process-local (a threading.Lock, an unlocked O_APPEND on Windows) passes
+    all of them while tearing lines across processes. A real second process
+    (the same interpreter) appends to the same ledger file alongside the
+    parent: every receipt from BOTH sides must survive, byte-exact, with
+    zero torn lines."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import sever as _sever_pkg
+
+    repo_root = str(Path(_sever_pkg.__file__).resolve().parents[1])
+    log = CaseLog("sever_audit3_cl_twoproc", root=tmp_path)
+    child = tmp_path / "child_append.py"
+    child.write_text(
+        "import sys\n"
+        f"sys.path.insert(0, {repo_root!r})\n"
+        "from sever.memory.flow import CaseLog\n"
+        f"log = CaseLog('sever_audit3_cl_twoproc', root={str(tmp_path)!r})\n"
+        "for i in range(25):\n"
+        "    log.append({'step': 'finding', 'tid': 'child', 'i': i, 'pad': 'c' * 512})\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.Popen([sys.executable, str(child)])
+    for i in range(25):
+        log.append({"step": "finding", "tid": "parent", "i": i, "pad": "p" * 512})
+    proc.wait(timeout=120)
+    assert proc.returncode == 0, "the child writer must finish cleanly"
+
+    events = log.read()
+    assert len(events) == 50, "every receipt from BOTH processes must survive"
+    seen = {(e["tid"], e["i"]) for e in events}
+    assert len(seen) == 50, "no receipt may be lost or duplicated across processes"
+
+
 def test_append_never_rewrites_earlier_lines(tmp_path):
     log = CaseLog("t", root=tmp_path)
     log.append({"step": "a", "v": 1})
