@@ -911,17 +911,6 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         if probe is None or not arms_fold_ok:
             return None
         _nodes, _edges, owned, jewels = probe
-        base_reach = _arm_reach(port, owned, jewels, hop_cap)
-        if base_reach == 0:
-            return {
-                "k": 3,
-                "method": "graph_copy_remeasure",
-                "base": {"reachability": 0, "owned": owned, "jewels": jewels},
-                "benign_sample_size": BENIGN_SAMPLE_SIZE,
-                "steps": [],
-                "plan_completes_at_step": None,
-                "note": "surface already collapsed (0 breach paths) — nothing to plan",
-            }
         copier = getattr(port, "scratch_copy", None)
         if copier is None:
             raise TypeError(
@@ -935,6 +924,26 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         name = f"{getattr(port, 'graph_name', 'graph')}_plan_scratch_{os.urandom(4).hex()}"
         scratch = copier(name)
         try:
+            # audit M50 (parity with scoring.plan_cut_sequence, X53): the
+            # base is measured ON the scratch copy — the same isolated-estate
+            # state every step's projection is measured on, so "one receipt
+            # speaks about one estate state" (scoring.py's documented
+            # straddle refusal). Pre-fix the base was measured on the LIVE
+            # estate before the GRAPH.COPY, so a mutation landing between the
+            # read and the copy made the receipt's base describe a state the
+            # steps' projections never built on — exactly the live-read/copy
+            # straddle the claimed-parity ground truth documents and refuses.
+            base_reach = _arm_reach(scratch, owned, jewels, hop_cap)
+            if base_reach == 0:
+                return {
+                    "k": 3,
+                    "method": "graph_copy_remeasure",
+                    "base": {"reachability": 0, "owned": owned, "jewels": jewels},
+                    "benign_sample_size": BENIGN_SAMPLE_SIZE,
+                    "steps": [],
+                    "plan_completes_at_step": None,
+                    "note": "surface already collapsed (0 breach paths) — nothing to plan",
+                }
             # The benign pool cannot change across the plan's steps: the plan
             # only cuts edges on the scratch — nodes, owned flags and the
             # User pool are byte-identical to the live estate the probe just
