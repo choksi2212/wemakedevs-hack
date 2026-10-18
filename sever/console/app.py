@@ -748,8 +748,12 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # F900: on engines < 6.0.0 the arms undercount
         # (production served reach 0 with an owned principal) — those
         # engines answer through the port methods, exactly pre-fleet-7.
-        probe = _estate_probe(port)
-        if probe is None or not arms_fold_ok:
+        # audit L44: the arms gate is checked BEFORE the probe — its result
+        # is discarded on those engines anyway, so issuing it paid one
+        # wasted WAN round-trip on every state/paths/proposal/plan call
+        # against the deployed Cloud 4.22.0.
+        probe = _estate_probe(port) if arms_fold_ok else None
+        if probe is None:
             data = _state_data_slow()
         else:
             nodes, edges, owned, jewels = probe
@@ -819,9 +823,10 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # F900: the arms are cross-product forms — on engines < 6.0.0 they
         # undercount (production served paths [] with an owned principal),
         # so those engines keep the per-pair port loop, exactly pre-fleet-7.
-        probe = _estate_probe(port)
+        # audit L44: gate first, probe only when the folds may run.
+        probe = _estate_probe(port) if arms_fold_ok else None
         pairs = None
-        if probe is not None and arms_fold_ok:
+        if probe is not None:
             try:
                 pairs = _arm_pair_paths(port, inv.hop_cap)
             except _FoldUnsupported:
@@ -859,9 +864,10 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         # F900: the folded arms are cross-product forms — on engines < 6.0.0
         # they undercount, so those engines answer through inv.propose
         # (port.edge_frequency's per-pair legacy loop), exactly pre-fleet-7.
-        probe = _estate_probe(port)
+        # audit L44: gate first, probe only when the folds may run.
+        probe = _estate_probe(port) if arms_fold_ok else None
         out: list[dict[str, Any]]
-        if probe is None or not arms_fold_ok:
+        if probe is None:
             out = inv.propose(limit=5)
         else:
             _nodes, _edges, owned, _jewels = probe
@@ -908,8 +914,9 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
         itself there and the caller's inv.propose_plan (scoring's per-pair
         enumeration — the form production proved on the Cloud) answers."""
         hop_cap = inv.hop_cap
-        probe = _estate_probe(port)
-        if probe is None or not arms_fold_ok:
+        # audit L44: gate first, probe only when the folds may run.
+        probe = _estate_probe(port) if arms_fold_ok else None
+        if probe is None:
             return None
         _nodes, _edges, owned, jewels = probe
         copier = getattr(port, "scratch_copy", None)
