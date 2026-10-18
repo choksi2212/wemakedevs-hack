@@ -370,6 +370,33 @@ def test_caselog_namespaces_per_tenant(tmp_path):
     assert b.read() == []  # separate ledgers, no cross-tenant bleed
 
 
+def test_caselog_drops_a_caller_supplied_ts(tmp_path):
+    """Audit L72: append() stamps ``ts`` INSIDE the lock and explicitly drops
+    a caller-supplied one — the dict spread would otherwise let the caller
+    override the inside-lock stamp and break the ledger's monotonic
+    file-order time guarantee."""
+    log = CaseLog("sever_ts", root=tmp_path)
+    log.append({"step": "a", "ts": "1970-01-01T00:00:00+00:00"})
+    events = log.read()
+    assert events[0]["step"] == "a"
+    assert events[0]["ts"] != "1970-01-01T00:00:00+00:00", "caller ts must never win"
+    assert events[0]["ts"].startswith("2"), "a real UTC stamp took the slot"
+
+
+def test_caselog_repair_records_are_ts_stamped(tmp_path):
+    """Audit L73: the ledger_repair record is a read()-visible ledger event,
+    so it carries the same inside-lock ts every other line carries — it used
+    to be the one event on the ledger with no timestamp at all."""
+    log = CaseLog("sever_repair", root=tmp_path)
+    log.append({"step": "a"})
+    with log.path.open("a", encoding="utf-8") as f:
+        f.write('{"step": "torn", "fi')  # a writer died mid-line, no newline
+    log.append({"step": "c"})
+    events = log.read()
+    assert [e["step"] for e in events] == ["a", "ledger_repair", "c"]
+    assert all(e["ts"] for e in events), "the repair record is stamped too"
+
+
 # ---- CaseLog under concurrent PROCESSES (not threads) ----
 
 _CASELOG_WORKER = """

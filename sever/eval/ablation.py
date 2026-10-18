@@ -9,6 +9,20 @@ same questions about the estate, answered two ways against the REAL engine:
   mentions, but connectivity facts ("can A reach B?", "which single fix
   kills the paths?") are unanswerable without traversal.
 
+The keyword arm matches CASE-INSENSITIVELY (toLower(n.name) CONTAINS
+toLower($term), owner resolution #5 / audit M67): the pre-fix lowercase
+terms against the estate's uppercase names ('tonymontana' vs
+'T1_TONYMONTANA@PHANTOM.CORP') guaranteed ZERO hits for nodes that
+obviously exist — the 0/5 keyword score was partially a casing artifact,
+not a limit of text retrieval. The arm now finds the nodes it should and
+still honestly fails the connectivity questions.
+
+The cut target is picked with the PRODUCT's own deterministic ranking
+(rank_cut_candidates, audit M68): coverage desc then lexicographic
+(src, rel, dst) on ties — the same total order every receipt proposes
+with — so the ablation's "cut target" is exactly what SEVER would
+propose on the same estate state, not a dict-insertion-order tie-break.
+
     python -m sever.eval.ablation    # writes docs/receipts/ablation.json
 """
 from __future__ import annotations
@@ -18,14 +32,19 @@ from pathlib import Path
 from typing import Any
 
 from sever.core.port import GraphPort
+from sever.core.scoring import rank_cut_candidates
 
 HERO = "S-1-5-21-2697957641-2271029196-387917394-2110"          # T1_TONYMONTANA
 DA_PHANTOM = "S-1-5-21-2697957641-2271029196-387917394-512"      # DOMAIN ADMINS@PHANTOM
 
 
 def keyword_hits(port: GraphPort, *terms: str) -> int:
-    """Text-only retrieval on the live engine: nodes whose name mentions a term."""
-    clauses = " OR ".join(f"n.name CONTAINS ${i}" for i in range(len(terms)))
+    """Text-only retrieval on the live engine: nodes whose name mentions a
+    term. Case-INSENSITIVE (toLower on both sides, owner resolution #5 /
+    audit M67) so the baseline finds nodes that exist regardless of the
+    estate's casing convention — it must lose on connectivity, not on a
+    lowercase-term-vs-uppercase-name artifact."""
+    clauses = " OR ".join(f"toLower(n.name) CONTAINS toLower(${i})" for i in range(len(terms)))
     res = port.graph.query(
         f"MATCH (n) WHERE {clauses} RETURN count(n) AS hits",
         {str(i): t for i, t in enumerate(terms)},
@@ -40,27 +59,44 @@ def run_ablation(port: GraphPort) -> dict[str, Any]:
     hero_paths = port.paths_to_jewels(HERO)
     hero_reaches_da = any(p[-1][2] == DA_PHANTOM for p in hero_paths)
     freq = port.edge_frequency()
-    top_edge = max(freq.items(), key=lambda kv: kv[1])[0] if freq else None
-    port.cut(top_edge[0], top_edge[2], top_edge[1])
+    if not freq:
+        # audit L70: a raw TypeError here (max() on an empty sequence)
+        # told the operator nothing. Fail with the actual remedy instead.
+        raise SystemExit(
+            "no attack paths to score — the estate is empty or collapsed. "
+            "Download the official BloodHound CE sample and load it first "
+            "(README §9: docker compose up -d + the sample quickstart), "
+            "then rerun python -m sever.eval.ablation"
+        )
+    # the product's own deterministic ranking (audit M68): coverage desc,
+    # lexicographic (src, rel, dst) on ties — replay-identical with every
+    # proposal receipt, not a dict-insertion-order tie-break
+    top = rank_cut_candidates(freq, limit=1)[0]
+    port.cut(top["src"], top["dst"], top["rel"])
     reach_after_cut = port.reachability()
 
     dcsync = port.graph.query(
         "MATCH ()-[r:DCSYNC]->() RETURN count(r) AS n").result_set[0][0]
 
+    # Q1's answer and correctness are DERIVED from the measurement (audit
+    # L71): the pre-fix text hardcoded "Yes" and correct=True regardless of
+    # what reachability() measured.
+    hero_reaches_jewel = reach > 0
     questions: list[dict[str, Any]] = [
         {
             "question": "Can compromised T1_TONYMONTANA reach a crown jewel within 12 hops?",
-            "graph": {"answer": f"Yes — reachability {reach}; {len(hero_paths)} canonical "
+            "graph": {"answer": f"{'Yes' if hero_reaches_jewel else 'No'} — reachability "
+                                 f"{reach}; {len(hero_paths)} canonical "
                                  f"shortest paths enumerated (reaches Domain Admins: {hero_reaches_da})",
-                      "correct": True},
+                      "correct": hero_reaches_jewel},
             "keywords": {"answer": f"{keyword_hits(port, 'tonymontana', 'domain admins')} nodes "
                                     "mention the terms — connectivity undeterminable from text",
                          "correct": False},
         },
         {
             "question": "Which SINGLE edge lies on the most attack paths (the cut target)?",
-            "graph": {"answer": f"{top_edge[0]} -[{top_edge[1]}]-> {top_edge[2]} "
-                                 f"(on {freq[top_edge]} path-edge occurrences)",
+            "graph": {"answer": f"{top['src']} -[{top['rel']}]-> {top['dst']} "
+                                 f"(on {top['paths_on']} path-edge occurrences)",
                       "correct": True},
             "keywords": {"answer": "No text retrieval can rank edges by path coverage",
                          "correct": False},

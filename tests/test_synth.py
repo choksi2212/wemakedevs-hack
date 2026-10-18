@@ -159,6 +159,25 @@ def test_tenant_name_remap_splits_on_the_last_at_sign_only():
     assert "T002" in name
 
 
+def test_tenant_marker_is_not_doubled_and_domain_remap_is_case_insensitive():
+    """Audit L75/L76: the tenant marker reads TENANT001 — the pre-fix
+    f"@TENANT{suf}" with suf="T001" produced the doubled-T "@TENANTT001.CORP"
+    — and the domain remap rewrites lowercase/mixed-case first labels too
+    (the pre-fix ^[A-Z]+\\. regex let "Alpha.corp" pass through unremapped,
+    shared verbatim across tenants)."""
+    t = make_tenant(_tiny_base(), 1)
+    da = t.nodes["S-1-5-1000000000000021-111-512"]["props"]
+    assert da["name"] == "domain admins@TENANT001.CORP"
+    assert da["domain"] == "TENANT001.LOCAL"
+    base = NormalizedGraph()
+    base.add_node("S-1-5-21-111-1105", "User",
+                  {"name": "bob@Alpha.corp", "domain": "Alpha.corp"})
+    t2 = make_tenant(base, 1)
+    props = t2.nodes["S-1-5-1000000000000021-111-1105"]["props"]
+    assert props["name"] == "bob@TENANT001.CORP"
+    assert props["domain"] == "TENANT001.corp"  # mixed-case label remapped
+
+
 def test_tenant_nodes_without_names_are_left_alone():
     base = NormalizedGraph()
     base.add_node("S-1-5-21-111-1104", "User", {})  # no name prop at all

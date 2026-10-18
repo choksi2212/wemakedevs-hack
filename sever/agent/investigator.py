@@ -114,7 +114,14 @@ class Investigator:
     def _ledger_entry(self, event: dict[str, Any]) -> dict[str, Any]:
         """Every ledger step carries a unique sequential id and an ISO-8601
         UTC timestamp (with offset) — the receipts trail is auditable
-        end-to-end: complete steps, unique ids, unambiguous times."""
+        end-to-end: complete steps, unique ids, unambiguous times.
+
+        Event payloads use the ``event`` key for their KIND ("plan",
+        "plan_gate_refused", ...) so they can never clobber the sequential
+        ``step`` id or the ``ts`` stamp this method guarantees (audit M46/
+        X39/X71: a payload ``step`` key used to overwrite the counter id via
+        the ``**event`` spread, silently skipping ids and making ``step``
+        mixed-type across the ledger)."""
         self._step += 1
         return {
             "step": self._step,
@@ -151,7 +158,16 @@ class Investigator:
             # 0->1. A breach on a subject that does not resolve stays
             # honestly False.
             applied = True
-        paths = self.port.paths_to_jewels(finding.subject, self.hop_cap) if after["owned"] else []
+        # paths are enumerated for THE SUBJECT of this finding — gate on the
+        # subject's own ownership, not on the estate having any owned
+        # principal (audit L38: the estate-level gate narrated a non-owned
+        # subject's paths whenever some other principal was owned, which is
+        # a story about someone else's breach)
+        paths = (
+            self.port.paths_to_jewels(finding.subject, self.hop_cap)
+            if finding.subject in after["owned"]
+            else []
+        )
         story = narrate(finding)
 
         garnish = self._narrate_garnish(finding, paths)
@@ -199,7 +215,9 @@ class Investigator:
             self.port, k=k, hop_cap=self.hop_cap,
             benign_sample_size=benign_sample_size, scratch_name=scratch_name,
         )
-        self.case_log.append(self._ledger_entry({"step": "plan", "plan": plan}))
+        # the plan lands on the ledger with an EVENT-kind key: "step" stays
+        # the unique sequential id _ledger_entry stamps on every entry
+        self.case_log.append(self._ledger_entry({"event": "plan", "plan": plan}))
         return plan
 
     def execute_plan(
@@ -211,25 +229,31 @@ class Investigator:
     ) -> dict[str, Any]:
         """Execute a proposed plan STEP BY STEP through the human gate.
 
-        Every step is an individually-gated live cut with its own before/
-        after receipt, re-measured against the plan's projection. The first
+        Every step is a drift-checked live cut with its own before/after
+        receipt, re-measured against the plan's projection. The first
         step whose measured reachability diverges from the projection STOPS
         the plan — later steps were computed on a surface that no longer
-        exists, and SEVER does not execute stale projections. ``gate`` is an
-        optional per-step callable(step) -> bool consulted before each cut:
-        anything but the exact value True refuses the plan at that step with
-        NO mutation executed for it.
+        exists, and SEVER does not execute stale projections. Pass a
+        per-step ``gate`` callable(step) -> bool to require individual
+        human approval before each cut: anything but the exact value True
+        refuses the plan at that step with NO mutation executed for it.
         """
         if require_explicit_approval is not True:
             raise ValueError("plan execution requires explicit human approval")
+        steps = plan.get("steps", [])
+        if not steps:
+            # a zero-step plan is not a success story — name it honestly
+            # instead of reporting "completed" for executing nothing (N15)
+            return {"status": "nothing_to_do", "executed_steps": 0, "steps": []}
         receipts: list[dict[str, Any]] = []
         status = "completed"
         executed = 0
-        for step in plan.get("steps", []):
+        for step in steps:
             if gate is not None and gate(step) is not True:
                 status = "gate_refused_at_step"
+                # event-kind key: the sequential step id stays an int (M46)
                 self.case_log.append(self._ledger_entry({
-                    "step": "plan_gate_refused",
+                    "event": "plan_gate_refused",
                     "plan_step": step.get("step"),
                     "cut": step.get("cut"),
                 }))

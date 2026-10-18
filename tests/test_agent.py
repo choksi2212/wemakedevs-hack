@@ -661,3 +661,42 @@ def test_case_log_ledger_is_complete_after_a_full_loop():
 
     # and the stamped ledger is still plain JSON
     assert json.loads(json.dumps(entries)) == entries
+
+
+# ---- plan ledger entries: event-kind key, sequential int step ids (M46) ----
+
+
+def test_plan_ledger_entries_keep_sequential_ids_and_event_kind():
+    """Audit M46/X39/X71 (cross-agent ledger contract): plan and
+    plan_gate_refused entries carry their KIND under ``event`` — ``step``
+    stays the unique sequential int id on every entry. The pre-fix payload
+    key clobbered the counter id via the ``**event`` spread, so plan
+    entries carried no numeric id at all and the counter silently skipped
+    a number with no record of it."""
+    port = _tiny_port()
+    inv = Investigator(port, llm=OfflineNarrator())
+    inv.triage(Finding("F-001", "credential_breach", ALICE))
+    inv.propose_plan(k=3)
+    result = inv.execute_plan(inv.case_log[-1]["plan"], gate=lambda step: False)
+    assert result["status"] == "gate_refused_at_step"
+    assert result["executed_steps"] == 0
+    plan_entry, refusal = inv.case_log[-2], inv.case_log[-1]
+    assert plan_entry["event"] == "plan"
+    assert plan_entry["step"] == 2 and isinstance(plan_entry["step"], int)
+    assert plan_entry["plan"]["method"] == "graph_copy_remeasure"
+    assert refusal["event"] == "plan_gate_refused"
+    assert refusal["step"] == 3 and isinstance(refusal["step"], int)
+    assert refusal["plan_step"] == 1
+    # every entry on the ledger keeps the pure-int id sequence — no skips
+    assert [e["step"] for e in inv.case_log] == [1, 2, 3]
+    # and the stamped ledger is still plain JSON
+    assert json.loads(json.dumps(inv.case_log)) == inv.case_log
+
+
+def test_execute_plan_on_zero_step_plan_is_nothing_to_do():
+    """Audit N15: executing a plan with zero steps is not a success story —
+    the honest status is 'nothing_to_do', never 'completed'."""
+    inv = Investigator(_tiny_port())
+    result = inv.execute_plan({"steps": []}, approved_by="on-call-analyst")
+    assert result == {"status": "nothing_to_do", "executed_steps": 0, "steps": []}
+    assert inv.case_log == []  # nothing executed, nothing stamped
