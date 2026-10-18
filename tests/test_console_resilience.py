@@ -244,12 +244,14 @@ def test_engine_dead_before_the_probe_is_still_a_clean_503(console):
 
 def test_api_health_is_a_cheap_engine_probe_and_writes_no_receipt(console):
     """audit5/deploy-audit: Render's HTTP health check has a 5-second window.
-    /api/state runs five engine queries and measured 6-24s against the live
+    Pre-fold /api/state ran 11 sequential engine queries per poll (post-fold
+    3-4 cold / 1 warm, receipts-pinned) and measured 6-24s against the live
     FalkorDB Cloud under concurrent load — as the health path it caused an
-    instance-restart loop that wiped the ephemeral ledger roughly every 10
-    minutes. /api/health must touch the engine (one query — a dead engine
-    still fails the check) yet never append a receipt, so health-check
-    traffic cannot drown the demo ledger in `state` noise."""
+    instance-restart loop that wiped the ephemeral ledger (three boots in
+    ~11 minutes, live-verified 2026-10-16). /api/health must touch the
+    engine (one query — a dead engine still fails the check) yet never
+    append a receipt, so health-check traffic cannot drown the demo ledger
+    in `state` noise."""
     tc, fake = console
     r = tc.get("/api/health")
     assert r.status_code == 200

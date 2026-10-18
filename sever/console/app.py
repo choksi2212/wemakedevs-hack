@@ -61,8 +61,8 @@ reachability's own internal re-reads), GET /api/proposal 185, GET /api/plan
   that simultaneously preserves node count, edge count, the owned set AND
   the jewel set between two polls is the one thing the generation check
   cannot see; no console mutation can be silent (all bump the counter).
-  Receipt: cold poll 3 engine calls (probe + 2 arms), warm poll 1,
-  post-mutation poll 3 — from 11/11/11.
+  Receipt: cold poll 4 engine calls (probe + 2 arms + first-time name
+  lookups), warm poll 1, post-mutation poll 3 — from 11/11/11.
 - /api/plan runs the SAME greedy k=3 copy+measure algorithm as
   scoring.plan_cut_sequence (same scratch GRAPH.COPY isolation, same
   per-step re-measure, same verdict rules, byte-identical receipt fields),
@@ -690,12 +690,14 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         # audit5/deploy-audit: Render's HTTP health check needs a 2xx within
-        # its 5-second window. /api/state runs five engine queries (incl. the
-        # full reachability traversal) and measured 6-24s against FalkorDB
-        # Cloud under concurrent load — as the health path it missed its
-        # window, Render restarted the instance every ~60s of that, and each
-        # restart wiped the ephemeral receipts ledger (three instance boots
-        # in 21 minutes, live-verified 2026-10-16). This probe touches the
+        # its 5-second window. Pre-fold /api/state ran 11 sequential engine
+        # queries per poll (incl. the full reachability traversal — post-fold
+        # it is 3-4 cold / 1 warm, receipts-pinned) and measured 6-24s
+        # against FalkorDB Cloud under concurrent load — as the health path
+        # it missed its window and Render restarted the instance, and each
+        # restart wiped the ephemeral receipts ledger (three boots in ~11
+        # minutes, live-verified 2026-10-16 — the AUDIT_DEPLOY §4 boot log
+        # spans 00:50:34 to 01:01:47). This probe touches the
         # engine with ONE cheap query (a dead engine still 503s through the
         # shared outage handler, so fail-fast semantics are unchanged) and
         # never appends a receipt, so health-check traffic cannot drown the
@@ -737,8 +739,9 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
 
     @app.get("/api/state")
     def state() -> dict[str, Any]:
-        # audit7/perf-api: 11 sequential round-trips per poll folded to 3
-        # cold (probe + two arms) and 1 warm (the probe IS the cache check).
+        # audit7/perf-api: 11 sequential round-trips per poll folded to 4
+        # cold (probe + two arms + first-time name lookups) and 1 warm (the
+        # probe IS the cache check).
         # The fold refuses itself and falls back to the original path on any
         # dialect mismatch; an engine outage propagates to the 503 handler
         # exactly as before. F900: on engines < 6.0.0 the arms undercount
