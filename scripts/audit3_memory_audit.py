@@ -483,8 +483,8 @@ def do_durability(args: argparse.Namespace) -> int:
     # ---- hard-kill BOTH the console and the paused case holder ----
     receipt["kill_console"] = _taskkill(console.pid)
     receipt["kill_holder"] = _taskkill(holder_pid)
-    _check(receipt["kill_console"]["returncode"] == 0, "console hard-killed (taskkill /F /T)", failures)
-    _check(receipt["kill_holder"]["returncode"] == 0, "holder hard-killed (taskkill /F)", failures)
+    _check(receipt["kill_console"]["returncode"] == 0, "console hard-killed (process tree)", failures)
+    _check(receipt["kill_holder"]["returncode"] == 0, "holder hard-killed (no cleanup ran)", failures)
     _check(pid_path.exists(), "holder pidfile survived the hard kill (no cleanup ran)", failures)
     rekill = _taskkill(holder_pid)
     receipt["rekill_holder"] = rekill
