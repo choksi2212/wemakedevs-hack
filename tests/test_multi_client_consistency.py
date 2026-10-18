@@ -207,3 +207,17 @@ def test_empty_estate_gets_an_estate_missing_receipt(console):
     )
     # the marker precedes the state snapshot that observed the emptiness
     assert steps.index("estate_missing") < len(steps) - 1
+    # audit M49: while the estate STAYS missing, further polls append
+    # NOTHING — pre-fix every poll added estate_missing AND a state line
+    # (the change-key was reset to None behind the check's back), 8
+    # lines/minute per open tab: exactly the unbounded-growth failure the
+    # change-only logging and the /api/receipts bound were built against.
+    assert steps.count("estate_missing") == 1
+    assert steps.count("state") == 1, "the (0,0,0) transition logs once"
+    n_before = len(events)
+    for _ in range(3):
+        assert tc.get("/api/state").status_code == 200
+    events_after = [json.loads(l) for l in ledger.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(events_after) == n_before, (
+        "empty-estate poll traffic must not grow the receipts ledger"
+    )

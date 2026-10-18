@@ -714,7 +714,7 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
     # receipts ledger — 4 lines/minute of identical spam burying the cut and
     # finding receipts a judge actually needs to see. Log state only when it
     # changes; the transition itself is the receipt.
-    last_state_log: dict[str, Any] = {"key": None}
+    last_state_log: dict[str, Any] = {"key": None, "missing": False}
 
     def _state_data_slow() -> dict[str, Any]:
         """The original per-poll computation, verbatim — the fallback every
@@ -778,15 +778,29 @@ def build_app(port: GraphPort | None = None) -> FastAPI:
             # file survives it. Without a marker, cuts recorded before the
             # reset contradict the re-loaded estate and a judge cannot see
             # where the story broke.
-            log.append({
-                "step": "estate_missing",
-                "note": "graph is empty — the estate was deleted or reset outside "
-                        "this console; receipts continuity breaks here",
-            })
-            last_state_log["key"] = None
+            # audit M49: the marker fires ONCE per empty episode. Pre-fix,
+            # every poll while the estate stayed missing appended BOTH this
+            # marker AND a state line (the key below was reset to None behind
+            # the change-check's back) — 8 ledger lines/minute per open tab
+            # on the exact out-of-band-reset scenario the marker was built
+            # for, re-creating the unbounded-growth failure the /api/receipts
+            # bound and the change-only state logging were built against.
+            if not last_state_log["missing"]:
+                log.append({
+                    "step": "estate_missing",
+                    "note": "graph is empty — the estate was deleted or reset outside "
+                            "this console; receipts continuity breaks here",
+                })
+            last_state_log["missing"] = True
+        else:
+            # estate back: re-arm the detector so a LATER out-of-band reset
+            # marks its own discontinuity.
+            last_state_log["missing"] = False
         # audit5/judge-experience: /api/state is polled every 15s by every open
         # console tab — log state only when it CHANGES (the transition itself
         # is the receipt), so poll traffic cannot bury the cut/finding story.
+        # audit M49: the key is never reset behind the check's back — the
+        # (0,0,0) transition logs once and every further empty poll is silent.
         key = (data["reachability"], data["nodes"], data["edges"])
         if key != last_state_log["key"]:
             last_state_log["key"] = key
