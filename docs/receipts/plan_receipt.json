@@ -126,5 +126,6 @@
   "after": {
     "reachability": 0,
     "edges": 12449
-  }
+  },
+  "_note": "2026-10-18 (audit M26): captured by an audit4 worktree that is no longer in-tree — no script in the current tree regenerates this receipt (repo-wide grep finds no writer for plan_receipt.json or its collateral_aware_proposal_ms/plan_ms keys). See scripts/rehearse.py for the current demo-arc writer; the plan numbers above are not covered by the README's regenerable claim until a writer ships."
 }

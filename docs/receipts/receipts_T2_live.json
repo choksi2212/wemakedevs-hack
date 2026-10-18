@@ -46,5 +46,7 @@
     "approved_by": "on-call-analyst",
     "approved_at": "2026-10-15T16:12:20"
   },
-  "state_step": "verified"
+  "state_step": "verified",
+  "_correction": "2026-10-18 (audit M28): predates the shipped script and stamping code — no \"remembered\" block (scripts/case_memory_live.py's do_resume now writes one) and approved_at lacks the +00:00 UTC offset that the shipped approve_and_cut datetime stamping always emits, so regenerating this beat on the release tree produces a receipt with a different shape; the 2.47ms re-query value is from the pre-stamping-code tree.",
+  "_note": "2026-10-18 (audit L15): this receipt records only the final state — it carries no cross-process evidence fields (no pids, no two-step timeline, no resume stdout); the cross-process claim rests on the beat label and the audit3_mem receipts, not on fields captured in this file."
 }

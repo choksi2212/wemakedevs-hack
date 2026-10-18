@@ -318,5 +318,6 @@
       "approved_by": "on-call-analyst",
       "approved_at": "2026-10-15T16:10:47"
     }
-  ]
+  ],
+  "_correction": "2026-10-18 (audit M22): F-001 carries \"applied\": false for a credential_breach that stuck (owned [] → [hero], reachability 0→1) — captured pre-audit3-console-logic; the shipped sever/agent/investigator.py reports applied:true for a breach that sticks. (F-002/F-004 \"applied\": false is correct — those findings do not mutate the graph.) (audit M30): this receipt predates the shipped ledger stamps on four markers — generated_at and both cut approved_at values lack the +00:00 UTC offset the shipped stamping code always emits, the case_log entries carry no \"step\"/\"ts\" fields that the shipped _ledger_entry adds to every entry, and the shipped scripts/rehearse.py writes out/receipts_falkordb_sever_demo.json (this file's name predates it). The 2.28ms/2.34ms values are from the pre-release tree; regenerate via scripts/rehearse.py on the release tree to re-verify."
 }
