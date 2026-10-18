@@ -27,6 +27,11 @@ def live_port():
     port = make_live_port("sever_test_memory")
     yield port
     drop_graph(port, "sever_test_memory")
+    # audit L98: the FalkorDBSaver cross-process beat (below) creates the
+    # sever_test_memory_checkpoints graph on the engine and nothing ever
+    # dropped it — it was live-observed persisted on the shared engine.
+    # drop_graph is idempotent, so this is a no-op for the other tests.
+    drop_graph(port, "sever_test_memory_checkpoints")
 
 
 def test_flow_pauses_at_gate_and_resumes_with_approval(live_port):

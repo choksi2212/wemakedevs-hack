@@ -261,7 +261,7 @@ def test_double_resume_is_fail_closed_and_reexecutes_nothing_dbfree():
     with pytest.raises(ValueError, match="not paused at the gate"):
         resume_investigation(flow, "case-once", approve=True, approved_by="evil-twin")
 
-    assert port.cut_calls and len(port.cut_calls) == 1  # exactly one cut, ever
+    assert len(port.cut_calls) == 1  # exactly one cut, ever
     state = flow.get_state({"configurable": {"thread_id": "case-once"}}).values
     assert state["receipt"]["approved_by"] == "day-shift"  # not overwritten
 
@@ -392,7 +392,8 @@ def test_caselog_two_processes_concurrent_append_no_interleaved_partials(tmp_pat
     deployment shape): every line must be complete valid JSON, every event
     must survive, and no two events may share a line. Regression pin for the
     locked append — the unlocked append lost ~5-13% of events and minted
-    partial lines on Windows (measured 2x300x8KB and 2x400x0KB)."""
+    partial lines on Windows (historical motivating runs: 2x300x8KB and
+    2x400x0KB; this pin runs 2x150x2KB — audit N37)."""
     worker_script = tmp_path / "caselog_worker.py"
     worker_script.write_text(_CASELOG_WORKER, encoding="ascii")
 
