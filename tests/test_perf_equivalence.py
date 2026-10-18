@@ -3,10 +3,16 @@
 WHAT CHANGED (sever/core/scoring.py + sever/core/port.py ONLY):
 1. plan_cut_sequence measures its base AND every per-step projection with the
    per-(owned, jewel) canonical enumeration it already runs for edge scoring
-   (_reached_principals), replacing the two-arm all-pairs reachability query
-   — the 2-4s-per-traversal query on the multi-tenant cloud engine that made
-   a k=3 plan take 13-14s in production. Every step still re-enumerates the
-   MUTATED copy after its cut: re-routes stay visible, nothing is frozen.
+   (_reached_principals), replacing the two-arm all-pairs reachability query.
+   Receipted cost decomposition (docs/receipts/perf_cloud_plan.json — audit
+   M80 corrects this docstring's old "2-4s-per-traversal" claim): the
+   production k=3 plan was ROUND-TRIP-bound, not arm-bound — the four arm
+   queries measured ~205ms each and carried only ~0.8s of the ~13.5s plan,
+   while ~197 cheap round-trips at ~65ms carried ~12.8s. The arm removal is
+   real but modest; the load-bearing lever is the round-trip count, pinned
+   here as the 201 -> 11 fold (the batched seam below). Every step still
+   re-enumerates the MUTATED copy after its cut: re-routes stay visible,
+   nothing is frozen.
 2. benign_edge_usage enumerates the whole sampled pool through ONE
    canonical_paths_multi call — a GraphPort seam whose DEFAULT is the
    identical per-principal paths_to_jewels loop, and which a backend can
@@ -24,9 +30,11 @@ whose OWNED principal IS a jewel, the fake's own reachability() omits the
 0-hop breach that the engine (and the new plan) counts — pinned explicitly
 in test_owned_is_jewel_fake_divergence_is_engine_semantics.
 
-PERF PINS: the counting tests pin ZERO two-arm queries in the new plan and a
-deterministic round-trip ceiling; the receipt test measures old vs new vs
-batched wall times and writes docs/receipts-style JSON to
+PERF PINS: the counting tests pin ZERO two-arm queries in the new plan, an
+ABSOLUTE round-trip ceiling on the batched plan (receipted 11, pinned
+<= 20 — audit L105; the ratio >= 3 pin alone is ~6x looser than the
+receipted 201 -> 11) plus new < old, and the receipt test measures old vs
+new vs batched wall times and writes docs/receipts-style JSON to
 SEVER_PERF_RECEIPT_DIR when that env var is set.
 """
 from __future__ import annotations
@@ -539,14 +547,17 @@ class TestPlanEquivalenceEngine:
             old = old_plan(port, k=2)
             assert new == old, f"fuzz seed {seed} diverged"
             # derived reachability == the port's own two-arm count, per state
-            # the plan actually reasoned about (pre-plan, here)
-            if spec.owned:
-                jewels = set(port.crown_jewels())
-                paths = port.canonical_paths_multi(port.owned_ids(), DEFAULT_HOP_CAP, port.crown_jewels())
-                derived = len(
-                    {o for o, ps in paths.items() if ps} | (set(port.owned_ids()) & jewels)
-                )
-                assert derived == port.reachability(DEFAULT_HOP_CAP), seed
+            # the plan actually reasoned about (pre-plan, here) — for EVERY
+            # fuzz estate, empty-owned included (audit N43: the old
+            # if spec.owned guard skipped exactly the empty case, where a
+            # form that counted something with no owned principal would have
+            # gone unnoticed; canonical_paths_multi([]) == {} by construction)
+            jewels = set(port.crown_jewels())
+            paths = port.canonical_paths_multi(port.owned_ids(), DEFAULT_HOP_CAP, port.crown_jewels())
+            derived = len(
+                {o for o, ps in paths.items() if ps} | (set(port.owned_ids()) & jewels)
+            )
+            assert derived == port.reachability(DEFAULT_HOP_CAP), seed
         finally:
             drop_graph(port, gname)
 
@@ -706,7 +717,7 @@ class TestPlanPerfEngine:
         log = _QueryLog(monkeypatch)
 
         log.reset()
-        old = old_plan(sample_port, k=3)
+        old_plan(sample_port, k=3)
         old_summary = log.summary()
         assert old_summary["by_kind"].get("arm_reachability", {"n": 0})["n"] >= 4, (
             "the counting harness must see the old plan's arm queries"
@@ -733,6 +744,15 @@ class TestPlanPerfEngine:
         assert ratio >= 3, (
             f"seam round-trip cut below target: old={old_summary['total_queries']} "
             f"batched={batched_summary['total_queries']} ratio={ratio:.1f}x"
+        )
+        # ABSOLUTE ceiling (audit L105): the receipted batched plan on this
+        # frozen estate runs 11 round-trips (perf_plan_equivalence.json /
+        # perf_cloud_plan.json's 201 -> 11 fold) — ratio >= 3 alone would
+        # let a ~6x regression through, so the count is pinned absolutely
+        # too (deterministic: same estate, same plan, same seam)
+        assert batched_summary["total_queries"] <= 20, (
+            f"batched plan round-trips must stay absolutely bounded: "
+            f"batched={batched_summary['total_queries']} (receipted: 11)"
         )
 
     def test_plan_wall_time_and_receipts(self, sample_port, monkeypatch):
@@ -765,11 +785,15 @@ class TestPlanPerfEngine:
         batched_q = log.summary()
 
         def stats(walls):
+            # three runs cannot label percentiles (audit L106: the old
+            # p95/p99 were statistics over N=3 — p99 == max — impossible
+            # numbers that shipped into perf_plan_equivalence.json): report
+            # median/min/max, honest for N=3
             return {
                 "runs_ms": [round(w, 1) for w in walls],
                 "median_ms": round(statistics.median(walls), 1),
-                "p95_ms": round(statistics.quantiles(walls, n=20)[-1], 1),
-                "p99_ms": round(max(walls), 1),
+                "min_ms": round(min(walls), 1),
+                "max_ms": round(max(walls), 1),
             }
 
         receipt = {
@@ -792,10 +816,16 @@ class TestPlanPerfEngine:
                 "roundtrip_cut_vs_old_min_x": 3,
             },
         }
+        # optional receipt enrichment — one try per operation (audit L107:
+        # the old single bare except-pass could hide a failing MODULE LIST
+        # behind the PROFILEs and vice versa, and recorded nothing at all)
         try:
             receipt["engine"]["modules"] = str(
                 sample_port.graph.client.execute_command("MODULE", "LIST")[:1]
             )
+        except Exception as exc:  # engine metadata is optional, never fatal
+            receipt["engine"]["modules"] = f"unavailable: {exc}"
+        try:
             receipt["profile_arm_query"] = sample_port.profile(
                 REACHABILITY_ARM_TEMPLATES[0].format(
                     pattern=cypher_traversal_pattern(DEFAULT_HOP_CAP)
@@ -807,8 +837,8 @@ class TestPlanPerfEngine:
                 ),
                 {"pairs": [{"o": HERO, "j": j} for j in sample_port.crown_jewels()]},
             )
-        except Exception:
-            pass
+        except Exception as exc:  # PROFILE is optional, but never silent
+            receipt["profile_error"] = str(exc)
 
         # mission target: k=3 plan on the sample estate < 1.5s local
         assert statistics.median(new_walls) < 1500, receipt
