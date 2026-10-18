@@ -34,10 +34,12 @@ Math honesty (README material):
   per (owned, jewel) row, so it is the same measurement in a different form
   (pinned arm == per-pair == DB-free oracle in
   tests/test_live_interdiction_invariants.py, and old-vs-new receipts in
-  tests/test_perf_equivalence.py). It removes the all-pairs arm query —
-  the 2-4s-per-traversal query on the multi-tenant cloud engine that made a
-  k=3 plan take 13-14s — while still re-measuring the mutated copy after
-  every cut: the enumeration is fresh at every step, nothing is carried
+  tests/test_perf_equivalence.py). It removes the all-pairs arm
+  queries (measured ~205ms each, ~0.8s of the 13.5s cloud plan — see
+  docs/receipts/perf_cloud_plan.json's cost decomposition: the production
+  plan was ROUND-TRIP-bound, ~197 engine round-trips at ~65ms carrying
+  ~12.8s; the load-bearing win is the round-trip fold) — while still
+  re-measuring the mutated copy after every cut: the enumeration is fresh at every step, nothing is carried
   over from a pre-cut state.
 
 - "Kills most paths (N of M)" — never "all paths" unless re-measured to zero.
